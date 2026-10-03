@@ -1,9 +1,6 @@
 --[[
     誓言面板 — 卡密验证 + 主脚本
     卡密：誓言NB
-    各分支版本：
-      每秒+1个方块 = V1.0.3
-      木材大亨 / 最强战场 / 下水道 / 通用 = V1.0.0
 ]]
 
 local Players            = game:GetService("Players")
@@ -15,21 +12,11 @@ local RunService         = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
 
-local KEYS = {
-    ["誓言NB"] = true,
-}
+local KEYS = { ["誓言NB"] = true }
 
 --=========================================================
 --  游戏检测
 --=========================================================
-local TARGET_GAME_NAMES = {
-    "木材大亨", "Lumber", "Lumber Tycoon",
-    "最强战场", "Strongest Battlegrounds", "The Strongest Battlegrounds",
-    "每秒+1个方块", "每秒加一个方块", "每秒+1方块",
-    "每秒 +1 个方块", "每秒 +1个方块", "每秒+1 个方块",
-    "1 Block Per Second",
-    "下水道",
-}
 local TARGET_PLACE_IDS = { 13822889 }
 
 local function detectGame()
@@ -116,7 +103,7 @@ local function stroke(parent, color, thickness, transparency)
 end
 
 --=========================================================
---  飞行 V3（按 飞行v3.txt）
+--  飞行 V3
 --=========================================================
 local function startFlyV3()
     local main = Instance.new("ScreenGui")
@@ -429,10 +416,7 @@ local function startFlyV3()
         end)
     end)
     up.MouseLeave:Connect(function()
-        if tis then
-            tis:Disconnect()
-            tis = nil
-        end
+        if tis then tis:Disconnect() tis = nil end
     end)
 
     local dis
@@ -445,10 +429,7 @@ local function startFlyV3()
         end)
     end)
     down.MouseLeave:Connect(function()
-        if dis then
-            dis:Disconnect()
-            dis = nil
-        end
+        if dis then dis:Disconnect() dis = nil end
     end)
 
     game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(char)
@@ -664,10 +645,7 @@ local function buildMainPanel()
         BackgroundTransparency = 1,
     }, Main)
 
-    local TabDefs = {
-        { name = "信息" },
-        { name = "功能" },
-    }
+    local TabDefs = { { name = "信息" }, { name = "功能" } }
 
     local TabHolder = new("Frame", {
         Position = UDim2.new(0, 0, 0, 56),
@@ -1176,7 +1154,7 @@ local function buildMainPanel()
             addLine("自动放置 / 自动重生", 2)
             addLine("自动开蛋（列表 + 数量输入）", 3)
         elseif GAME_TYPE == "Generic" then
-            addLine("人物（移速 / 跳跃 / 无限跳）", 2)
+            addLine("人物（移速 / 跳跃 / 重力 / 无限跳）", 2)
             addLine("飞行（V3）", 3)
         else
             addLine("初始版本发布", 2)
@@ -1184,226 +1162,10 @@ local function buildMainPanel()
     end
 
     -- 页面 2：功能
-    if GAME_TYPE == "BlockPerSecond" then
-        local page = Pages[2]
-
-        local autoHeader = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 34),
-            BackgroundColor3 = Theme.Panel,
-            BorderSizePixel = 0,
-            LayoutOrder = 1,
-        }, page)
-        corner(autoHeader, 8)
-
-        local folderIcon = new("TextLabel", {
-            Size = UDim2.fromOffset(28, 28),
-            Position = UDim2.new(0, 4, 0.5, 0),
-            AnchorPoint = Vector2.new(0, 0.5),
-            BackgroundTransparency = 1,
-            Text = "📁",
-            Font = Enum.Font.GothamBold,
-            TextSize = 20,
-            TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextXAlignment = Enum.TextXAlignment.Center,
-            TextYAlignment = Enum.TextYAlignment.Center,
-        }, autoHeader)
-
-        new("TextLabel", {
-            Position = UDim2.new(0, 38, 0, 0),
-            Size = UDim2.new(1, -38, 1, 0),
-            BackgroundTransparency = 1,
-            Text = "自动",
-            Font = Enum.Font.GothamMedium,
-            TextSize = 13,
-            TextColor3 = Theme.Text,
-            TextXAlignment = Enum.TextXAlignment.Left,
-        }, autoHeader)
-
-        local headerBtn = new("TextButton", {
-            Size = UDim2.fromScale(1, 1),
-            BackgroundTransparency = 1,
-            Text = "",
-            AutoButtonColor = false,
-            ZIndex = 5,
-        }, autoHeader)
-
-        local autoContainer = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 0),
-            BackgroundTransparency = 1,
-            ClipsDescendants = true,
-            LayoutOrder = 2,
-        }, page)
-        new("UIListLayout", {
-            Padding = UDim.new(0, 8),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-        }, autoContainer)
-
-        local autoPlaceRunning = false
-        local autoPlaceBtn = new("TextButton", {
-            Size = UDim2.new(1, 0, 0, 40),
-            BackgroundColor3 = Theme.Accent,
-            BorderSizePixel = 0,
-            Text = "自动放置",
-            Font = Enum.Font.GothamBold,
-            TextSize = 14,
-            TextColor3 = Color3.fromRGB(12, 24, 16),
-            AutoButtonColor = false,
-            LayoutOrder = 1,
-        }, autoContainer)
-        corner(autoPlaceBtn, 10)
-
-        local placeStatus = new("TextLabel", {
-            Size = UDim2.new(1, 0, 0, 16),
-            BackgroundTransparency = 1,
-            Text = "未开启",
-            Font = Enum.Font.Gotham,
-            TextSize = 11,
-            TextColor3 = Theme.Sub,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            LayoutOrder = 2,
-        }, autoContainer)
-
-        autoPlaceBtn.MouseButton1Click:Connect(function()
-            if autoPlaceRunning then
-                autoPlaceRunning = false
-                autoPlaceBtn.Text = "自动放置"
-                placeStatus.Text = "已停止"
-                placeStatus.TextColor3 = Theme.Sub
-                TweenService:Create(autoPlaceBtn, TweenInfo.new(0.12), {
-                    BackgroundColor3 = Theme.Accent,
-                    TextColor3 = Color3.fromRGB(12, 24, 16),
-                }):Play()
-            else
-                autoPlaceRunning = true
-                autoPlaceBtn.Text = "停止自动放置"
-                placeStatus.Text = "运行中 (0.01s)"
-                placeStatus.TextColor3 = Theme.Accent
-                TweenService:Create(autoPlaceBtn, TweenInfo.new(0.12), {
-                    BackgroundColor3 = Theme.Red,
-                    TextColor3 = Color3.fromRGB(255, 255, 255),
-                }):Play()
-                task.spawn(function()
-                    local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes", 5)
-                    if not Remotes then
-                        autoPlaceRunning = false
-                        autoPlaceBtn.Text = "自动放置"
-                        placeStatus.Text = "找不到 Remotes"
-                        placeStatus.TextColor3 = Theme.Red
-                        return
-                    end
-                    local Event = Remotes:WaitForChild("PlaceBlock", 5)
-                    if not Event then
-                        autoPlaceRunning = false
-                        autoPlaceBtn.Text = "自动放置"
-                        placeStatus.Text = "找不到 PlaceBlock"
-                        placeStatus.TextColor3 = Theme.Red
-                        return
-                    end
-                    while autoPlaceRunning do
-                        pcall(function() Event:FireServer() end)
-                        task.wait(0.01)
-                    end
-                end)
-            end
-        end)
-
-        local autoRebirthRunning = false
-        local rebirthCount = 0
-        local autoRebirthBtn = new("TextButton", {
-            Size = UDim2.new(1, 0, 0, 40),
-            BackgroundColor3 = Theme.Accent,
-            BorderSizePixel = 0,
-            Text = "自动重生",
-            Font = Enum.Font.GothamBold,
-            TextSize = 14,
-            TextColor3 = Color3.fromRGB(12, 24, 16),
-            AutoButtonColor = false,
-            LayoutOrder = 3,
-        }, autoContainer)
-        corner(autoRebirthBtn, 10)
-
-        local rebirthStatus = new("TextLabel", {
-            Size = UDim2.new(1, 0, 0, 16),
-            BackgroundTransparency = 1,
-            Text = "未开启",
-            Font = Enum.Font.Gotham,
-            TextSize = 11,
-            TextColor3 = Theme.Sub,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            LayoutOrder = 4,
-        }, autoContainer)
-
-        autoRebirthBtn.MouseButton1Click:Connect(function()
-            if autoRebirthRunning then
-                autoRebirthRunning = false
-                autoRebirthBtn.Text = "自动重生"
-                rebirthStatus.Text = "已停止（共 " .. rebirthCount .. " 次）"
-                rebirthStatus.TextColor3 = Theme.Sub
-                TweenService:Create(autoRebirthBtn, TweenInfo.new(0.12), {
-                    BackgroundColor3 = Theme.Accent,
-                    TextColor3 = Color3.fromRGB(12, 24, 16),
-                }):Play()
-            else
-                autoRebirthRunning = true
-                rebirthCount = 0
-                autoRebirthBtn.Text = "停止自动重生"
-                rebirthStatus.Text = "运行中... 已重生 0 次"
-                rebirthStatus.TextColor3 = Theme.Accent
-                TweenService:Create(autoRebirthBtn, TweenInfo.new(0.12), {
-                    BackgroundColor3 = Theme.Red,
-                    TextColor3 = Color3.fromRGB(255, 255, 255),
-                }):Play()
-                task.spawn(function()
-                    local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes", 5)
-                    if not Remotes then
-                        autoRebirthRunning = false
-                        autoRebirthBtn.Text = "自动重生"
-                        rebirthStatus.Text = "找不到 Remotes"
-                        rebirthStatus.TextColor3 = Theme.Red
-                        return
-                    end
-                    local Event = Remotes:WaitForChild("Rebirth", 5)
-                    if not Event then
-                        autoRebirthRunning = false
-                        autoRebirthBtn.Text = "自动重生"
-                        rebirthStatus.Text = "找不到 Rebirth"
-                        rebirthStatus.TextColor3 = Theme.Red
-                        return
-                    end
-                    while autoRebirthRunning do
-                        local ok = pcall(function() Event:InvokeServer("RebirthShop") end)
-                        if ok then
-                            rebirthCount = rebirthCount + 1
-                            rebirthStatus.Text = "运行中... 已重生 " .. rebirthCount .. " 次"
-                        end
-                        task.wait(0.1)
-                    end
-                end)
-            end
-        end)
-
-        local autoExpanded = false
-        headerBtn.MouseButton1Click:Connect(function()
-            autoExpanded = not autoExpanded
-            if autoExpanded then
-                folderIcon.Text = "📂"
-                TweenService:Create(autoContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                    Size = UDim2.new(1, 0, 0, 136),
-                }):Play()
-            else
-                folderIcon.Text = "📁"
-                TweenService:Create(autoContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                    Size = UDim2.new(1, 0, 0, 0),
-                }):Play()
-            end
-        end)
-    end
-
-    -- 通用分支：人物 + 飞行 V3
     if GAME_TYPE == "Generic" then
         local page = Pages[2]
 
-        -- ===== 人物分区 =====
+        -- 人物分区
         local personHeader = new("Frame", {
             Size = UDim2.new(1, 0, 0, 34),
             BackgroundColor3 = Theme.Panel,
@@ -1444,7 +1206,7 @@ local function buildMainPanel()
             ZIndex = 5,
         }, personHeader)
 
-        local CONTENT_HEIGHT = 238
+        local CONTENT_HEIGHT = 340
         local personContainer = new("Frame", {
             Size = UDim2.new(1, 0, 0, 0),
             BackgroundTransparency = 1,
@@ -1460,6 +1222,7 @@ local function buildMainPanel()
             SpeedValue = 16, SpeedKeep = false,
             JumpValue = 50, JumpKeep = false,
             InfiniteJump = false,
+            GravityValue = 196, GravityKeep = false,
         }
 
         local function applySpeed()
@@ -1477,10 +1240,15 @@ local function buildMainPanel()
             end
         end
 
+        local function applyGravity()
+            workspace.Gravity = PersonState.GravityValue
+        end
+
         task.spawn(function()
             while task.wait(0.1) do
-                if PersonState.SpeedKeep then applySpeed() end
-                if PersonState.JumpKeep  then applyJump()  end
+                if PersonState.SpeedKeep   then applySpeed()   end
+                if PersonState.JumpKeep    then applyJump()    end
+                if PersonState.GravityKeep then applyGravity() end
             end
         end)
 
@@ -1707,6 +1475,16 @@ local function buildMainPanel()
             PersonState.InfiniteJump = state
         end)
 
+        makeSliderCard(personContainer, "修改重力", 400, 196, 6, function(v)
+            PersonState.GravityValue = v
+            if PersonState.GravityKeep then applyGravity() end
+        end)
+        makeToggleButton(personContainer, "保持开启", 7, function(state)
+            PersonState.GravityKeep = state
+            if state then applyGravity()
+            else workspace.Gravity = 196.2 end
+        end)
+
         local personExpanded = false
         headerBtn.MouseButton1Click:Connect(function()
             personExpanded = not personExpanded
@@ -1723,7 +1501,7 @@ local function buildMainPanel()
             end
         end)
 
-        -- ===== 飞行分区 =====
+        -- 飞行分区
         local flyHeader = new("Frame", {
             Size = UDim2.new(1, 0, 0, 34),
             BackgroundColor3 = Theme.Panel,
