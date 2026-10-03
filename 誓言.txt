@@ -2,25 +2,53 @@
     Oath UI — 卡密验证系统
     正确卡密：誓言NB
     空输入 + YXNB2013 → 自动识别
-    修复：飞行脚本字符串嵌套冲突
+    支持游戏：木材大亨 / 最强战场
+    版本：V3.1.1
+    分区：信息 / 功能（仅两个）
 ]]
 
-local Players          = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local TweenService     = game:GetService("TweenService")
+local Players            = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
+local UserInputService   = game:GetService("UserInputService")
+local TweenService       = game:GetService("TweenService")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
 
 local CORRECT_KEY = "誓言NB"
-local VERSION     = "V1.0.0"
+local VERSION     = "V3.1.1"
 local OWNER_NAME  = "YXNB2013"
 
---=========================================================
---  主脚本源码
---=========================================================
+-- 支持的游戏（关键词 + PlaceId）
+local TARGET_GAME_NAMES = {
+    "木材大亨", "Lumber", "Lumber Tycoon",
+    "最强战场", "Strongest Battlegrounds", "The Strongest Battlegrounds",
+}
+local TARGET_PLACE_IDS  = {
+    13822889,   -- Lumber Tycoon 2
+    -- 最强战场的 PlaceId 请自行填入
+}
+
+local function isSupportedGame()
+    for _, id in ipairs(TARGET_PLACE_IDS) do
+        if game.PlaceId == id then return true, game.PlaceId end
+    end
+    local ok, info = pcall(function()
+        return MarketplaceService:GetProductInfo(game.PlaceId)
+    end)
+    if ok and info and info.Name then
+        for _, key in ipairs(TARGET_GAME_NAMES) do
+            if string.find(info.Name, key, 1, true) then
+                return true, info.Name
+            end
+        end
+    end
+    return false, nil
+end
+
 local MAIN_SCRIPT_SOURCE = [==[
 local Players           = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
 local UserInputService  = game:GetService("UserInputService")
 local TweenService      = game:GetService("TweenService")
 local RunService        = game:GetService("RunService")
@@ -28,454 +56,31 @@ local RunService        = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
 
-local VERSION = "V1.0.0"
+local VERSION = "V3.1.1"
 
---=========================================================
---  飞行脚本源码（用 5 个等号包裹，避免与外层 2 个等号冲突）
---=========================================================
-local FLY_SCRIPT_SOURCE = [=====[
-local main = Instance.new("ScreenGui")
-local Frame = Instance.new("Frame")
-local up = Instance.new("TextButton")
-local down = Instance.new("TextButton")
-local onof = Instance.new("TextButton")
-local TextLabel = Instance.new("TextLabel")
-local plus = Instance.new("TextButton")
-local speed = Instance.new("TextLabel")
-local mine = Instance.new("TextButton")
-local closebutton = Instance.new("TextButton")
-local mini = Instance.new("TextButton")
-local mini2 = Instance.new("TextButton")
+-- 根据游戏 ID / 名称判断显示标题
+local function getGameTitle()
+    if game.PlaceId == 13822889 then return "木材大亨" end
 
-main.Name = "main"
-main.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
-main.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-main.ResetOnSpawn = false
+    local ok, info = pcall(function()
+        return MarketplaceService:GetProductInfo(game.PlaceId)
+    end)
+    if ok and info and info.Name then
+        local n = info.Name
+        if string.find(n, "木材大亨", 1, true) or string.find(n, "Lumber", 1, true) then
+            return "木材大亨"
+        end
+        if string.find(n, "最强战场", 1, true)
+        or string.find(n, "Strongest Battlegrounds", 1, true) then
+            return "最强战场"
+        end
+        return n
+    end
+    return "面板"
+end
 
-Frame.Parent = main
-Frame.BackgroundColor3 = Color3.fromRGB(163, 255, 137)
-Frame.BorderColor3 = Color3.fromRGB(103, 221, 213)
-Frame.Position = UDim2.new(0.100320168, 0, 0.379746825, 0)
-Frame.Size = UDim2.new(0, 190, 0, 57)
+local GAME_TITLE = getGameTitle()
 
-up.Name = "up"
-up.Parent = Frame
-up.BackgroundColor3 = Color3.fromRGB(79, 255, 152)
-up.Size = UDim2.new(0, 44, 0, 28)
-up.Font = Enum.Font.SourceSans
-up.Text = "UP"
-up.TextColor3 = Color3.fromRGB(0, 0, 0)
-up.TextSize = 14.000
-
-down.Name = "down"
-down.Parent = Frame
-down.BackgroundColor3 = Color3.fromRGB(215, 255, 121)
-down.Position = UDim2.new(0, 0, 0.491228074, 0)
-down.Size = UDim2.new(0, 44, 0, 28)
-down.Font = Enum.Font.SourceSans
-down.Text = "DOWN"
-down.TextColor3 = Color3.fromRGB(0, 0, 0)
-down.TextSize = 14.000
-
-onof.Name = "onof"
-onof.Parent = Frame
-onof.BackgroundColor3 = Color3.fromRGB(255, 249, 74)
-onof.Position = UDim2.new(0.702823281, 0, 0.491228074, 0)
-onof.Size = UDim2.new(0, 56, 0, 28)
-onof.Font = Enum.Font.SourceSans
-onof.Text = "fly"
-onof.TextColor3 = Color3.fromRGB(0, 0, 0)
-onof.TextSize = 14.000
-
-TextLabel.Parent = Frame
-TextLabel.BackgroundColor3 = Color3.fromRGB(242, 60, 255)
-TextLabel.Position = UDim2.new(0.469327301, 0, 0, 0)
-TextLabel.Size = UDim2.new(0, 100, 0, 28)
-TextLabel.Font = Enum.Font.SourceSans
-TextLabel.Text = "FLY GUI V3"
-TextLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
-TextLabel.TextScaled = true
-TextLabel.TextSize = 14.000
-TextLabel.TextWrapped = true
-
-plus.Name = "plus"
-plus.Parent = Frame
-plus.BackgroundColor3 = Color3.fromRGB(133, 145, 255)
-plus.Position = UDim2.new(0.231578946, 0, 0, 0)
-plus.Size = UDim2.new(0, 45, 0, 28)
-plus.Font = Enum.Font.SourceSans
-plus.Text = "+"
-plus.TextColor3 = Color3.fromRGB(0, 0, 0)
-plus.TextScaled = true
-plus.TextSize = 14.000
-plus.TextWrapped = true
-
-speed.Name = "speed"
-speed.Parent = Frame
-speed.BackgroundColor3 = Color3.fromRGB(255, 85, 0)
-speed.Position = UDim2.new(0.468421042, 0, 0.491228074, 0)
-speed.Size = UDim2.new(0, 44, 0, 28)
-speed.Font = Enum.Font.SourceSans
-speed.Text = "1"
-speed.TextColor3 = Color3.fromRGB(0, 0, 0)
-speed.TextScaled = true
-speed.TextSize = 14.000
-speed.TextWrapped = true
-
-mine.Name = "mine"
-mine.Parent = Frame
-mine.BackgroundColor3 = Color3.fromRGB(123, 255, 247)
-mine.Position = UDim2.new(0.231578946, 0, 0.491228074, 0)
-mine.Size = UDim2.new(0, 45, 0, 29)
-mine.Font = Enum.Font.SourceSans
-mine.Text = "-"
-mine.TextColor3 = Color3.fromRGB(0, 0, 0)
-mine.TextScaled = true
-mine.TextSize = 14.000
-mine.TextWrapped = true
-
-closebutton.Name = "Close"
-closebutton.Parent = Frame
-closebutton.BackgroundColor3 = Color3.fromRGB(225, 25, 0)
-closebutton.Font = "SourceSans"
-closebutton.Size = UDim2.new(0, 45, 0, 28)
-closebutton.Text = "X"
-closebutton.TextSize = 30
-closebutton.Position = UDim2.new(0, 0, -1, 27)
-
-mini.Name = "minimize"
-mini.Parent = Frame
-mini.BackgroundColor3 = Color3.fromRGB(192, 150, 230)
-mini.Font = "SourceSans"
-mini.Size = UDim2.new(0, 45, 0, 28)
-mini.Text = "-"
-mini.TextSize = 40
-mini.Position = UDim2.new(0, 44, -1, 27)
-
-mini2.Name = "minimize2"
-mini2.Parent = Frame
-mini2.BackgroundColor3 = Color3.fromRGB(192, 150, 230)
-mini2.Font = "SourceSans"
-mini2.Size = UDim2.new(0, 45, 0, 28)
-mini2.Text = "+"
-mini2.TextSize = 40
-mini2.Position = UDim2.new(0, 44, -1, 57)
-mini2.Visible = false
-
-speeds = 1
-
-local speaker = game:GetService("Players").LocalPlayer
-
-local chr = game.Players.LocalPlayer.Character
-local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-
-nowe = false
-
-game:GetService("StarterGui"):SetCore("SendNotification", { 
-	Title = "FLY GUI V3";
-	Text = "BY XNEO";
-	Icon = "rbxthumb://type=Asset&id=5107182114&w=150&h=150"})
-Duration = 5;
-
-Frame.Active = true
-Frame.Draggable = true
-
-onof.MouseButton1Down:connect(function()
-
-	if nowe == true then
-		nowe = false
-
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics,true)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming,true)
-		speaker.Character.Humanoid:ChangeState(Enum.HumanoidStateType.RunningNoPhysics)
-	else 
-		nowe = true
-
-		for i = 1, speeds do
-			spawn(function()
-				local hb = game:GetService("RunService").Heartbeat	
-				tpwalking = true
-				local chr = game.Players.LocalPlayer.Character
-				local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-				while tpwalking and hb:Wait() and chr and hum and hum.Parent do
-					if hum.MoveDirection.Magnitude > 0 then
-						chr:TranslateBy(hum.MoveDirection)
-					end
-				end
-			end)
-		end
-		game.Players.LocalPlayer.Character.Animate.Disabled = true
-		local Char = game.Players.LocalPlayer.Character
-		local Hum = Char:FindFirstChildOfClass("Humanoid") or Char:FindFirstChildOfClass("AnimationController")
-
-		for i,v in next, Hum:GetPlayingAnimationTracks() do
-			v:AdjustSpeed(0)
-		end
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Flying,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Freefall,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Landed,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Physics,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.PlatformStanding,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Running,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.RunningNoPhysics,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Seated,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.StrafingNoPhysics,false)
-		speaker.Character.Humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming,false)
-		speaker.Character.Humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
-	end
-
-	if game:GetService("Players").LocalPlayer.Character:FindFirstChildOfClass("Humanoid").RigType == Enum.HumanoidRigType.R6 then
-
-		local plr = game.Players.LocalPlayer
-		local torso = plr.Character.Torso
-		local flying = true
-		local deb = true
-		local ctrl = {f = 0, b = 0, l = 0, r = 0}
-		local lastctrl = {f = 0, b = 0, l = 0, r = 0}
-		local maxspeed = 50
-		local speed = 0
-
-		local bg = Instance.new("BodyGyro", torso)
-		bg.P = 9e4
-		bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-		bg.cframe = torso.CFrame
-		local bv = Instance.new("BodyVelocity", torso)
-		bv.velocity = Vector3.new(0,0.1,0)
-		bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
-		if nowe == true then
-			plr.Character.Humanoid.PlatformStand = true
-		end
-		while nowe == true or game:GetService("Players").LocalPlayer.Character.Humanoid.Health == 0 do
-			game:GetService("RunService").RenderStepped:Wait()
-
-			if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
-				speed = speed+.5+(speed/maxspeed)
-				if speed > maxspeed then
-					speed = maxspeed
-				end
-			elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and speed ~= 0 then
-				speed = speed-1
-				if speed < 0 then
-					speed = 0
-				end
-			end
-			if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
-				bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
-				lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
-			elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and speed ~= 0 then
-				bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
-			else
-				bv.velocity = Vector3.new(0,0,0)
-			end
-			bg.cframe = game.Workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*speed/maxspeed),0,0)
-		end
-		ctrl = {f = 0, b = 0, l = 0, r = 0}
-		lastctrl = {f = 0, b = 0, l = 0, r = 0}
-		speed = 0
-		bg:Destroy()
-		bv:Destroy()
-		plr.Character.Humanoid.PlatformStand = false
-		game.Players.LocalPlayer.Character.Animate.Disabled = false
-		tpwalking = false
-
-	else
-		local plr = game.Players.LocalPlayer
-		local UpperTorso = plr.Character.UpperTorso
-		local flying = true
-		local deb = true
-		local ctrl = {f = 0, b = 0, l = 0, r = 0}
-		local lastctrl = {f = 0, b = 0, l = 0, r = 0}
-		local maxspeed = 50
-		local speed = 0
-
-		local bg = Instance.new("BodyGyro", UpperTorso)
-		bg.P = 9e4
-		bg.maxTorque = Vector3.new(9e9, 9e9, 9e9)
-		bg.cframe = UpperTorso.CFrame
-		local bv = Instance.new("BodyVelocity", UpperTorso)
-		bv.velocity = Vector3.new(0,0.1,0)
-		bv.maxForce = Vector3.new(9e9, 9e9, 9e9)
-		if nowe == true then
-			plr.Character.Humanoid.PlatformStand = true
-		end
-		while nowe == true or game:GetService("Players").LocalPlayer.Character.Humanoid.Health == 0 do
-			wait()
-
-			if ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0 then
-				speed = speed+.5+(speed/maxspeed)
-				if speed > maxspeed then
-					speed = maxspeed
-				end
-			elseif not (ctrl.l + ctrl.r ~= 0 or ctrl.f + ctrl.b ~= 0) and speed ~= 0 then
-				speed = speed-1
-				if speed < 0 then
-					speed = 0
-				end
-			end
-			if (ctrl.l + ctrl.r) ~= 0 or (ctrl.f + ctrl.b) ~= 0 then
-				bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (ctrl.f+ctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(ctrl.l+ctrl.r,(ctrl.f+ctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
-				lastctrl = {f = ctrl.f, b = ctrl.b, l = ctrl.l, r = ctrl.r}
-			elseif (ctrl.l + ctrl.r) == 0 and (ctrl.f + ctrl.b) == 0 and speed ~= 0 then
-				bv.velocity = ((game.Workspace.CurrentCamera.CoordinateFrame.lookVector * (lastctrl.f+lastctrl.b)) + ((game.Workspace.CurrentCamera.CoordinateFrame * CFrame.new(lastctrl.l+lastctrl.r,(lastctrl.f+lastctrl.b)*.2,0).p) - game.Workspace.CurrentCamera.CoordinateFrame.p))*speed
-			else
-				bv.velocity = Vector3.new(0,0,0)
-			end
-
-			bg.cframe = game.Workspace.CurrentCamera.CoordinateFrame * CFrame.Angles(-math.rad((ctrl.f+ctrl.b)*50*speed/maxspeed),0,0)
-		end
-		ctrl = {f = 0, b = 0, l = 0, r = 0}
-		lastctrl = {f = 0, b = 0, l = 0, r = 0}
-		speed = 0
-		bg:Destroy()
-		bv:Destroy()
-		plr.Character.Humanoid.PlatformStand = false
-		game.Players.LocalPlayer.Character.Animate.Disabled = false
-		tpwalking = false
-	end
-end)
-
-local tis
-
-up.MouseButton1Down:connect(function()
-	tis = up.MouseEnter:connect(function()
-		while tis do
-			wait()
-			game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0,1,0)
-		end
-	end)
-end)
-
-up.MouseLeave:connect(function()
-	if tis then
-		tis:Disconnect()
-		tis = nil
-	end
-end)
-
-local dis
-
-down.MouseButton1Down:connect(function()
-	dis = down.MouseEnter:connect(function()
-		while dis do
-			wait()
-			game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame * CFrame.new(0,-1,0)
-		end
-	end)
-end)
-
-down.MouseLeave:connect(function()
-	if dis then
-		dis:Disconnect()
-		dis = nil
-	end
-end)
-
-game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(char)
-	wait(0.7)
-	game.Players.LocalPlayer.Character.Humanoid.PlatformStand = false
-	game.Players.LocalPlayer.Character.Animate.Disabled = false
-end)
-
-plus.MouseButton1Down:connect(function()
-	speeds = speeds + 1
-	speed.Text = speeds
-	if nowe == true then
-		tpwalking = false
-		for i = 1, speeds do
-			spawn(function()
-				local hb = game:GetService("RunService").Heartbeat	
-				tpwalking = true
-				local chr = game.Players.LocalPlayer.Character
-				local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-				while tpwalking and hb:Wait() and chr and hum and hum.Parent do
-					if hum.MoveDirection.Magnitude > 0 then
-						chr:TranslateBy(hum.MoveDirection)
-					end
-				end
-			end)
-		end
-	end
-end)
-
-mine.MouseButton1Down:connect(function()
-	if speeds == 1 then
-		speed.Text = 'cannot be less than 1'
-		wait(1)
-		speed.Text = speeds
-	else
-		speeds = speeds - 1
-		speed.Text = speeds
-		if nowe == true then
-			tpwalking = false
-			for i = 1, speeds do
-				spawn(function()
-					local hb = game:GetService("RunService").Heartbeat	
-					tpwalking = true
-					local chr = game.Players.LocalPlayer.Character
-					local hum = chr and chr:FindFirstChildWhichIsA("Humanoid")
-					while tpwalking and hb:Wait() and chr and hum and hum.Parent do
-						if hum.MoveDirection.Magnitude > 0 then
-							chr:TranslateBy(hum.MoveDirection)
-						end
-					end
-				end)
-			end
-		end
-	end
-end)
-
-closebutton.MouseButton1Click:Connect(function()
-	main:Destroy()
-end)
-
-mini.MouseButton1Click:Connect(function()
-	up.Visible = false
-	down.Visible = false
-	onof.Visible = false
-	plus.Visible = false
-	speed.Visible = false
-	mine.Visible = false
-	mini.Visible = false
-	mini2.Visible = true
-	Frame.BackgroundTransparency = 1
-	closebutton.Position =  UDim2.new(0, 0, -1, 57)
-end)
-
-mini2.MouseButton1Click:Connect(function()
-	up.Visible = true
-	down.Visible = true
-	onof.Visible = true
-	plus.Visible = true
-	speed.Visible = true
-	mine.Visible = true
-	mini.Visible = true
-	mini2.Visible = false
-	Frame.BackgroundTransparency = 0 
-	closebutton.Position =  UDim2.new(0, 0, -1, 27)
-end)
-]=====]
-
---=========================================================
---  主题
---=========================================================
 local Theme = {
     Accent  = Color3.fromRGB(88, 220, 130),
     Bg      = Color3.fromRGB(22, 23, 26),
@@ -511,7 +116,7 @@ local function stroke(parent, color, thickness, transparency)
 end
 
 local gui = new("ScreenGui", {
-    Name = "OathPanel",
+    Name = "LumberPanel",
     ResetOnSpawn = false,
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
     IgnoreGuiInset = true,
@@ -546,20 +151,20 @@ new("Frame", {
 }, Sidebar)
 
 new("TextLabel", {
-    Size = UDim2.new(0, 60, 0, 22),
+    Size = UDim2.new(0, 130, 0, 20),
     Position = UDim2.new(0, 20, 0, 4),
     BackgroundTransparency = 1,
-    Text = "誓言",
+    Text = GAME_TITLE,
     Font = Enum.Font.GothamBold,
-    TextSize = 18,
+    TextSize = (#GAME_TITLE >= 6) and 13 or 16,
     TextColor3 = Theme.Accent,
     TextXAlignment = Enum.TextXAlignment.Left,
     ZIndex = 2,
 }, Sidebar)
 
 local authorCapsule = new("Frame", {
-    Size = UDim2.new(0, 82, 0, 18),
-    Position = UDim2.new(0, 62, 0, 6),
+    Size = UDim2.new(0, 76, 0, 18),
+    Position = UDim2.new(0, 20, 0, 28),
     BackgroundColor3 = Theme.Accent,
     BackgroundTransparency = 0.82,
     BorderSizePixel = 0,
@@ -579,14 +184,14 @@ new("TextLabel", {
 }, authorCapsule)
 
 local versionCapsule = new("Frame", {
-    Size = UDim2.new(0, 50, 0, 16),
-    Position = UDim2.new(0, 62, 0, 28),
+    Size = UDim2.new(0, 50, 0, 18),
+    Position = UDim2.new(0, 100, 0, 28),
     BackgroundColor3 = Theme.Accent,
     BackgroundTransparency = 0.82,
     BorderSizePixel = 0,
     ZIndex = 2,
 }, Sidebar)
-corner(versionCapsule, 8)
+corner(versionCapsule, 9)
 
 new("TextLabel", {
     Size = UDim2.fromScale(1, 1),
@@ -600,7 +205,7 @@ new("TextLabel", {
 }, versionCapsule)
 
 local BtnHolder = new("Frame", {
-    Size = UDim2.fromOffset(34, 14),
+    Size = UDim2.fromOffset(44, 18),
     Position = UDim2.new(1, -14, 0, 14),
     AnchorPoint = Vector2.new(1, 0),
     BackgroundTransparency = 1,
@@ -609,15 +214,15 @@ local BtnHolder = new("Frame", {
 
 local function makeWinDot(color, x, tip, callback)
     local btn = new("TextButton", {
-        Size = UDim2.fromOffset(12, 12),
-        Position = UDim2.new(0, x, 0, 1),
+        Size = UDim2.fromOffset(17, 17),
+        Position = UDim2.new(0, x, 0, 0),
         BackgroundColor3 = color,
         BorderSizePixel = 0,
         Text = "",
         AutoButtonColor = false,
         ZIndex = 10,
     }, BtnHolder)
-    corner(btn, 6)
+    corner(btn, 9)
     btn.MouseEnter:Connect(function()
         btn.BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.25)
     end)
@@ -636,17 +241,15 @@ local Content = new("Frame", {
     BackgroundTransparency = 1,
 }, Main)
 
+-- ▼ 仅两个分区：信息 / 功能
 local TabDefs = {
     { name = "信息" },
-    { name = "通用" },
-    { name = "3"    },
-    { name = "4"    },
-    { name = "5"    },
+    { name = "功能" },
 }
 
 local TabHolder = new("Frame", {
-    Position = UDim2.new(0, 0, 0, 48),
-    Size = UDim2.new(1, 0, 1, -56),
+    Position = UDim2.new(0, 0, 0, 52),
+    Size = UDim2.new(1, 0, 1, -60),
     BackgroundTransparency = 1,
     ZIndex = 1,
 }, Sidebar)
@@ -664,7 +267,7 @@ new("UIPadding", {
 local TabHighlight = new("Frame", {
     Name = "TabHighlight",
     Size = UDim2.fromOffset(110, 32),
-    Position = UDim2.new(0, 10, 0, 52),
+    Position = UDim2.new(0, 10, 0, 56),
     BackgroundColor3 = Color3.fromRGB(255, 255, 255),
     BackgroundTransparency = 0.90,
     BorderSizePixel = 0,
@@ -676,7 +279,7 @@ stroke(TabHighlight, Color3.fromRGB(255, 255, 255), 1, 0.80)
 local SliderBar = new("Frame", {
     Name = "SliderBar",
     Size = UDim2.fromOffset(3, 16),
-    Position = UDim2.new(0, 10, 0, 60),
+    Position = UDim2.new(0, 10, 0, 64),
     BackgroundColor3 = Theme.Accent,
     BorderSizePixel = 0,
     ZIndex = 5,
@@ -745,12 +348,12 @@ local function selectTab(index)
         Pages[i].Visible = active
     end
 
-    local hlY = 52 + (index - 1) * 36
+    local hlY = 56 + (index - 1) * 36
     TweenService:Create(TabHighlight, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
         Position = UDim2.new(0, 10, 0, hlY),
     }):Play()
 
-    local barY = 60 + (index - 1) * 36
+    local barY = 64 + (index - 1) * 36
     TweenService:Create(SliderBar, TweenInfo.new(0.30, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         Position = UDim2.new(0, 10, 0, barY),
     }):Play()
@@ -766,237 +369,7 @@ for i, t in ipairs(TabButtons) do
     end)
 end
 
---=========================================================
---  辅助组件
---=========================================================
-local function makeSliderCard(parent, label, maxValue, default, order, onChange)
-    local row = new("Frame", {
-        Size = UDim2.new(1, 0, 0, 52),
-        BackgroundColor3 = Theme.Panel,
-        BorderSizePixel = 0,
-        LayoutOrder = order,
-    }, parent)
-    corner(row, 8)
-
-    new("TextLabel", {
-        Position = UDim2.new(0, 12, 0, 8),
-        Size = UDim2.new(0.55, 0, 0, 16),
-        BackgroundTransparency = 1,
-        Text = label,
-        Font = Enum.Font.GothamMedium,
-        TextSize = 13,
-        TextColor3 = Theme.Text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-    }, row)
-
-    local valueBox = new("TextBox", {
-        Position = UDim2.new(0.55, 0, 0, 6),
-        Size = UDim2.new(0.45, -12, 0, 20),
-        BackgroundColor3 = Color3.fromRGB(24, 25, 29),
-        BorderSizePixel = 0,
-        Text = tostring(default),
-        Font = Enum.Font.GothamBold,
-        TextSize = 12,
-        TextColor3 = Theme.Accent,
-        TextXAlignment = Enum.TextXAlignment.Center,
-        ClearTextOnFocus = false,
-    }, row)
-    corner(valueBox, 6)
-
-    local track = new("Frame", {
-        Position = UDim2.new(0, 12, 0, 36),
-        Size = UDim2.new(1, -24, 0, 4),
-        BackgroundColor3 = Color3.fromRGB(55, 57, 64),
-        BorderSizePixel = 0,
-    }, row)
-    corner(track, 2)
-
-    local ratio = math.clamp(default / maxValue, 0, 1)
-    local fill = new("Frame", {
-        Size = UDim2.new(ratio, 0, 1, 0),
-        BackgroundColor3 = Theme.Accent,
-        BorderSizePixel = 0,
-    }, track)
-    corner(fill, 2)
-
-    local knob = new("Frame", {
-        Size = UDim2.fromOffset(12, 12),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.new(ratio, 0, 0.5, 0),
-        BackgroundColor3 = Color3.fromRGB(240, 240, 245),
-        BorderSizePixel = 0,
-        ZIndex = 2,
-    }, track)
-    corner(knob, 6)
-
-    local hit = new("TextButton", {
-        Size = UDim2.new(1, 16, 3, 16),
-        Position = UDim2.new(0, -8, 0.5, 0),
-        AnchorPoint = Vector2.new(0, 0.5),
-        BackgroundTransparency = 1,
-        Text = "",
-        ZIndex = 3,
-    }, track)
-
-    local dragging = false
-    local focused  = false
-    local currentValue = default
-
-    local function setValue(value, updateBox)
-        value = math.clamp(math.floor(value + 0.5), 0, maxValue)
-        currentValue = value
-        local rel = value / maxValue
-        fill.Size = UDim2.new(rel, 0, 1, 0)
-        knob.Position = UDim2.new(rel, 0, 0.5, 0)
-        if updateBox and not focused then
-            valueBox.Text = tostring(value)
-        end
-        if onChange then onChange(value) end
-    end
-
-    setValue(default, false)
-
-    local function applyFromX(x)
-        local rel = math.clamp((x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
-        local value = math.floor(rel * maxValue + 0.5)
-        setValue(value, true)
-    end
-
-    hit.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
-            applyFromX(input.Position.X)
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
-        or input.UserInputType == Enum.UserInputType.Touch) then
-            applyFromX(input.Position.X)
-        end
-    end)
-
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
-
-    valueBox.Focused:Connect(function()
-        focused = true
-    end)
-    valueBox.FocusLost:Connect(function()
-        focused = false
-        local num = tonumber(valueBox.Text)
-        if not num then
-            valueBox.Text = tostring(currentValue)
-            return
-        end
-        num = math.floor(num + 0.5)
-        if num > maxValue then num = maxValue end
-        if num < 0 then num = 0 end
-        setValue(num, true)
-    end)
-end
-
-local function makeToggleButton(parent, label, order, onToggle)
-    local row = new("Frame", {
-        Size = UDim2.new(1, 0, 0, 34),
-        BackgroundColor3 = Theme.Panel,
-        BorderSizePixel = 0,
-        LayoutOrder = order,
-    }, parent)
-    corner(row, 8)
-
-    new("TextLabel", {
-        Position = UDim2.new(0, 12, 0, 0),
-        Size = UDim2.new(1, -60, 1, 0),
-        BackgroundTransparency = 1,
-        Text = label,
-        Font = Enum.Font.GothamMedium,
-        TextSize = 13,
-        TextColor3 = Theme.Text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-    }, row)
-
-    local track = new("TextButton", {
-        Size = UDim2.fromOffset(38, 20),
-        Position = UDim2.new(1, -50, 0.5, 0),
-        AnchorPoint = Vector2.new(0, 0.5),
-        BackgroundColor3 = Color3.fromRGB(55, 57, 64),
-        Text = "",
-        AutoButtonColor = false,
-    }, row)
-    corner(track, 10)
-
-    local knob = new("Frame", {
-        Size = UDim2.fromOffset(16, 16),
-        Position = UDim2.new(0, 2, 0.5, -8),
-        BackgroundColor3 = Color3.fromRGB(240, 240, 245),
-        BorderSizePixel = 0,
-    }, track)
-    corner(knob, 8)
-
-    local state = false
-    track.MouseButton1Click:Connect(function()
-        state = not state
-        TweenService:Create(track, TweenInfo.new(0.15), {
-            BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(55, 57, 64),
-        }):Play()
-        TweenService:Create(knob, TweenInfo.new(0.15), {
-            Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
-        }):Play()
-        if onToggle then onToggle(state) end
-    end)
-end
-
---=========================================================
---  通用页状态
---=========================================================
-local GeneralState = {
-    SpeedValue   = 16,
-    SpeedKeep    = false,
-    JumpValue    = 50,
-    JumpKeep     = false,
-    InfiniteJump = false,
-}
-
-local function applySpeed()
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then hum.WalkSpeed = GeneralState.SpeedValue end
-end
-
-local function applyJump()
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum.UseJumpPower = true
-        hum.JumpPower = GeneralState.JumpValue
-    end
-end
-
-task.spawn(function()
-    while task.wait(0.1) do
-        if GeneralState.SpeedKeep then applySpeed() end
-        if GeneralState.JumpKeep  then applyJump()  end
-    end
-end)
-
-UserInputService.JumpRequest:Connect(function()
-    if not GeneralState.InfiniteJump then return end
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then
-        hum:ChangeState(Enum.HumanoidStateType.Jumping)
-    end
-end)
-
---=========================================================
---  灵动岛
---=========================================================
+-- 灵动岛
 local Island = new("TextButton", {
     Name = "DynamicIsland",
     Size = UDim2.fromOffset(36, 36),
@@ -1025,7 +398,7 @@ local IslandText = new("TextLabel", {
     Position = UDim2.new(0, 30, 0, 0),
     Size = UDim2.new(1, -40, 1, 0),
     BackgroundTransparency = 1,
-    Text = "誓言 · 运行中",
+    Text = GAME_TITLE .. " · 运行中",
     Font = Enum.Font.GothamMedium,
     TextSize = 12,
     TextColor3 = Color3.fromRGB(255, 255, 255),
@@ -1186,7 +559,7 @@ local function closeUI()
 end
 
 makeWinDot(Theme.Yellow, 0,  "最小化", minimize)
-makeWinDot(Theme.Red,    20, "关闭",   closeUI)
+makeWinDot(Theme.Red,    25, "关闭",   closeUI)
 
 --=========================================================
 --  页面 1：信息
@@ -1220,27 +593,23 @@ do
         HorizontalAlignment = Enum.HorizontalAlignment.Center,
     }, headerCard)
 
-    local iconHolder = new("Frame", {
-        Size = UDim2.new(0, 120, 0, 120),
+    new("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 20),
         BackgroundTransparency = 1,
+        Text = GAME_TITLE .. " · Panel",
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        TextColor3 = Theme.Text,
         LayoutOrder = 1,
     }, headerCard)
-
-    local icon = new("ImageLabel", {
-        Size = UDim2.fromScale(1, 1),
-        BackgroundTransparency = 1,
-        Image = "https://t6.picb.cc/2026/10/02/uEJUTR.jpg",
-        ScaleType = Enum.ScaleType.Fit,
-    }, iconHolder)
-    new("UIAspectRatioConstraint", { AspectRatio = 1, DominantAxis = Enum.DominantAxis.Width }, icon)
 
     new("TextLabel", {
         Size = UDim2.new(1, 0, 0, 16),
         BackgroundTransparency = 1,
-        Text = "誓言 · Oath Panel",
-        Font = Enum.Font.GothamBold,
-        TextSize = 13,
-        TextColor3 = Theme.Text,
+        Text = "游戏已识别，功能正在开发中",
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        TextColor3 = Theme.Sub,
         LayoutOrder = 2,
     }, headerCard)
 
@@ -1303,217 +672,146 @@ do
 
     makeCopyButton("复制作者 QQ 号", "3767465890", 1)
     makeCopyButton("复制 QQ 群", "1109682737", 2)
-end
 
---=========================================================
---  页面 2：通用
---=========================================================
-do
-    local page = Pages[2]
-
-    -- 人物分区
-    local personHeader = new("Frame", {
-        Size = UDim2.new(1, 0, 0, 34),
+    -- 更新日志
+    local logCard = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
         BackgroundColor3 = Theme.Panel,
         BorderSizePixel = 0,
-        LayoutOrder = 1,
-    }, page)
-    corner(personHeader, 8)
-
-    local folderIcon = new("TextLabel", {
-        Size = UDim2.fromOffset(28, 28),
-        Position = UDim2.new(0, 4, 0.5, 0),
-        AnchorPoint = Vector2.new(0, 0.5),
-        BackgroundTransparency = 1,
-        Text = "📁",
-        Font = Enum.Font.GothamBold,
-        TextSize = 20,
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        TextXAlignment = Enum.TextXAlignment.Center,
-        TextYAlignment = Enum.TextYAlignment.Center,
-    }, personHeader)
-
-    new("TextLabel", {
-        Position = UDim2.new(0, 38, 0, 0),
-        Size = UDim2.new(1, -38, 1, 0),
-        BackgroundTransparency = 1,
-        Text = "人物",
-        Font = Enum.Font.GothamMedium,
-        TextSize = 13,
-        TextColor3 = Theme.Text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-    }, personHeader)
-
-    local personBtn = new("TextButton", {
-        Size = UDim2.fromScale(1, 1),
-        BackgroundTransparency = 1,
-        Text = "",
-        AutoButtonColor = false,
-        ZIndex = 5,
-    }, personHeader)
-
-    local PERSON_HEIGHT = 238
-    local personContainer = new("Frame", {
-        Size = UDim2.new(1, 0, 0, 0),
-        BackgroundTransparency = 1,
-        ClipsDescendants = true,
         LayoutOrder = 2,
     }, page)
-    new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, personContainer)
+    corner(logCard, 10)
 
-    makeSliderCard(personContainer, "移动速度", 400, 16, 1, function(v)
-        GeneralState.SpeedValue = v
-        if GeneralState.SpeedKeep then applySpeed() end
-    end)
+    new("UIPadding", {
+        PaddingTop = UDim.new(0, 12),
+        PaddingBottom = UDim.new(0, 12),
+        PaddingLeft = UDim.new(0, 12),
+        PaddingRight = UDim.new(0, 12),
+    }, logCard)
 
-    makeToggleButton(personContainer, "保持开启", 2, function(state)
-        GeneralState.SpeedKeep = state
-        if state then applySpeed()
-        else
-            local char = LocalPlayer.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then hum.WalkSpeed = 16 end
-        end
-    end)
-
-    makeSliderCard(personContainer, "跳跃高度", 400, 50, 3, function(v)
-        GeneralState.JumpValue = v
-        if GeneralState.JumpKeep then applyJump() end
-    end)
-
-    makeToggleButton(personContainer, "保持开启", 4, function(state)
-        GeneralState.JumpKeep = state
-        if state then applyJump()
-        else
-            local char = LocalPlayer.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then hum.UseJumpPower = true; hum.JumpPower = 50 end
-        end
-    end)
-
-    makeToggleButton(personContainer, "无限跳跃", 5, function(state)
-        GeneralState.InfiniteJump = state
-    end)
-
-    local personExpanded = false
-    personBtn.MouseButton1Click:Connect(function()
-        personExpanded = not personExpanded
-        if personExpanded then
-            folderIcon.Text = "📂"
-            TweenService:Create(personContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Size = UDim2.new(1, 0, 0, PERSON_HEIGHT),
-            }):Play()
-        else
-            folderIcon.Text = "📁"
-            TweenService:Create(personContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Size = UDim2.new(1, 0, 0, 0),
-            }):Play()
-        end
-    end)
-
-    -- 飞行分区
-    local flyHeader = new("Frame", {
-        Size = UDim2.new(1, 0, 0, 34),
-        BackgroundColor3 = Theme.Panel,
-        BorderSizePixel = 0,
-        LayoutOrder = 3,
-    }, page)
-    corner(flyHeader, 8)
-
-    local flyFolderIcon = new("TextLabel", {
-        Size = UDim2.fromOffset(28, 28),
-        Position = UDim2.new(0, 4, 0.5, 0),
-        AnchorPoint = Vector2.new(0, 0.5),
-        BackgroundTransparency = 1,
-        Text = "📁",
-        Font = Enum.Font.GothamBold,
-        TextSize = 20,
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        TextXAlignment = Enum.TextXAlignment.Center,
-        TextYAlignment = Enum.TextYAlignment.Center,
-    }, flyHeader)
+    new("UIListLayout", {
+        Padding = UDim.new(0, 8),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, logCard)
 
     new("TextLabel", {
-        Position = UDim2.new(0, 38, 0, 0),
-        Size = UDim2.new(1, -38, 1, 0),
+        Size = UDim2.new(1, 0, 0, 18),
         BackgroundTransparency = 1,
-        Text = "飞行",
-        Font = Enum.Font.GothamMedium,
+        Text = "更新日志",
+        Font = Enum.Font.GothamBold,
         TextSize = 13,
         TextColor3 = Theme.Text,
         TextXAlignment = Enum.TextXAlignment.Left,
-    }, flyHeader)
-
-    local flyBtn = new("TextButton", {
-        Size = UDim2.fromScale(1, 1),
-        BackgroundTransparency = 1,
-        Text = "",
-        AutoButtonColor = false,
-        ZIndex = 5,
-    }, flyHeader)
-
-    local flyContainer = new("Frame", {
-        Size = UDim2.new(1, 0, 0, 0),
-        BackgroundTransparency = 1,
-        ClipsDescendants = true,
-        LayoutOrder = 4,
-    }, page)
-    new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, flyContainer)
-
-    local flyV3Btn = new("TextButton", {
-        Size = UDim2.new(1, 0, 0, 34),
-        BackgroundColor3 = Theme.Panel,
-        BorderSizePixel = 0,
-        Text = "飞行 V3",
-        Font = Enum.Font.GothamMedium,
-        TextSize = 13,
-        TextColor3 = Theme.Text,
-        AutoButtonColor = false,
         LayoutOrder = 1,
-    }, flyContainer)
-    corner(flyV3Btn, 8)
+    }, logCard)
 
-    flyV3Btn.MouseEnter:Connect(function()
-        TweenService:Create(flyV3Btn, TweenInfo.new(0.12), { BackgroundColor3 = Theme.Hover }):Play()
-    end)
-    flyV3Btn.MouseLeave:Connect(function()
-        TweenService:Create(flyV3Btn, TweenInfo.new(0.12), { BackgroundColor3 = Theme.Panel }):Play()
-    end)
+    local function makeLogEntry(versionText, lines, order)
+        local entry = new("Frame", {
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            BackgroundColor3 = Color3.fromRGB(24, 25, 29),
+            BorderSizePixel = 0,
+            LayoutOrder = order,
+        }, logCard)
+        corner(entry, 8)
 
-    flyV3Btn.MouseButton1Click:Connect(function()
-        TweenService:Create(flyV3Btn, TweenInfo.new(0.08), { BackgroundColor3 = Theme.Accent }):Play()
-        task.delay(0.12, function()
-            TweenService:Create(flyV3Btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.Panel }):Play()
-        end)
+        new("UIPadding", {
+            PaddingTop = UDim.new(0, 8),
+            PaddingBottom = UDim.new(0, 8),
+            PaddingLeft = UDim.new(0, 10),
+            PaddingRight = UDim.new(0, 10),
+        }, entry)
 
-        local fn, err = loadstring(FLY_SCRIPT_SOURCE)
-        if not fn then
-            warn("[Fly V3] 编译失败: " .. tostring(err))
-            return
+        new("UIListLayout", {
+            Padding = UDim.new(0, 4),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        }, entry)
+
+        local headerRow = new("Frame", {
+            Size = UDim2.new(1, 0, 0, 16),
+            BackgroundTransparency = 1,
+            LayoutOrder = 1,
+        }, entry)
+
+        local versionChip = new("Frame", {
+            Size = UDim2.fromOffset(50, 16),
+            Position = UDim2.new(1, 0, 0, 0),
+            AnchorPoint = Vector2.new(1, 0),
+            BackgroundColor3 = Theme.Accent,
+            BackgroundTransparency = 0.82,
+            BorderSizePixel = 0,
+        }, headerRow)
+        corner(versionChip, 8)
+
+        new("TextLabel", {
+            Size = UDim2.fromScale(1, 1),
+            BackgroundTransparency = 1,
+            Text = versionText,
+            Font = Enum.Font.GothamBold,
+            TextSize = 9,
+            TextColor3 = Theme.Accent,
+            TextXAlignment = Enum.TextXAlignment.Center,
+        }, versionChip)
+
+        for i, text in ipairs(lines) do
+            local row = new("Frame", {
+                Size = UDim2.new(1, 0, 0, 16),
+                BackgroundTransparency = 1,
+                LayoutOrder = i + 1,
+            }, entry)
+
+            local dot = new("Frame", {
+                Size = UDim2.fromOffset(4, 4),
+                Position = UDim2.new(0, 2, 0.5, -2),
+                BackgroundColor3 = Theme.Accent,
+                BorderSizePixel = 0,
+            }, row)
+            corner(dot, 2)
+
+            new("TextLabel", {
+                Position = UDim2.new(0, 14, 0, 0),
+                Size = UDim2.new(1, -14, 1, 0),
+                BackgroundTransparency = 1,
+                Text = text,
+                Font = Enum.Font.Gotham,
+                TextSize = 12,
+                TextColor3 = Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+            }, row)
         end
-        local ok, runErr = pcall(fn)
-        if not ok then
-            warn("[Fly V3] 运行失败: " .. tostring(runErr))
-        end
-    end)
+    end
 
-    local flyExpanded = false
-    flyBtn.MouseButton1Click:Connect(function()
-        flyExpanded = not flyExpanded
-        if flyExpanded then
-            flyFolderIcon.Text = "📂"
-            TweenService:Create(flyContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Size = UDim2.new(1, 0, 0, 42),
-            }):Play()
-        else
-            flyFolderIcon.Text = "📁"
-            TweenService:Create(flyContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Size = UDim2.new(1, 0, 0, 0),
-            }):Play()
-        end
-    end)
+    makeLogEntry("V3.1.1", {
+        "新增支持游戏：最强战场",
+        "分区精简为「信息 / 功能」",
+    }, 2)
+
+    makeLogEntry("V3.1.0", {
+        "移除「通过绘画变得富有」支持",
+        "移除整个「绘画」分区",
+    }, 3)
+
+    makeLogEntry("V2.6.0", {
+        "图片绘画自动先传送 + 打开面板",
+    }, 4)
+
+    makeLogEntry("V2.5.7", {
+        "图片绘画默认使用猫图 ID",
+        "窗口红黄按钮略微放大",
+    }, 5)
+
+    makeLogEntry("V1.0.0", {
+        "初始版本发布",
+    }, 6)
 end
 
+--=========================================================
+--  页面 2：功能（暂时为空）
+--=========================================================
+-- 功能分区保留，等待后续添加功能
+
+-- 拖动 & 快捷键
 do
     local dragging, dragStart, startPos
 
@@ -1562,115 +860,17 @@ do
     end)
 end
 
---=========================================================
---  自动特效：识别 YXNB2013
---=========================================================
-local TARGET_NAME = "YXNB2013"
-
-local function attachRainbow(character)
-    if character:FindFirstChild("OathRainbow") then return end
-
-    local hl = Instance.new("Highlight")
-    hl.Name = "OathRainbow"
-    hl.FillTransparency = 1
-    hl.OutlineTransparency = 0
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Adornee = character
-    hl.Parent = character
-
-    task.spawn(function()
-        local hue = 0
-        while hl.Parent and character.Parent do
-            hue = (hue + 0.02) % 1
-            hl.OutlineColor = Color3.fromHSV(hue, 1, 1)
-            RunService.RenderStepped:Wait()
-        end
-    end)
-end
-
-local function attachCrown(character)
-    local head = character:FindFirstChild("Head")
-    if not head then return end
-    if head:FindFirstChild("OathCrownGui") then return end
-
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "OathCrownGui"
-    billboard.Size = UDim2.fromOffset(180, 110)
-    billboard.StudsOffset = Vector3.new(0, 2.8, 0)
-    billboard.AlwaysOnTop = true
-    billboard.Adornee = head
-    billboard.Parent = head
-
-    local crown = Instance.new("TextLabel")
-    crown.Size = UDim2.new(1, 0, 0, 44)
-    crown.BackgroundTransparency = 1
-    crown.Text = "👑"
-    crown.Font = Enum.Font.GothamBold
-    crown.TextSize = 38
-    crown.TextColor3 = Color3.fromRGB(255, 215, 0)
-    crown.TextStrokeTransparency = 0.4
-    crown.TextStrokeColor3 = Color3.fromRGB(80, 60, 0)
-    crown.Parent = billboard
-
-    local line1 = Instance.new("TextLabel")
-    line1.Size = UDim2.new(1, 0, 0, 20)
-    line1.Position = UDim2.new(0, 0, 0, 42)
-    line1.BackgroundTransparency = 1
-    line1.Text = "誓言脚本作者"
-    line1.Font = Enum.Font.GothamBold
-    line1.TextSize = 14
-    line1.TextStrokeTransparency = 0
-    line1.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    line1.Parent = billboard
-
-    local line2 = Instance.new("TextLabel")
-    line2.Size = UDim2.new(1, 0, 0, 20)
-    line2.Position = UDim2.new(0, 0, 0, 62)
-    line2.BackgroundTransparency = 1
-    line2.Text = "誓言脚本"
-    line2.Font = Enum.Font.GothamBold
-    line2.TextSize = 14
-    line2.TextStrokeTransparency = 0
-    line2.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    line2.Parent = billboard
-
-    task.spawn(function()
-        while billboard.Parent and character.Parent do
-            line1.TextColor3 = Color3.fromHSV(math.random(), 0.85, 1)
-            line2.TextColor3 = Color3.fromHSV(math.random(), 0.85, 1)
-            task.wait(math.random(8, 14) / 100)
-        end
-    end)
-end
-
-local function setupTarget(plr)
-    if plr.Name ~= TARGET_NAME then return end
-
-    local function onCharacter(character)
-        task.wait(0.5)
-        attachRainbow(character)
-        attachCrown(character)
-    end
-
-    if plr.Character then onCharacter(plr.Character) end
-    plr.CharacterAdded:Connect(onCharacter)
-end
-
-for _, plr in ipairs(Players:GetPlayers()) do
-    setupTarget(plr)
-end
-Players.PlayerAdded:Connect(setupTarget)
-
 selectTab(1)
 playIntro()
 
-print("[誓言] 已加载 — 按 RightShift 显示/隐藏")
+print("[" .. GAME_TITLE .. "] V3.1.1 已加载 — 按 RightShift 显示/隐藏")
 ]==]
 
---=========================================================
---  加载主脚本
---=========================================================
 local function loadMainScript()
+    local supported = isSupportedGame()
+    if not supported then
+        return false, "当前游戏不在支持列表中，不加载主脚本"
+    end
     local fn, compileErr = loadstring(MAIN_SCRIPT_SOURCE)
     if not fn then
         return false, "编译失败: " .. tostring(compileErr)
@@ -1682,9 +882,6 @@ local function loadMainScript()
     return true
 end
 
---=========================================================
---  验证 UI 主题
---=========================================================
 local Theme = {
     Accent = Color3.fromRGB(88, 220, 130),
     Card   = Color3.fromRGB(28, 29, 34),
@@ -1910,9 +1107,10 @@ local function verify()
 
     if passed then
         TipLabel.TextColor3 = Theme.Accent
-        TipLabel.Text = (isEmpty and isOwner) and "识别为开发者，正在加载..." or "验证成功，正在加载..."
+        TipLabel.Text = (isEmpty and isOwner) and "识别为开发者，正在检测游戏..." or "验证成功，正在检测游戏..."
 
         local ok, err = loadMainScript()
+
         if ok then
             TweenService:Create(Card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
                 Size = UDim2.fromOffset(280, 320),
@@ -1928,7 +1126,7 @@ local function verify()
             gui:Destroy()
         else
             TipLabel.TextColor3 = Theme.Red
-            TipLabel.Text = "主脚本加载失败，请重试"
+            TipLabel.Text = tostring(err)
             warn("[Oath] " .. tostring(err))
             TweenService:Create(InputStroke, TweenInfo.new(0.15), { Color = Theme.Red }):Play()
             task.delay(0.6, function()
@@ -1957,4 +1155,4 @@ end)
 task.wait(0.6)
 InputBox:CaptureFocus()
 
-print("[Oath] 卡密验证系统已启动")
+print("[Oath] V3.1.1 卡密验证系统已启动")
