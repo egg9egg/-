@@ -1399,15 +1399,336 @@ local function buildMainPanel()
         end)
     end
 
-    -- 通用分支：飞行 V3
+    -- 通用分支：人物 + 飞行 V3
     if GAME_TYPE == "Generic" then
         local page = Pages[2]
 
-        local flyHeader = new("Frame", {
+        -- ===== 人物分区 =====
+        local personHeader = new("Frame", {
             Size = UDim2.new(1, 0, 0, 34),
             BackgroundColor3 = Theme.Panel,
             BorderSizePixel = 0,
             LayoutOrder = 1,
+        }, page)
+        corner(personHeader, 8)
+
+        local folderIcon = new("TextLabel", {
+            Size = UDim2.fromOffset(28, 28),
+            Position = UDim2.new(0, 4, 0.5, 0),
+            AnchorPoint = Vector2.new(0, 0.5),
+            BackgroundTransparency = 1,
+            Text = "📁",
+            Font = Enum.Font.GothamBold,
+            TextSize = 20,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextXAlignment = Enum.TextXAlignment.Center,
+            TextYAlignment = Enum.TextYAlignment.Center,
+        }, personHeader)
+
+        new("TextLabel", {
+            Position = UDim2.new(0, 38, 0, 0),
+            Size = UDim2.new(1, -38, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "人物",
+            Font = Enum.Font.GothamMedium,
+            TextSize = 13,
+            TextColor3 = Theme.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+        }, personHeader)
+
+        local headerBtn = new("TextButton", {
+            Size = UDim2.fromScale(1, 1),
+            BackgroundTransparency = 1,
+            Text = "",
+            AutoButtonColor = false,
+            ZIndex = 5,
+        }, personHeader)
+
+        local CONTENT_HEIGHT = 238
+        local personContainer = new("Frame", {
+            Size = UDim2.new(1, 0, 0, 0),
+            BackgroundTransparency = 1,
+            ClipsDescendants = true,
+            LayoutOrder = 2,
+        }, page)
+        new("UIListLayout", {
+            Padding = UDim.new(0, 8),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        }, personContainer)
+
+        local PersonState = {
+            SpeedValue = 16, SpeedKeep = false,
+            JumpValue = 50, JumpKeep = false,
+            InfiniteJump = false,
+        }
+
+        local function applySpeed()
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then hum.WalkSpeed = PersonState.SpeedValue end
+        end
+
+        local function applyJump()
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.UseJumpPower = true
+                hum.JumpPower = PersonState.JumpValue
+            end
+        end
+
+        task.spawn(function()
+            while task.wait(0.1) do
+                if PersonState.SpeedKeep then applySpeed() end
+                if PersonState.JumpKeep  then applyJump()  end
+            end
+        end)
+
+        UserInputService.JumpRequest:Connect(function()
+            if not PersonState.InfiniteJump then return end
+            local char = LocalPlayer.Character
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end)
+
+        local function makeSliderCard(parent, label, maxValue, default, order, onChange)
+            local row = new("Frame", {
+                Size = UDim2.new(1, 0, 0, 52),
+                BackgroundColor3 = Theme.RowBg,
+                BorderSizePixel = 0,
+                LayoutOrder = order,
+            }, parent)
+            corner(row, 8)
+
+            new("TextLabel", {
+                Position = UDim2.new(0, 12, 0, 8),
+                Size = UDim2.new(0.55, 0, 0, 16),
+                BackgroundTransparency = 1,
+                Text = label,
+                Font = Enum.Font.GothamMedium,
+                TextSize = 13,
+                TextColor3 = Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+            }, row)
+
+            local valueBox = new("TextBox", {
+                Position = UDim2.new(0.55, 0, 0, 6),
+                Size = UDim2.new(0.45, -12, 0, 20),
+                BackgroundColor3 = Color3.fromRGB(24, 25, 29),
+                BorderSizePixel = 0,
+                Text = tostring(default),
+                Font = Enum.Font.GothamBold,
+                TextSize = 12,
+                TextColor3 = Theme.Accent,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                ClearTextOnFocus = false,
+            }, row)
+            corner(valueBox, 6)
+
+            local track = new("Frame", {
+                Position = UDim2.new(0, 12, 0, 36),
+                Size = UDim2.new(1, -24, 0, 4),
+                BackgroundColor3 = Color3.fromRGB(55, 57, 64),
+                BorderSizePixel = 0,
+            }, row)
+            corner(track, 2)
+
+            local ratio = math.clamp(default / maxValue, 0, 1)
+            local fill = new("Frame", {
+                Size = UDim2.new(ratio, 0, 1, 0),
+                BackgroundColor3 = Theme.Accent,
+                BorderSizePixel = 0,
+            }, track)
+            corner(fill, 2)
+
+            local knob = new("Frame", {
+                Size = UDim2.fromOffset(12, 12),
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                Position = UDim2.new(ratio, 0, 0.5, 0),
+                BackgroundColor3 = Color3.fromRGB(240, 240, 245),
+                BorderSizePixel = 0,
+                ZIndex = 2,
+            }, track)
+            corner(knob, 6)
+
+            local hit = new("TextButton", {
+                Size = UDim2.new(1, 16, 3, 16),
+                Position = UDim2.new(0, -8, 0.5, 0),
+                AnchorPoint = Vector2.new(0, 0.5),
+                BackgroundTransparency = 1,
+                Text = "",
+                ZIndex = 3,
+            }, track)
+
+            local dragging = false
+            local focused = false
+            local currentValue = default
+
+            local function setValue(value, updateBox)
+                value = math.clamp(math.floor(value + 0.5), 0, maxValue)
+                currentValue = value
+                local rel = value / maxValue
+                fill.Size = UDim2.new(rel, 0, 1, 0)
+                knob.Position = UDim2.new(rel, 0, 0.5, 0)
+                if updateBox and not focused then
+                    valueBox.Text = tostring(value)
+                end
+                if onChange then onChange(value) end
+            end
+
+            setValue(default, false)
+
+            local function applyFromX(x)
+                local rel = math.clamp((x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
+                local value = math.floor(rel * maxValue + 0.5)
+                setValue(value, true)
+            end
+
+            hit.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = true
+                    applyFromX(input.Position.X)
+                end
+            end)
+            UserInputService.InputChanged:Connect(function(input)
+                if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+                or input.UserInputType == Enum.UserInputType.Touch) then
+                    applyFromX(input.Position.X)
+                end
+            end)
+            UserInputService.InputEnded:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1
+                or input.UserInputType == Enum.UserInputType.Touch then
+                    dragging = false
+                end
+            end)
+
+            valueBox.Focused:Connect(function() focused = true end)
+            valueBox.FocusLost:Connect(function()
+                focused = false
+                local num = tonumber(valueBox.Text)
+                if not num then
+                    valueBox.Text = tostring(currentValue)
+                    return
+                end
+                num = math.floor(num + 0.5)
+                if num > maxValue then num = maxValue end
+                if num < 0 then num = 0 end
+                setValue(num, true)
+            end)
+        end
+
+        local function makeToggleButton(parent, label, order, onToggle)
+            local row = new("Frame", {
+                Size = UDim2.new(1, 0, 0, 34),
+                BackgroundColor3 = Theme.RowBg,
+                BorderSizePixel = 0,
+                LayoutOrder = order,
+            }, parent)
+            corner(row, 8)
+
+            new("TextLabel", {
+                Position = UDim2.new(0, 12, 0, 0),
+                Size = UDim2.new(1, -60, 1, 0),
+                BackgroundTransparency = 1,
+                Text = label,
+                Font = Enum.Font.GothamMedium,
+                TextSize = 13,
+                TextColor3 = Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+            }, row)
+
+            local track = new("TextButton", {
+                Size = UDim2.fromOffset(38, 20),
+                Position = UDim2.new(1, -50, 0.5, 0),
+                AnchorPoint = Vector2.new(0, 0.5),
+                BackgroundColor3 = Color3.fromRGB(55, 57, 64),
+                Text = "",
+                AutoButtonColor = false,
+            }, row)
+            corner(track, 10)
+
+            local knob = new("Frame", {
+                Size = UDim2.fromOffset(16, 16),
+                Position = UDim2.new(0, 2, 0.5, -8),
+                BackgroundColor3 = Color3.fromRGB(240, 240, 245),
+                BorderSizePixel = 0,
+            }, track)
+            corner(knob, 8)
+
+            local state = false
+            track.MouseButton1Click:Connect(function()
+                state = not state
+                TweenService:Create(track, TweenInfo.new(0.15), {
+                    BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(55, 57, 64),
+                }):Play()
+                TweenService:Create(knob, TweenInfo.new(0.15), {
+                    Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
+                }):Play()
+                if onToggle then onToggle(state) end
+            end)
+        end
+
+        makeSliderCard(personContainer, "移动速度", 400, 16, 1, function(v)
+            PersonState.SpeedValue = v
+            if PersonState.SpeedKeep then applySpeed() end
+        end)
+        makeToggleButton(personContainer, "保持开启", 2, function(state)
+            PersonState.SpeedKeep = state
+            if state then applySpeed()
+            else
+                local char = LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then hum.WalkSpeed = 16 end
+            end
+        end)
+
+        makeSliderCard(personContainer, "跳跃高度", 400, 50, 3, function(v)
+            PersonState.JumpValue = v
+            if PersonState.JumpKeep then applyJump() end
+        end)
+        makeToggleButton(personContainer, "保持开启", 4, function(state)
+            PersonState.JumpKeep = state
+            if state then applyJump()
+            else
+                local char = LocalPlayer.Character
+                local hum = char and char:FindFirstChildOfClass("Humanoid")
+                if hum then
+                    hum.UseJumpPower = true
+                    hum.JumpPower = 50
+                end
+            end
+        end)
+
+        makeToggleButton(personContainer, "无限跳跃", 5, function(state)
+            PersonState.InfiniteJump = state
+        end)
+
+        local personExpanded = false
+        headerBtn.MouseButton1Click:Connect(function()
+            personExpanded = not personExpanded
+            if personExpanded then
+                folderIcon.Text = "📂"
+                TweenService:Create(personContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Size = UDim2.new(1, 0, 0, CONTENT_HEIGHT),
+                }):Play()
+            else
+                folderIcon.Text = "📁"
+                TweenService:Create(personContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Size = UDim2.new(1, 0, 0, 0),
+                }):Play()
+            end
+        end)
+
+        -- ===== 飞行分区 =====
+        local flyHeader = new("Frame", {
+            Size = UDim2.new(1, 0, 0, 34),
+            BackgroundColor3 = Theme.Panel,
+            BorderSizePixel = 0,
+            LayoutOrder = 3,
         }, page)
         corner(flyHeader, 8)
 
@@ -1447,7 +1768,7 @@ local function buildMainPanel()
             Size = UDim2.new(1, 0, 0, 0),
             BackgroundTransparency = 1,
             ClipsDescendants = true,
-            LayoutOrder = 2,
+            LayoutOrder = 4,
         }, page)
         new("UIListLayout", {
             Padding = UDim.new(0, 8),
