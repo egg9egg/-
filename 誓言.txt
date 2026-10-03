@@ -2,9 +2,10 @@
     Oath UI — 卡密验证系统
     正确卡密：誓言NB
     空输入 + YXNB2013 → 自动识别
-    支持游戏：木材大亨 / 最强战场
-    版本：V3.1.1
-    分区：信息 / 功能（仅两个）
+    版本：V1.0.3
+    各分支功能：
+      - 每秒+1个方块：功能分区有【自动】【自动开蛋】
+      - 木材大亨 / 最强战场 / 通用：功能分区为空（待开发）
 ]]
 
 local Players            = game:GetService("Players")
@@ -16,35 +17,48 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
 
 local CORRECT_KEY = "誓言NB"
-local VERSION     = "V3.1.1"
+local VERSION     = "V1.0.3"
 local OWNER_NAME  = "YXNB2013"
 
--- 支持的游戏（关键词 + PlaceId）
 local TARGET_GAME_NAMES = {
     "木材大亨", "Lumber", "Lumber Tycoon",
     "最强战场", "Strongest Battlegrounds", "The Strongest Battlegrounds",
+    "每秒+1个方块", "每秒加一个方块", "每秒+1方块",
+    "每秒 +1 个方块", "每秒 +1个方块", "每秒+1 个方块",
+    "1 Block Per Second",
 }
-local TARGET_PLACE_IDS  = {
-    13822889,   -- Lumber Tycoon 2
-    -- 最强战场的 PlaceId 请自行填入
-}
+local TARGET_PLACE_IDS = { 13822889 }
 
-local function isSupportedGame()
+-- 返回游戏类型 + 显示名
+local function detectGame()
     for _, id in ipairs(TARGET_PLACE_IDS) do
-        if game.PlaceId == id then return true, game.PlaceId end
+        if game.PlaceId == id then return "Lumber", "木材大亨" end
     end
     local ok, info = pcall(function()
         return MarketplaceService:GetProductInfo(game.PlaceId)
     end)
     if ok and info and info.Name then
-        for _, key in ipairs(TARGET_GAME_NAMES) do
-            if string.find(info.Name, key, 1, true) then
-                return true, info.Name
-            end
+        local n = info.Name
+        if string.find(n, "木材大亨", 1, true) or string.find(n, "Lumber", 1, true) then
+            return "Lumber", "木材大亨"
         end
+        if string.find(n, "最强战场", 1, true)
+        or string.find(n, "Strongest Battlegrounds", 1, true) then
+            return "Battlegrounds", "最强战场"
+        end
+        local noSpace = n:gsub("%s", "")
+        if string.find(noSpace, "每秒", 1, true) and string.find(noSpace, "方块", 1, true) then
+            return "BlockPerSecond", "每秒+1个方块"
+        end
+        if string.find(n, "1 Block Per Second", 1, true) then
+            return "BlockPerSecond", "每秒+1个方块"
+        end
+        return "Generic", "通用面板"
     end
-    return false, nil
+    return "Generic", "通用面板"
 end
+
+local GAME_TYPE, GAME_TITLE = detectGame()
 
 local MAIN_SCRIPT_SOURCE = [==[
 local Players           = game:GetService("Players")
@@ -56,40 +70,20 @@ local RunService        = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
 
-local VERSION = "V3.1.1"
-
--- 根据游戏 ID / 名称判断显示标题
-local function getGameTitle()
-    if game.PlaceId == 13822889 then return "木材大亨" end
-
-    local ok, info = pcall(function()
-        return MarketplaceService:GetProductInfo(game.PlaceId)
-    end)
-    if ok and info and info.Name then
-        local n = info.Name
-        if string.find(n, "木材大亨", 1, true) or string.find(n, "Lumber", 1, true) then
-            return "木材大亨"
-        end
-        if string.find(n, "最强战场", 1, true)
-        or string.find(n, "Strongest Battlegrounds", 1, true) then
-            return "最强战场"
-        end
-        return n
-    end
-    return "面板"
-end
-
-local GAME_TITLE = getGameTitle()
+local VERSION = "V1.0.3"
+local GAME_TYPE = "__GAME_TYPE__"
+local GAME_TITLE = "__GAME_TITLE__"
 
 local Theme = {
     Accent  = Color3.fromRGB(88, 220, 130),
-    Bg      = Color3.fromRGB(22, 23, 26),
-    Sidebar = Color3.fromRGB(16, 17, 20),
-    Panel   = Color3.fromRGB(32, 33, 38),
-    Hover   = Color3.fromRGB(44, 46, 52),
+    Bg      = Color3.fromRGB(28, 28, 30),
+    Sidebar = Color3.fromRGB(20, 20, 22),
+    Panel   = Color3.fromRGB(40, 40, 44),
+    RowBg   = Color3.fromRGB(32, 32, 36),
+    Hover   = Color3.fromRGB(52, 52, 58),
     Text    = Color3.fromRGB(232, 234, 238),
     Sub     = Color3.fromRGB(138, 141, 150),
-    Stroke  = Color3.fromRGB(48, 50, 56),
+    Stroke  = Color3.fromRGB(52, 52, 58),
     Yellow  = Color3.fromRGB(250, 190, 60),
     Red     = Color3.fromRGB(240, 90, 80),
     Blue    = Color3.fromRGB(120, 200, 255),
@@ -116,7 +110,7 @@ local function stroke(parent, color, thickness, transparency)
 end
 
 local gui = new("ScreenGui", {
-    Name = "LumberPanel",
+    Name = "OathPanel",
     ResetOnSpawn = false,
     ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
     IgnoreGuiInset = true,
@@ -131,7 +125,7 @@ local Main = new("Frame", {
     BorderSizePixel = 0,
     ClipsDescendants = true,
 }, gui)
-corner(Main, 12)
+corner(Main, 16)
 stroke(Main, Theme.Stroke, 1)
 
 local Sidebar = new("Frame", {
@@ -140,10 +134,10 @@ local Sidebar = new("Frame", {
     BackgroundColor3 = Theme.Sidebar,
     BorderSizePixel = 0,
 }, Main)
-corner(Sidebar, 12)
+corner(Sidebar, 16)
 
 new("Frame", {
-    Size = UDim2.new(0, 14, 1, -26),
+    Size = UDim2.new(0, 14, 1, -32),
     Position = UDim2.new(1, 0, 0.5, 0),
     AnchorPoint = Vector2.new(1, 0.5),
     BackgroundColor3 = Theme.Sidebar,
@@ -152,7 +146,7 @@ new("Frame", {
 
 new("TextLabel", {
     Size = UDim2.new(0, 130, 0, 20),
-    Position = UDim2.new(0, 20, 0, 4),
+    Position = UDim2.new(0, 14, 0, 6),
     BackgroundTransparency = 1,
     Text = GAME_TITLE,
     Font = Enum.Font.GothamBold,
@@ -164,7 +158,7 @@ new("TextLabel", {
 
 local authorCapsule = new("Frame", {
     Size = UDim2.new(0, 76, 0, 18),
-    Position = UDim2.new(0, 20, 0, 28),
+    Position = UDim2.new(0, 14, 0, 30),
     BackgroundColor3 = Theme.Accent,
     BackgroundTransparency = 0.82,
     BorderSizePixel = 0,
@@ -185,7 +179,7 @@ new("TextLabel", {
 
 local versionCapsule = new("Frame", {
     Size = UDim2.new(0, 50, 0, 18),
-    Position = UDim2.new(0, 100, 0, 28),
+    Position = UDim2.new(0, 94, 0, 30),
     BackgroundColor3 = Theme.Accent,
     BackgroundTransparency = 0.82,
     BorderSizePixel = 0,
@@ -241,15 +235,14 @@ local Content = new("Frame", {
     BackgroundTransparency = 1,
 }, Main)
 
--- ▼ 仅两个分区：信息 / 功能
 local TabDefs = {
     { name = "信息" },
     { name = "功能" },
 }
 
 local TabHolder = new("Frame", {
-    Position = UDim2.new(0, 0, 0, 52),
-    Size = UDim2.new(1, 0, 1, -60),
+    Position = UDim2.new(0, 0, 0, 56),
+    Size = UDim2.new(1, 0, 1, -64),
     BackgroundTransparency = 1,
     ZIndex = 1,
 }, Sidebar)
@@ -267,7 +260,7 @@ new("UIPadding", {
 local TabHighlight = new("Frame", {
     Name = "TabHighlight",
     Size = UDim2.fromOffset(110, 32),
-    Position = UDim2.new(0, 10, 0, 56),
+    Position = UDim2.new(0, 10, 0, 60),
     BackgroundColor3 = Color3.fromRGB(255, 255, 255),
     BackgroundTransparency = 0.90,
     BorderSizePixel = 0,
@@ -279,7 +272,7 @@ stroke(TabHighlight, Color3.fromRGB(255, 255, 255), 1, 0.80)
 local SliderBar = new("Frame", {
     Name = "SliderBar",
     Size = UDim2.fromOffset(3, 16),
-    Position = UDim2.new(0, 10, 0, 64),
+    Position = UDim2.new(0, 10, 0, 68),
     BackgroundColor3 = Theme.Accent,
     BorderSizePixel = 0,
     ZIndex = 5,
@@ -305,8 +298,8 @@ for i, def in ipairs(TabDefs) do
         SortOrder = Enum.SortOrder.LayoutOrder,
     }, page)
     new("UIPadding", {
-        PaddingTop = UDim.new(0, 40),
-        PaddingBottom = UDim.new(0, 14),
+        PaddingTop = UDim.new(0, 48),
+        PaddingBottom = UDim.new(0, 10),
         PaddingLeft = UDim.new(0, 14),
         PaddingRight = UDim.new(0, 14),
     }, page)
@@ -348,12 +341,12 @@ local function selectTab(index)
         Pages[i].Visible = active
     end
 
-    local hlY = 56 + (index - 1) * 36
+    local hlY = 60 + (index - 1) * 36
     TweenService:Create(TabHighlight, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
         Position = UDim2.new(0, 10, 0, hlY),
     }):Play()
 
-    local barY = 64 + (index - 1) * 36
+    local barY = 68 + (index - 1) * 36
     TweenService:Create(SliderBar, TweenInfo.new(0.30, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
         Position = UDim2.new(0, 10, 0, barY),
     }):Play()
@@ -673,7 +666,6 @@ do
     makeCopyButton("复制作者 QQ 号", "3767465890", 1)
     makeCopyButton("复制 QQ 群", "1109682737", 2)
 
-    -- 更新日志
     local logCard = new("Frame", {
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
@@ -706,110 +698,688 @@ do
         LayoutOrder = 1,
     }, logCard)
 
-    local function makeLogEntry(versionText, lines, order)
-        local entry = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            BackgroundColor3 = Color3.fromRGB(24, 25, 29),
-            BorderSizePixel = 0,
-            LayoutOrder = order,
-        }, logCard)
-        corner(entry, 8)
+    local entry = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Theme.RowBg,
+        BorderSizePixel = 0,
+        LayoutOrder = 2,
+    }, logCard)
+    corner(entry, 8)
 
-        new("UIPadding", {
-            PaddingTop = UDim.new(0, 8),
-            PaddingBottom = UDim.new(0, 8),
-            PaddingLeft = UDim.new(0, 10),
-            PaddingRight = UDim.new(0, 10),
-        }, entry)
+    new("UIPadding", {
+        PaddingTop = UDim.new(0, 8),
+        PaddingBottom = UDim.new(0, 8),
+        PaddingLeft = UDim.new(0, 10),
+        PaddingRight = UDim.new(0, 10),
+    }, entry)
 
-        new("UIListLayout", {
-            Padding = UDim.new(0, 4),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-        }, entry)
+    new("UIListLayout", {
+        Padding = UDim.new(0, 4),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, entry)
 
-        local headerRow = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 16),
-            BackgroundTransparency = 1,
-            LayoutOrder = 1,
-        }, entry)
+    local headerRow = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 16),
+        BackgroundTransparency = 1,
+        LayoutOrder = 1,
+    }, entry)
 
-        local versionChip = new("Frame", {
-            Size = UDim2.fromOffset(50, 16),
-            Position = UDim2.new(1, 0, 0, 0),
-            AnchorPoint = Vector2.new(1, 0),
-            BackgroundColor3 = Theme.Accent,
-            BackgroundTransparency = 0.82,
-            BorderSizePixel = 0,
-        }, headerRow)
-        corner(versionChip, 8)
+    local versionChip = new("Frame", {
+        Size = UDim2.fromOffset(50, 16),
+        Position = UDim2.new(1, 0, 0, 0),
+        AnchorPoint = Vector2.new(1, 0),
+        BackgroundColor3 = Theme.Accent,
+        BackgroundTransparency = 0.82,
+        BorderSizePixel = 0,
+    }, headerRow)
+    corner(versionChip, 8)
 
-        new("TextLabel", {
-            Size = UDim2.fromScale(1, 1),
-            BackgroundTransparency = 1,
-            Text = versionText,
-            Font = Enum.Font.GothamBold,
-            TextSize = 9,
-            TextColor3 = Theme.Accent,
-            TextXAlignment = Enum.TextXAlignment.Center,
-        }, versionChip)
+    new("TextLabel", {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+        Text = VERSION,
+        Font = Enum.Font.GothamBold,
+        TextSize = 9,
+        TextColor3 = Theme.Accent,
+        TextXAlignment = Enum.TextXAlignment.Center,
+    }, versionChip)
 
-        for i, text in ipairs(lines) do
-            local row = new("Frame", {
-                Size = UDim2.new(1, 0, 0, 16),
-                BackgroundTransparency = 1,
-                LayoutOrder = i + 1,
-            }, entry)
-
-            local dot = new("Frame", {
-                Size = UDim2.fromOffset(4, 4),
-                Position = UDim2.new(0, 2, 0.5, -2),
-                BackgroundColor3 = Theme.Accent,
-                BorderSizePixel = 0,
-            }, row)
-            corner(dot, 2)
-
-            new("TextLabel", {
-                Position = UDim2.new(0, 14, 0, 0),
-                Size = UDim2.new(1, -14, 1, 0),
-                BackgroundTransparency = 1,
-                Text = text,
-                Font = Enum.Font.Gotham,
-                TextSize = 12,
-                TextColor3 = Theme.Text,
-                TextXAlignment = Enum.TextXAlignment.Left,
-            }, row)
-        end
-    end
-
-    makeLogEntry("V3.1.1", {
-        "新增支持游戏：最强战场",
-        "分区精简为「信息 / 功能」",
-    }, 2)
-
-    makeLogEntry("V3.1.0", {
-        "移除「通过绘画变得富有」支持",
-        "移除整个「绘画」分区",
-    }, 3)
-
-    makeLogEntry("V2.6.0", {
-        "图片绘画自动先传送 + 打开面板",
-    }, 4)
-
-    makeLogEntry("V2.5.7", {
-        "图片绘画默认使用猫图 ID",
-        "窗口红黄按钮略微放大",
-    }, 5)
-
-    makeLogEntry("V1.0.0", {
-        "初始版本发布",
-    }, 6)
+    new("TextLabel", {
+        Position = UDim2.new(0, 14, 0, 0),
+        Size = UDim2.new(1, -14, 1, 0),
+        BackgroundTransparency = 1,
+        Text = "初始版本发布",
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        LayoutOrder = 2,
+    }, entry)
 end
 
 --=========================================================
---  页面 2：功能（暂时为空）
+--  页面 2：功能
 --=========================================================
--- 功能分区保留，等待后续添加功能
+-- 只有「每秒+1个方块」分支有功能，其他分支为空
+if GAME_TYPE == "BlockPerSecond" then
+    do
+        local page = Pages[2]
+
+        --===============================================
+        --  「自动」折叠小分区
+        --===============================================
+        local autoHeader = new("Frame", {
+            Size = UDim2.new(1, 0, 0, 34),
+            BackgroundColor3 = Theme.Panel,
+            BorderSizePixel = 0,
+            LayoutOrder = 1,
+        }, page)
+        corner(autoHeader, 8)
+
+        local folderIcon = new("TextLabel", {
+            Size = UDim2.fromOffset(28, 28),
+            Position = UDim2.new(0, 4, 0.5, 0),
+            AnchorPoint = Vector2.new(0, 0.5),
+            BackgroundTransparency = 1,
+            Text = "📁",
+            Font = Enum.Font.GothamBold,
+            TextSize = 20,
+            TextColor3 = Color3.fromRGB(255, 255, 255),
+            TextXAlignment = Enum.TextXAlignment.Center,
+            TextYAlignment = Enum.TextYAlignment.Center,
+        }, autoHeader)
+
+        new("TextLabel", {
+            Position = UDim2.new(0, 38, 0, 0),
+            Size = UDim2.new(1, -38, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "自动",
+            Font = Enum.Font.GothamMedium,
+            TextSize = 13,
+            TextColor3 = Theme.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+        }, autoHeader)
+
+        local headerBtn = new("TextButton", {
+            Size = UDim2.fromScale(1, 1),
+            BackgroundTransparency = 1,
+            Text = "",
+            AutoButtonColor = false,
+            ZIndex = 5,
+        }, autoHeader)
+
+        local autoContainer = new("Frame", {
+            Size = UDim2.new(1, 0, 0, 0),
+            BackgroundTransparency = 1,
+            ClipsDescendants = true,
+            LayoutOrder = 2,
+        }, page)
+        new("UIListLayout", {
+            Padding = UDim.new(0, 8),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        }, autoContainer)
+
+        -- 自动放置
+        local autoPlaceRunning = false
+        local autoPlaceBtn = new("TextButton", {
+            Size = UDim2.new(1, 0, 0, 40),
+            BackgroundColor3 = Theme.Accent,
+            BorderSizePixel = 0,
+            Text = "自动放置",
+            Font = Enum.Font.GothamBold,
+            TextSize = 14,
+            TextColor3 = Color3.fromRGB(12, 24, 16),
+            AutoButtonColor = false,
+            LayoutOrder = 1,
+        }, autoContainer)
+        corner(autoPlaceBtn, 10)
+
+        autoPlaceBtn.MouseEnter:Connect(function()
+            if not autoPlaceRunning then
+                TweenService:Create(autoPlaceBtn, TweenInfo.new(0.12), {
+                    BackgroundColor3 = Theme.Accent:Lerp(Color3.new(1, 1, 1), 0.2),
+                }):Play()
+            end
+        end)
+        autoPlaceBtn.MouseLeave:Connect(function()
+            if not autoPlaceRunning then
+                TweenService:Create(autoPlaceBtn, TweenInfo.new(0.12), {
+                    BackgroundColor3 = Theme.Accent,
+                }):Play()
+            end
+        end)
+
+        local placeStatus = new("TextLabel", {
+            Size = UDim2.new(1, 0, 0, 16),
+            BackgroundTransparency = 1,
+            Text = "未开启",
+            Font = Enum.Font.Gotham,
+            TextSize = 11,
+            TextColor3 = Theme.Sub,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            LayoutOrder = 2,
+        }, autoContainer)
+
+        autoPlaceBtn.MouseButton1Click:Connect(function()
+            if autoPlaceRunning then
+                autoPlaceRunning = false
+                autoPlaceBtn.Text = "自动放置"
+                placeStatus.Text = "已停止"
+                placeStatus.TextColor3 = Theme.Sub
+                TweenService:Create(autoPlaceBtn, TweenInfo.new(0.12), {
+                    BackgroundColor3 = Theme.Accent,
+                    TextColor3 = Color3.fromRGB(12, 24, 16),
+                }):Play()
+            else
+                autoPlaceRunning = true
+                autoPlaceBtn.Text = "停止自动放置"
+                placeStatus.Text = "运行中 (0.01s)"
+                placeStatus.TextColor3 = Theme.Accent
+                TweenService:Create(autoPlaceBtn, TweenInfo.new(0.12), {
+                    BackgroundColor3 = Theme.Red,
+                    TextColor3 = Color3.fromRGB(255, 255, 255),
+                }):Play()
+
+                task.spawn(function()
+                    local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes", 5)
+                    if not Remotes then
+                        autoPlaceRunning = false
+                        autoPlaceBtn.Text = "自动放置"
+                        placeStatus.Text = "找不到 Remotes"
+                        placeStatus.TextColor3 = Theme.Red
+                        TweenService:Create(autoPlaceBtn, TweenInfo.new(0.12), {
+                            BackgroundColor3 = Theme.Accent,
+                            TextColor3 = Color3.fromRGB(12, 24, 16),
+                        }):Play()
+                        return
+                    end
+                    local Event = Remotes:WaitForChild("PlaceBlock", 5)
+                    if not Event then
+                        autoPlaceRunning = false
+                        autoPlaceBtn.Text = "自动放置"
+                        placeStatus.Text = "找不到 PlaceBlock"
+                        placeStatus.TextColor3 = Theme.Red
+                        TweenService:Create(autoPlaceBtn, TweenInfo.new(0.12), {
+                            BackgroundColor3 = Theme.Accent,
+                            TextColor3 = Color3.fromRGB(12, 24, 16),
+                        }):Play()
+                        return
+                    end
+                    while autoPlaceRunning do
+                        pcall(function() Event:FireServer() end)
+                        task.wait(0.01)
+                    end
+                end)
+            end
+        end)
+
+        -- 自动重生
+        local autoRebirthRunning = false
+        local rebirthCount = 0
+
+        local autoRebirthBtn = new("TextButton", {
+            Size = UDim2.new(1, 0, 0, 40),
+            BackgroundColor3 = Theme.Accent,
+            BorderSizePixel = 0,
+            Text = "自动重生",
+            Font = Enum.Font.GothamBold,
+            TextSize = 14,
+            TextColor3 = Color3.fromRGB(12, 24, 16),
+            AutoButtonColor = false,
+            LayoutOrder = 3,
+        }, autoContainer)
+        corner(autoRebirthBtn, 10)
+
+        autoRebirthBtn.MouseEnter:Connect(function()
+            if not autoRebirthRunning then
+                TweenService:Create(autoRebirthBtn, TweenInfo.new(0.12), {
+                    BackgroundColor3 = Theme.Accent:Lerp(Color3.new(1, 1, 1), 0.2),
+                }):Play()
+            end
+        end)
+        autoRebirthBtn.MouseLeave:Connect(function()
+            if not autoRebirthRunning then
+                TweenService:Create(autoRebirthBtn, TweenInfo.new(0.12), {
+                    BackgroundColor3 = Theme.Accent,
+                }):Play()
+            end
+        end)
+
+        local rebirthStatus = new("TextLabel", {
+            Size = UDim2.new(1, 0, 0, 16),
+            BackgroundTransparency = 1,
+            Text = "未开启",
+            Font = Enum.Font.Gotham,
+            TextSize = 11,
+            TextColor3 = Theme.Sub,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            LayoutOrder = 4,
+        }, autoContainer)
+
+        autoRebirthBtn.MouseButton1Click:Connect(function()
+            if autoRebirthRunning then
+                autoRebirthRunning = false
+                autoRebirthBtn.Text = "自动重生"
+                rebirthStatus.Text = "已停止（共 " .. rebirthCount .. " 次）"
+                rebirthStatus.TextColor3 = Theme.Sub
+                TweenService:Create(autoRebirthBtn, TweenInfo.new(0.12), {
+                    BackgroundColor3 = Theme.Accent,
+                    TextColor3 = Color3.fromRGB(12, 24, 16),
+                }):Play()
+            else
+                autoRebirthRunning = true
+                rebirthCount = 0
+                autoRebirthBtn.Text = "停止自动重生"
+                rebirthStatus.Text = "运行中... 已重生 0 次"
+                rebirthStatus.TextColor3 = Theme.Accent
+                TweenService:Create(autoRebirthBtn, TweenInfo.new(0.12), {
+                    BackgroundColor3 = Theme.Red,
+                    TextColor3 = Color3.fromRGB(255, 255, 255),
+                }):Play()
+
+                task.spawn(function()
+                    local Remotes = game:GetService("ReplicatedStorage"):WaitForChild("Remotes", 5)
+                    if not Remotes then
+                        autoRebirthRunning = false
+                        autoRebirthBtn.Text = "自动重生"
+                        rebirthStatus.Text = "找不到 Remotes"
+                        rebirthStatus.TextColor3 = Theme.Red
+                        TweenService:Create(autoRebirthBtn, TweenInfo.new(0.12), {
+                            BackgroundColor3 = Theme.Accent,
+                            TextColor3 = Color3.fromRGB(12, 24, 16),
+                        }):Play()
+                        return
+                    end
+                    local Event = Remotes:WaitForChild("Rebirth", 5)
+                    if not Event then
+                        autoRebirthRunning = false
+                        autoRebirthBtn.Text = "自动重生"
+                        rebirthStatus.Text = "找不到 Rebirth"
+                        rebirthStatus.TextColor3 = Theme.Red
+                        TweenService:Create(autoRebirthBtn, TweenInfo.new(0.12), {
+                            BackgroundColor3 = Theme.Accent,
+                            TextColor3 = Color3.fromRGB(12, 24, 16),
+                        }):Play()
+                        return
+                    end
+                    while autoRebirthRunning do
+                        local ok = pcall(function() Event:InvokeServer("RebirthShop") end)
+                        if ok then
+                            rebirthCount = rebirthCount + 1
+                            rebirthStatus.Text = "运行中... 已重生 " .. rebirthCount .. " 次"
+                        end
+                        task.wait(0.1)
+                    end
+                end)
+            end
+        end)
+
+        -- 折叠「自动」
+        local autoExpanded = false
+        headerBtn.MouseButton1Click:Connect(function()
+            autoExpanded = not autoExpanded
+            if autoExpanded then
+                folderIcon.Text = "📂"
+                TweenService:Create(autoContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Size = UDim2.new(1, 0, 0, 136),
+                }):Play()
+            else
+                folderIcon.Text = "📁"
+                TweenService:Create(autoContainer, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Size = UDim2.new(1, 0, 0, 0),
+                }):Play()
+            end
+        end)
+
+        --===============================================
+        --  「自动开蛋」分区（输入框样式标题栏）
+        --===============================================
+        local eggHeader = new("Frame", {
+            Size = UDim2.new(1, 0, 0, 36),
+            BackgroundColor3 = Color3.fromRGB(24, 25, 29),
+            BorderSizePixel = 0,
+            LayoutOrder = 3,
+        }, page)
+        corner(eggHeader, 8)
+        stroke(eggHeader, Theme.Stroke, 1)
+
+        new("TextLabel", {
+            Size = UDim2.new(1, -50, 1, 0),
+            Position = UDim2.new(0, 12, 0, 0),
+            BackgroundTransparency = 1,
+            Text = "自动开蛋",
+            Font = Enum.Font.GothamMedium,
+            TextSize = 12,
+            TextColor3 = Theme.Sub,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ZIndex = 2,
+        }, eggHeader)
+
+        local eggHeaderBtn = new("TextButton", {
+            Size = UDim2.new(1, -46, 1, 0),
+            BackgroundTransparency = 1,
+            Text = "",
+            AutoButtonColor = false,
+            ZIndex = 5,
+        }, eggHeader)
+
+        local eggToggleBtn = new("TextButton", {
+            Size = UDim2.fromOffset(28, 28),
+            Position = UDim2.new(1, -4, 0.5, 0),
+            AnchorPoint = Vector2.new(1, 0.5),
+            BackgroundColor3 = Theme.Panel,
+            BorderSizePixel = 0,
+            Text = "+",
+            Font = Enum.Font.GothamBold,
+            TextSize = 16,
+            TextColor3 = Theme.Accent,
+            AutoButtonColor = false,
+            ZIndex = 6,
+        }, eggHeader)
+        corner(eggToggleBtn, 6)
+
+        local BASE_HEIGHT = 194
+        local EXTRA_HEIGHT = 76
+        local eggContainer = new("Frame", {
+            Size = UDim2.new(1, 0, 0, 0),
+            BackgroundTransparency = 1,
+            ClipsDescendants = true,
+            LayoutOrder = 4,
+        }, page)
+        new("UIListLayout", {
+            Padding = UDim.new(0, 6),
+            SortOrder = Enum.SortOrder.LayoutOrder,
+        }, eggContainer)
+
+        local eggExpanded = false
+        local expandedCard = nil
+
+        local function getTargetHeight()
+            local h = BASE_HEIGHT
+            if expandedCard then h = h + EXTRA_HEIGHT end
+            return eggExpanded and h or 0
+        end
+
+        local function updateEggHeight()
+            TweenService:Create(eggContainer, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Size = UDim2.new(1, 0, 0, getTargetHeight()),
+            }):Play()
+        end
+
+        local function collapseEggCard(card)
+            if not card then return end
+            local detailPanel = card:FindFirstChild("DetailPanel")
+            local plusBtn = card:FindFirstChild("PlusBtn")
+            if plusBtn then plusBtn.Text = "+" end
+            TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                Size = UDim2.new(1, 0, 0, 34),
+            }):Play()
+            if detailPanel then
+                TweenService:Create(detailPanel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Size = UDim2.new(1, 0, 0, 0),
+                }):Play()
+            end
+            if expandedCard == card then
+                expandedCard = nil
+                updateEggHeight()
+            end
+        end
+
+        local function toggleEggCard(card)
+            if expandedCard == card then
+                collapseEggCard(card)
+            else
+                if expandedCard then collapseEggCard(expandedCard) end
+                local detailPanel = card:FindFirstChild("DetailPanel")
+                local plusBtn = card:FindFirstChild("PlusBtn")
+                if plusBtn then plusBtn.Text = "−" end
+                TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                    Size = UDim2.new(1, 0, 0, 110),
+                }):Play()
+                if detailPanel then
+                    TweenService:Create(detailPanel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        Size = UDim2.new(1, 0, 0, 72),
+                    }):Play()
+                end
+                expandedCard = card
+                updateEggHeight()
+            end
+        end
+
+        local function toggleEggList()
+            eggExpanded = not eggExpanded
+            if eggExpanded then
+                eggToggleBtn.Text = "−"
+            else
+                eggToggleBtn.Text = "+"
+                if expandedCard then
+                    local card = expandedCard
+                    local detailPanel = card:FindFirstChild("DetailPanel")
+                    local plusBtn = card:FindFirstChild("PlusBtn")
+                    if plusBtn then plusBtn.Text = "+" end
+                    TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                        Size = UDim2.new(1, 0, 0, 34),
+                    }):Play()
+                    if detailPanel then
+                        TweenService:Create(detailPanel, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+                            Size = UDim2.new(1, 0, 0, 0),
+                        }):Play()
+                    end
+                    expandedCard = nil
+                end
+            end
+            updateEggHeight()
+        end
+
+        eggHeaderBtn.MouseButton1Click:Connect(toggleEggList)
+        eggToggleBtn.MouseButton1Click:Connect(toggleEggList)
+
+        --===============================================
+        --  蛋列表
+        --===============================================
+        local EGG_LIST = { "Grass", "Stone", "Christmas", "Void", "Atlantis" }
+
+        local EggOpenEvent = nil
+        task.spawn(function()
+            local RS = game:GetService("ReplicatedStorage")
+            local RE = RS:WaitForChild("RemoteEvents", 10)
+            if RE then
+                EggOpenEvent = RE:WaitForChild("EggOpen", 5)
+            end
+        end)
+
+        local function fireEgg(eggName)
+            if not EggOpenEvent then return false end
+            local ok = pcall(function()
+                EggOpenEvent:InvokeServer(eggName, "Single")
+            end)
+            return ok
+        end
+
+        for i, eggName in ipairs(EGG_LIST) do
+            local eggCard = new("Frame", {
+                Size = UDim2.new(1, 0, 0, 34),
+                BackgroundColor3 = Theme.RowBg,
+                BorderSizePixel = 0,
+                ClipsDescendants = true,
+                LayoutOrder = i,
+            }, eggContainer)
+            corner(eggCard, 8)
+
+            local nameBtn = new("TextButton", {
+                Size = UDim2.new(1, -40, 0, 34),
+                BackgroundTransparency = 1,
+                Text = eggName,
+                Font = Enum.Font.GothamMedium,
+                TextSize = 12,
+                TextColor3 = Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                AutoButtonColor = false,
+            }, eggCard)
+
+            new("UIPadding", {
+                PaddingLeft = UDim.new(0, 14),
+            }, nameBtn)
+
+            local plusBtn = new("TextButton", {
+                Name = "PlusBtn",
+                Size = UDim2.fromOffset(28, 28),
+                Position = UDim2.new(1, -3, 0, 3),
+                BackgroundColor3 = Theme.Panel,
+                BorderSizePixel = 0,
+                Text = "+",
+                Font = Enum.Font.GothamBold,
+                TextSize = 16,
+                TextColor3 = Theme.Accent,
+                AutoButtonColor = false,
+                ZIndex = 3,
+            }, eggCard)
+            corner(plusBtn, 6)
+
+            local detailPanel = new("Frame", {
+                Name = "DetailPanel",
+                Size = UDim2.new(1, 0, 0, 0),
+                Position = UDim2.new(0, 0, 0, 38),
+                BackgroundTransparency = 1,
+                ClipsDescendants = true,
+                ZIndex = 2,
+            }, eggCard)
+
+            local countBox = new("TextBox", {
+                Size = UDim2.new(1, -8, 0, 30),
+                Position = UDim2.new(0, 4, 0, 0),
+                BackgroundColor3 = Color3.fromRGB(24, 25, 29),
+                BorderSizePixel = 0,
+                Text = "",
+                PlaceholderText = "输入要买多少个（留空=无限）",
+                PlaceholderColor3 = Theme.Sub,
+                Font = Enum.Font.GothamMedium,
+                TextSize = 11,
+                TextColor3 = Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Center,
+                ClearTextOnFocus = false,
+            }, detailPanel)
+            corner(countBox, 6)
+            stroke(countBox, Theme.Stroke, 1)
+
+            local eggRunning = false
+            local startBtn = new("TextButton", {
+                Size = UDim2.new(1, -8, 0, 34),
+                Position = UDim2.new(0, 4, 0, 36),
+                BackgroundColor3 = Theme.Accent,
+                BorderSizePixel = 0,
+                Text = "开启",
+                Font = Enum.Font.GothamBold,
+                TextSize = 13,
+                TextColor3 = Color3.fromRGB(12, 24, 16),
+                AutoButtonColor = false,
+            }, detailPanel)
+            corner(startBtn, 8)
+
+            startBtn.MouseEnter:Connect(function()
+                if not eggRunning then
+                    TweenService:Create(startBtn, TweenInfo.new(0.12), {
+                        BackgroundColor3 = Theme.Accent:Lerp(Color3.new(1, 1, 1), 0.2),
+                    }):Play()
+                end
+            end)
+            startBtn.MouseLeave:Connect(function()
+                if not eggRunning then
+                    TweenService:Create(startBtn, TweenInfo.new(0.12), {
+                        BackgroundColor3 = Theme.Accent,
+                    }):Play()
+                end
+            end)
+
+            nameBtn.MouseButton1Click:Connect(function()
+                local ok = fireEgg(eggName)
+                if ok then
+                    nameBtn.TextColor3 = Theme.Accent
+                    task.delay(0.3, function()
+                        nameBtn.TextColor3 = Theme.Text
+                    end)
+                else
+                    nameBtn.TextColor3 = Theme.Red
+                    task.delay(0.5, function()
+                        nameBtn.TextColor3 = Theme.Text
+                    end)
+                end
+            end)
+
+            plusBtn.MouseButton1Click:Connect(function()
+                toggleEggCard(eggCard)
+            end)
+
+            startBtn.MouseButton1Click:Connect(function()
+                if eggRunning then
+                    eggRunning = false
+                    startBtn.Text = "开启"
+                    TweenService:Create(startBtn, TweenInfo.new(0.12), {
+                        BackgroundColor3 = Theme.Accent,
+                        TextColor3 = Color3.fromRGB(12, 24, 16),
+                    }):Play()
+                    return
+                end
+
+                if not EggOpenEvent then
+                    startBtn.Text = "找不到 EggOpen"
+                    TweenService:Create(startBtn, TweenInfo.new(0.12), {
+                        BackgroundColor3 = Theme.Red,
+                        TextColor3 = Color3.fromRGB(255, 255, 255),
+                    }):Play()
+                    task.wait(1.5)
+                    startBtn.Text = "开启"
+                    TweenService:Create(startBtn, TweenInfo.new(0.12), {
+                        BackgroundColor3 = Theme.Accent,
+                        TextColor3 = Color3.fromRGB(12, 24, 16),
+                    }):Play()
+                    return
+                end
+
+                local count = tonumber(countBox.Text)
+                if not count or count <= 0 then
+                    count = math.huge
+                end
+
+                eggRunning = true
+                startBtn.Text = "停止"
+                TweenService:Create(startBtn, TweenInfo.new(0.12), {
+                    BackgroundColor3 = Theme.Red,
+                    TextColor3 = Color3.fromRGB(255, 255, 255),
+                }):Play()
+
+                task.spawn(function()
+                    local opened = 0
+                    while eggRunning and opened < count do
+                        pcall(function()
+                            EggOpenEvent:InvokeServer(eggName, "Single")
+                        end)
+                        opened = opened + 1
+                        if count ~= math.huge then
+                            startBtn.Text = "停止 (" .. opened .. "/" .. count .. ")"
+                        else
+                            startBtn.Text = "停止 (" .. opened .. ")"
+                        end
+                        task.wait(0.1)
+                    end
+
+                    if eggRunning then
+                        eggRunning = false
+                        startBtn.Text = "已完成 " .. opened
+                        task.wait(1.5)
+                        startBtn.Text = "开启"
+                        TweenService:Create(startBtn, TweenInfo.new(0.12), {
+                            BackgroundColor3 = Theme.Accent,
+                            TextColor3 = Color3.fromRGB(12, 24, 16),
+                        }):Play()
+                    end
+                end)
+            end)
+        end
+    end
+end
+-- 其他分支：功能分区为空
 
 -- 拖动 & 快捷键
 do
@@ -863,14 +1433,16 @@ end
 selectTab(1)
 playIntro()
 
-print("[" .. GAME_TITLE .. "] V3.1.1 已加载 — 按 RightShift 显示/隐藏")
+print("[" .. GAME_TITLE .. "] V1.0.3 已加载 — 按 RightShift 显示/隐藏")
 ]==]
 
+-- 替换主脚本里的占位符
+MAIN_SCRIPT_SOURCE = MAIN_SCRIPT_SOURCE:gsub("__GAME_TYPE__", GAME_TYPE)
+MAIN_SCRIPT_SOURCE = MAIN_SCRIPT_SOURCE:gsub("__GAME_TITLE__", GAME_TITLE)
+
 local function loadMainScript()
-    local supported = isSupportedGame()
-    if not supported then
-        return false, "当前游戏不在支持列表中，不加载主脚本"
-    end
+    print("[Oath] 已识别游戏分支: " .. GAME_TYPE .. " (" .. GAME_TITLE .. ")")
+
     local fn, compileErr = loadstring(MAIN_SCRIPT_SOURCE)
     if not fn then
         return false, "编译失败: " .. tostring(compileErr)
@@ -1107,7 +1679,7 @@ local function verify()
 
     if passed then
         TipLabel.TextColor3 = Theme.Accent
-        TipLabel.Text = (isEmpty and isOwner) and "识别为开发者，正在检测游戏..." or "验证成功，正在检测游戏..."
+        TipLabel.Text = (isEmpty and isOwner) and "识别为开发者，正在加载..." or "验证成功，正在加载..."
 
         local ok, err = loadMainScript()
 
@@ -1155,4 +1727,4 @@ end)
 task.wait(0.6)
 InputBox:CaptureFocus()
 
-print("[Oath] V3.1.1 卡密验证系统已启动")
+print("[Oath] V1.0.3 卡密验证系统已启动")
