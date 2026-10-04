@@ -1,11 +1,9 @@
 --[[
-    誓言面板 v9.1
+    誓言面板 v9.2
     卡密：誓言NB
+    修复：下拉列表展开时，拖动列表内选项不再拖动整个面板
     UI：v9 原版（自绘面板 + 卡密卡片 + 最小化 Island）
     核心逻辑：带来树 / 一键加工 使用源码.lua 增强版
-      · 树木列表从 PlanterStore.Planter Spawner.Amounts 动态读取（~103 种）
-      · 斧头伤害走 decompile 反编译解析
-      · 拖拽带到位校验 + 补偿重试
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -1119,6 +1117,23 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
+-- ★ 下拉列表注册表：阻止展开列表时拖动整个面板
+local dropdownRegistry = {}
+
+local function isPointerOverDropdown(mx, my)
+    for frame in pairs(dropdownRegistry) do
+        if frame and frame.Parent and frame.Visible then
+            local lpos = frame.AbsolutePosition
+            local lsize = frame.AbsoluteSize
+            if mx >= lpos.X and mx <= lpos.X + lsize.X
+            and my >= lpos.Y and my <= lpos.Y + lsize.Y then
+                return true
+            end
+        end
+    end
+    return false
+end
+
 do
     local dragging, actualDragging = false, false
     local dragStart, startPos = nil, nil
@@ -1129,6 +1144,8 @@ do
         or input.UserInputType == Enum.UserInputType.Touch then
             if not Main.Visible then return end
             local mx, my = input.Position.X, input.Position.Y
+            -- ★ 鼠标在展开的下拉列表内 → 不启动面板拖动
+            if isPointerOverDropdown(mx, my) then return end
             local mpos = Main.AbsolutePosition
             local msize = Main.AbsoluteSize
             if mx >= mpos.X and mx <= mpos.X + msize.X
@@ -1280,6 +1297,7 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
         ClipsDescendants=true, Visible=false, ZIndex=10,
     }, container)
     crn(listFrame, 6)
+    dropdownRegistry[listFrame] = true   -- ★ 注册，供拖动检查使用
 
     local searchBox = new("TextBox",{
         Position=UDim2.new(0, 4, 0, 4),
