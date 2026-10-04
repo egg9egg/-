@@ -1,7 +1,7 @@
 --[[
-    誓言面板 v8
+    誓言面板 v9
     卡密：誓言NB
-    改善：锁人 + 树顶 + Refresh分段拖拽 + 多轮重试
+    新增：选择锯木机（一键加工前必须先选）
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -18,7 +18,6 @@ local KEYS = { ["誓言NB"] = true }
 local GAME_TITLE = "木材大亨2"
 local DRAG_SECRET = "Ifyouarereadingthisstophackingbrolegitalsokrnlisbadbtw432rewdWdwFe432432rwDWDAVWdawgdGWAYDFGYTUW"
 
--- 拖拽参数
 local DRAG_TOTAL = 60
 local DRAG_SET_START = 28
 local DRAG_SET_INTERVAL = 0.01
@@ -84,7 +83,7 @@ local function safeTeleport(cf)
     end
 end
 
--- ==================== 强拖拽（Refresh 分段 + 到位检测 + 重试）====================
+-- ==================== 强拖拽 ====================
 local function dragModelToPosition(model, targetCF)
     if not model or not model.Parent then return false end
     local primary = model.PrimaryPart
@@ -252,7 +251,6 @@ local function getTreeClassFromModel(treeModel)
     end
     return "Generic"
 end
-
 local function getTreeTopCFrame(treeModel)
     local topY, topCF = -math.huge, nil
     for _, child in pairs(treeModel:GetChildren()) do
@@ -359,6 +357,90 @@ local function bringTreeRemote(treeClass, targetCF)
         notify("誓言", "拖拽完成（可能未完全到位）", 3)
     end
     return true
+end
+
+-- ==================== 选择锯木机 ====================
+local cachedSawmill = nil
+local cachedSawmillPos = nil
+local isSelectingSawmill = false
+local sawmillSelectConn = nil
+
+local function selectSawmill()
+    if isSelectingSawmill then
+        notify("誓言", "正在等待选择中...", 2)
+        return
+    end
+    isSelectingSawmill = true
+    notify("誓言", "请点击锯木机任意部件", 3)
+
+    if sawmillSelectConn then sawmillSelectConn:Disconnect() end
+    sawmillSelectConn = mouse.Button1Down:Connect(function()
+        local target = mouse.Target
+        if not target then
+            notify("誓言", "未选中任何物体", 2)
+            return
+        end
+
+        local model = target:FindFirstAncestorOfClass("Model")
+        if not model then
+            notify("誓言", "请点击一个模型", 2)
+            return
+        end
+
+        local function isSawmill(root)
+            local attr = root:GetAttribute("ItemName")
+            if attr and type(attr) == "string" and attr:lower():find("saw") then
+                return true
+            end
+            for _, child in pairs(root:GetDescendants()) do
+                if child.Name == "ItemName" then
+                    local val = child.Value
+                    if val and type(val) == "string" and val:lower():find("saw") then
+                        return true
+                    end
+                end
+            end
+            if root.Name and root.Name:lower():find("saw") then
+                return true
+            end
+            local typeVal = root:FindFirstChild("Type")
+            if typeVal and typeVal.Value == "Sawmill" then
+                return true
+            end
+            return false
+        end
+
+        if not isSawmill(model) then
+            notify("誓言", "这不是锯木机（未检测到锯木机标识）", 3)
+            return
+        end
+
+        local function findPart(root)
+            for _, child in pairs(root:GetDescendants()) do
+                if child.Name == "Conveyor" and child:IsA("BasePart") then
+                    return child, "Conveyor"
+                end
+            end
+            for _, child in pairs(root:GetDescendants()) do
+                if child.Name == "Main" and child:IsA("BasePart") then
+                    return child, "Main"
+                end
+            end
+            return nil, nil
+        end
+
+        local part, partType = findPart(model)
+        if not part then
+            notify("誓言", "找不到 Conveyor 或 Main 部件", 3)
+            return
+        end
+
+        cachedSawmill = model
+        cachedSawmillPos = part.CFrame
+        if sawmillSelectConn then sawmillSelectConn:Disconnect(); sawmillSelectConn = nil end
+        isSelectingSawmill = false
+        notify("誓言", "✅ 已记忆锯木机位置（" .. partType .. "）", 3)
+    end)
 end
 
 -- ==================== 一键加工 ====================
@@ -493,16 +575,37 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
 end
 
 local function startDecomposeSelection()
-    if isDecomposeActive then notify("誓言", "分解选择已激活", 2); return end
-    isDecomposeActive = true
-    notify("誓言", "请点击一棵树", 3)
+    if isDecomposeActive then
+        notify("誓言", "分解选择已激活", 2)
+        return
+    end
 
-    local step = 0
+    -- ★ 检查是否已选锯木机
+    if not cachedSawmill or not cachedSawmill.Parent then
+        notify("誓言", "请先使用「选择锯木机」按钮设置一个锯木机", 3)
+        return
+    end
+    if not cachedSawmillPos then
+        notify("誓言", "锯木机位置无效，请重新选择", 3)
+        return
+    end
+
+    isDecomposeActive = true
+    selectedTree = nil
+    notify("誓言", "请点击一棵树（将使用已记忆的锯木机）", 3)
+
+    if decomposeConn then decomposeConn:Disconnect() end
     decomposeConn = mouse.Button1Down:Connect(function()
         local target = mouse.Target
-        if not target then return end
+        if not target then
+            notify("誓言", "未选中任何物体", 2)
+            return
+        end
         local model = target:FindFirstAncestorOfClass("Model")
-        if not model then return end
+        if not model then
+            notify("誓言", "请点击树的树干", 2)
+            return
+        end
 
         local isTree = false
         local hasWood = false
@@ -511,45 +614,25 @@ local function startDecomposeSelection()
         end
         if hasWood and model:FindFirstChild("CutEvent") then isTree = true end
 
-        local isSawmill = false
-        local sawmillObj = nil
-        local sawmillPos = nil
-        local itemName = model:FindFirstChild("ItemName")
-        if itemName and type(itemName.Value) == "string" and itemName.Value:find("Sawmill") then
-            isSawmill = true; sawmillObj = model
-        end
-        if not isSawmill then
-            if model.Name:find("Sawmill") or (model.Parent and model.Parent.Name:find("Sawmill")) then
-                sawmillObj = model.Parent or model; isSawmill = true
-            end
-        end
-        if isSawmill and sawmillObj then
-            local particles = sawmillObj:FindFirstChild("Particles")
-            if particles then sawmillPos = particles.CFrame
-            else notify("誓言", "该锯木机没有 Particles", 3); return end
-        end
-
-        if step == 0 and isTree then
-            selectedTree = model; step = 1
-            notify("誓言", "已选中树，请点击锯木机", 3); return
-        end
-        if step == 1 and isSawmill and selectedTree then
-            if not sawmillPos then notify("誓言", "锯木机位置无效", 3); return end
-            selectedSawmill = sawmillObj; sawPos = sawmillPos
-            if decomposeConn then decomposeConn:Disconnect(); decomposeConn = nil end
-            isDecomposeActive = false
-            notify("誓言", "开始分解...", 3)
-            task.spawn(function()
-                decomposeAndProcess(selectedTree, selectedSawmill, sawPos)
-                selectedTree = nil; selectedSawmill = nil; sawPos = nil
-            end)
+        if not isTree then
+            notify("誓言", "这不是一棵树，请点击树干", 2)
             return
         end
-        if step == 1 and isTree then
-            selectedTree = model
-            notify("誓言", "已更换选中的树", 3); return
-        end
-        notify("誓言", "请按顺序点击（先树后锯木机）", 2)
+
+        selectedTree = model
+        selectedSawmill = cachedSawmill
+        sawPos = cachedSawmillPos
+
+        if decomposeConn then decomposeConn:Disconnect(); decomposeConn = nil end
+        isDecomposeActive = false
+        notify("誓言", "已选中树，开始分解...", 3)
+
+        task.spawn(function()
+            decomposeAndProcess(selectedTree, selectedSawmill, sawPos)
+            selectedTree = nil
+            selectedSawmill = nil
+            sawPos = nil
+        end)
     end)
 end
 
@@ -1046,15 +1129,15 @@ makeBtn("停止", 5, function()
     else notify("誓言", "当前无任务", 2) end
 end)
 
+-- ★ 一键加工 + 选择锯木机
 sectionHeader("一键加工", 6)
-makeBtn("一键加工（分解 + 拖拽到锯木机）", 7, function()
-    startDecomposeSelection()
-end)
+makeBtn("选择锯木机", 7, selectSawmill)
+makeBtn("一键加工（分解 + 拖拽到锯木机）", 8, startDecomposeSelection)
 new("TextLabel",{
     Size=UDim2.new(1,0,0,18), BackgroundTransparency=1,
-    Text="   点击后：先点树 → 再点锯木机",
+    Text="   先选锯木机 → 再点树",
     Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Sub,
-    TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=8
+    TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=9
 }, fc)
 
 -- ==================== 卡密 UI ====================
