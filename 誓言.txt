@@ -1,9 +1,12 @@
 -- ============================================================
---  五分区 UI 补丁（列表式 + 点击高亮白）
---  使用：把本段放最开头；原脚本里 local bailib = ... / local win = ... 两行替换为：
---     local win = _G.OathWin
+--  五分区 UI 补丁（修改版 · 局部变量 · 点击高亮白）
+--  使用：本段放最开头；原脚本里那两行 UI 加载代码删掉（本补丁已提供 win）
 -- ============================================================
-local Players, UserInputService, TweenService = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("TweenService")
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
 local lp = Players.LocalPlayer
 local PlayerGui = lp:WaitForChild("PlayerGui")
 local KEYS = { ["誓言NB"] = true }
@@ -22,7 +25,7 @@ local function stroke(p,c,t,tr) return new("UIStroke",{Color=c or T.Stroke,Thick
 
 for _,n in ipairs({"OathPanel","OathKeyUI","main","OathHiddenContainer"}) do local o=PlayerGui:FindFirstChild(n); if o then o:Destroy() end end
 
--- 隐藏容器
+-- 隐藏容器：原脚本 UI 先创建到这里
 local hiddenGui = new("ScreenGui",{Name="OathHiddenContainer",ResetOnSpawn=false,Enabled=false,Parent=PlayerGui})
 local functionContainer = new("Frame",{Size=UDim2.new(1,0,0,0),AutomaticSize=Enum.AutomaticSize.Y,BackgroundTransparency=1,Parent=hiddenGui})
 new("UIListLayout",{Padding=UDim.new(0,8),SortOrder=Enum.SortOrder.LayoutOrder},functionContainer)
@@ -200,11 +203,12 @@ function TO:section(title) return SO.new(self.container,title,0) end
 
 local win = {}; win.__index = win
 function win:Tab(name) return TO.new(name) end
-_G.OathWin = win
 
 -- ============================================================
 --  卡密 UI
 -- ============================================================
+local buildMainPanel
+
 local function showKeyUI()
     local KT = {Accent=Color3.fromRGB(88,220,130),Card=Color3.fromRGB(28,29,34),Input=Color3.fromRGB(22,23,27),
                 Text=Color3.fromRGB(232,234,238),Sub=Color3.fromRGB(130,133,142),Stroke=Color3.fromRGB(48,50,56),Red=Color3.fromRGB(240,90,80)}
@@ -243,7 +247,7 @@ local function showKeyUI()
         if verifying then return end; verifying = true
         if KEYS[ib.Text] then
             tip.TextColor3 = KT.Accent; tip.Text = "验证成功，正在加载..."
-            local ok, err = pcall(function() if _G.buildMainPanel then _G.buildMainPanel() end end)
+            local ok, err = pcall(function() if buildMainPanel then buildMainPanel() end end)
             if ok then
                 TweenService:Create(card,TweenInfo.new(0.35,Enum.EasingStyle.Back,Enum.EasingDirection.In),{Size=UDim2.fromOffset(280,320),BackgroundTransparency=1}):Play()
                 TweenService:Create(title,TweenInfo.new(0.25),{TextTransparency=1}):Play()
@@ -266,7 +270,7 @@ local function showKeyUI()
     task.wait(0.3); pcall(function() ib:CaptureFocus() end)
 end
 
-_G.buildMainPanel = function()
+buildMainPanel = function()
     print("[Oath] 主面板构建开始")
     local gui = new("ScreenGui",{Name="OathPanel",ResetOnSpawn=false,ZIndexBehavior=Enum.ZIndexBehavior.Sibling,IgnoreGuiInset=true,DisplayOrder=100},PlayerGui)
     local Main = new("Frame",{Size=UDim2.fromOffset(620,400),Position=UDim2.fromScale(0.5,0.5),AnchorPoint=Vector2.new(0.5,0.5),
@@ -310,7 +314,6 @@ _G.buildMainPanel = function()
         Text="木材大亨2 · 誓言面板",Font=Enum.Font.GothamBold,TextSize=14,TextColor3=T.Text},ic)
     new("TextLabel",{Size=UDim2.new(1,-20,0,20),Position=UDim2.new(0,10,0,40),BackgroundTransparency=1,
         Text="作者：是我太傻   QQ：3767465890   群：1109682737",Font=Enum.Font.Gotham,TextSize=11,TextColor3=T.Sub},ic)
-    -- 转移 UI
     print("[Oath] 转移功能 UI，共 " .. #functionContainer:GetChildren() .. " 个子元素")
     for _,ch in ipairs(functionContainer:GetChildren()) do
         if ch:IsA("GuiObject") then ch.Parent = pages[2] end
@@ -360,7 +363,6 @@ local defaultDragInterval = 0.01
 local dragAttempts = defaultDragAttempts
 local dragInterval = defaultDragInterval
 
-
 -- 读取本地配置
 local CONFIG_FILE = "拖拽配置文件.txt"
 local function loadDragConfig()
@@ -376,7 +378,7 @@ local function loadDragConfig()
     end
 end
 loadDragConfig()
-local duckCycleIndex = {}  -- 存储每种鸭子的当前索引
+local duckCycleIndex = {}
 math.randomseed(os.time() + tick())
 
 local bai = {
@@ -387,24 +389,20 @@ local bai = {
 }
 
 -- ==================== 蓝色轮廓透视（独立） ====================
-
--- 礼物鸭
 local voidSaplingRunning = false
 local voidSaplingTaskRunning = false
 local duckOutlineEnabled = false
-local duckHighlights = {}        -- 存储鸭子的 Highlight
+local duckHighlights = {}
 local duckAddedConn = nil
 local duckRemovingConn = nil
 local duckRefreshTask = nil
 
--- Void 树苗箱
 local voidCrateOutlineEnabled = false
-local voidCrateHighlights = {}   -- 存储 Void 树苗箱的 Highlight
+local voidCrateHighlights = {}
 local voidCrateAddedConn = nil
 local voidCrateRemovingConn = nil
 local voidCrateRefreshTask = nil
--- 鸭子批量带回的任务控制表
--- 鸭子批量带回的控制变量
+
 local duckTaskRunning = false
 local duckStopFlag = false
 local selectedDuckName = "2018CGift_Duck"
@@ -426,7 +424,7 @@ local function shuaxinlb(zji)
 end
 shuaxinlb(true)
 
--- ==================== notify 函数（UI例子脚本版） ====================
+-- ==================== notify 函数 ====================
 notify = function(...)
     local GUI = game:GetService("CoreGui"):FindFirstChild("STX_Nofitication")
     if not GUI then
@@ -512,9 +510,9 @@ notify = function(...)
                 ambientShadow:TweenSize(UDim2.new(0, 240, 0, 90), "Out", "Linear", 0.2)
                 Window.Size = UDim2.new(0, 230, 0, 80)
                 Outline_A:TweenSize(UDim2.new(0, 0, 0, 2), "Out", "Linear", middledebug.Time)
-                wait(middledebug.Time)
+                task.wait(middledebug.Time)
                 ambientShadow:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Linear", 0.2)
-                wait(0.2)
+                task.wait(0.2)
                 ambientShadow:Destroy()
             end
             coroutine.wrap(ORBHB_fake_script)()
@@ -536,9 +534,9 @@ notify = function(...)
             local function ORBHB_fake_script()
                 local script = Instance.new("LocalScript", ambientShadow)
                 Outline_A:TweenSize(UDim2.new(0, 0, 0, 2), "Out", "Linear", middledebug.Time)
-                wait(middledebug.Time)
+                task.wait(middledebug.Time)
                 ambientShadow:TweenSize(UDim2.new(0, 0, 0, 0), "Out", "Linear", 0.2)
-                wait(0.2)
+                task.wait(0.2)
                 ambientShadow:Destroy()
             end
             coroutine.wrap(ORBHB_fake_script)()
@@ -562,14 +560,15 @@ local function safeTeleport(cf)
     local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
     if hrp then hrp.CFrame = cf; task.wait(0.05); if hrp.Position.Y < 0 then hrp.CFrame = cf + Vector3.new(0,10,0) end end
 end
+
 local function carTeleport(cf)
     if game.Players.LocalPlayer.Character then
         local Character = game.Players.LocalPlayer.Character
         if Character.Humanoid.SeatPart ~= nil then
             local Car = Character.Humanoid.SeatPart.Parent
-            spawn(function()
+            task.spawn(function()
                 for i = 1, 5 do
-                    wait()
+                    task.wait()
                     Car:SetPrimaryPartCFrame(cf * CFrame.Angles(math.rad(Character.HumanoidRootPart.Orientation.x), math.rad(Character.HumanoidRootPart.Orientation.y), 0))
                     game.ReplicatedStorage.Interaction.ClientRequestOwnership:FireServer(Car.Main)
                     game.ReplicatedStorage.Interaction.ClientIsDragging:FireServer(Car.Main)
@@ -766,14 +765,13 @@ local function bringTreeRemote(treeClass)
     return true
 end
 
--- ==================== 分解树（一键加工式点击选择 + 一次性砍伐 + 传送木头拖拽） ====================
+-- ==================== 分解树 ====================
 local selectedTree = nil
 local selectedSawmill = nil
 local sawPos = nil
 local isDecomposeActive = false
 local decomposeConn = nil
 
--- 安全传送（无等待，修正高度）
 local function safeTeleportNoWait(cf)
     local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
     if hrp then
@@ -784,7 +782,6 @@ local function safeTeleportNoWait(cf)
     end
 end
 
--- 获取最佳武器（使用现有的 loadWeaponConfig）
 local function getBestAxeData(treeClass)
     local toolFolder = lp:FindFirstChild("ToolFolder")
     if not toolFolder then
@@ -816,7 +813,6 @@ local function getBestAxeData(treeClass)
     return tool, bestConfig, nil
 end
 
--- 从树模型推断树种类
 local function getTreeClassFromModel(treeModel)
     local tc = treeModel:FindFirstChild("TreeClass")
     if tc then return tc.Value end
@@ -827,29 +823,21 @@ local function getTreeClassFromModel(treeModel)
     return "Generic"
 end
 
--- ★ 使用 ClientIsDragging 真实拖拽木头到目标位置（先传送到木头旁边）
 local function dragLogToPosition(log, targetCF)
     if not log then return false end
-    
     local primary = log.PrimaryPart or log:FindFirstChild("WoodSection") or log:FindFirstChild("Main") or log:FindFirstChildWhichIsA("BasePart")
     if not primary then
         warn("无法获取木头的 PrimaryPart: " .. tostring(log.Name))
         return false
     end
-    
     if not log.PrimaryPart then
         log.PrimaryPart = primary
     end
-    
     safeTeleportNoWait(primary.CFrame + Vector3.new(0, 2, 0))
-    
     for _ = 1, 3 do
-        pcall(function()
-            rep.Interaction.ClientRequestOwnership:FireServer(primary)
-        end)
+        pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end)
         task.wait(0.01)
     end
-    
     for i = 1, dragAttempts do
         pcall(function()
             rep.Interaction.ClientIsDragging:FireServer(log, DRAG_SECRET)
@@ -857,11 +845,9 @@ local function dragLogToPosition(log, targetCF)
         end)
         task.wait(dragInterval)
     end
-    
     return true
 end
 
--- 修改后的分解 + 加工（跳过 ID=1，所有木头顺序加工，树根也先传送再拖拽）
 local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
     if not sawmillPos then
         notify("雪糕", "锯木机位置无效，请重试", 3)
@@ -935,7 +921,6 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
     for _, sec in ipairs(sections) do
         local part = sec.part
         local sectionId = sec.id
-
         local stopFlag = false
         local taskId = task.spawn(function()
             while not stopFlag do
@@ -1054,7 +1039,6 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
     notify("雪糕", "分解完成，木头已加工，树根已移至锯木机位置", 3)
 end
 
--- 启动分解选择（点击树 -> 点击锯木机）
 local function startDecomposeSelection()
     if isDecomposeActive then
         notify("雪糕", "分解选择已激活，请先完成或取消", 2)
@@ -1213,6 +1197,7 @@ local function executeSequenceAndReturn()
     end
     task.wait(0.5); safeTeleport(oldCF); notify("雪糕", "序列完成", 3)
 end
+
 local function bringDuck(duckName, ownOnly, mode)
     local ducks = {}
     for _, model in pairs(ws.PlayerModels:GetChildren()) do
@@ -1429,7 +1414,7 @@ local function refreshPrivateServer()
     notify("雪糕", "断开重连...", 3); for i=3,1,-1 do task.wait(1) end; lp:Kick("重连"); task.wait(5); game:GetService("TeleportService"):Teleport(game.PlaceId, lp)
 end
 
--- ==================== 翻译商店增强 ====================
+-- ==================== 拖拽增强 ====================
 local dragEnhanceConnection = nil
 local function setDragEnhance(state)
     if dragEnhanceConnection then dragEnhanceConnection:Disconnect() end
@@ -1482,31 +1467,7 @@ local function applyNoClip(state)
     bai.noclipEnabled = state
 end
 
--- 为单个模型添加蓝色轮廓（穿透）
-local function addHighlightToModel(model, highlightTable)
-    if not highlightTable then return end
-    if highlightTable[model] then return end
-    local hl = Instance.new("Highlight")
-    hl.Parent = model
-    hl.FillColor = Color3.fromRGB(0, 150, 255)
-    hl.FillTransparency = 0.7
-    hl.OutlineColor = Color3.fromRGB(0, 100, 200)
-    hl.OutlineTransparency = 0.3
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Enabled = true
-    highlightTable[model] = hl
-end
-
-local function removeHighlightFromModel(model, highlightTable)
-    if not highlightTable then return end
-    local hl = highlightTable[model]
-    if hl then
-        pcall(function() hl:Destroy() end)
-        highlightTable[model] = nil
-    end
-end
-
--- 为礼物鸭添加蓝色轮廓（穿透）
+-- ==================== 礼物鸭轮廓 ====================
 local function addDuckOutline(duckModel)
     if not duckOutlineEnabled then return end
     if duckHighlights[duckModel] then return end
@@ -1551,9 +1512,7 @@ local function enableDuckOutline()
     if duckOutlineEnabled then return end
     duckOutlineEnabled = true
     if type(duckHighlights) ~= "table" then duckHighlights = {} end
-    
     syncDuckHighlights()
-    
     if duckRefreshTask then task.cancel(duckRefreshTask) end
     duckRefreshTask = task.spawn(function()
         while duckOutlineEnabled do
@@ -1561,7 +1520,6 @@ local function enableDuckOutline()
             task.wait(2)
         end
     end)
-    
     if duckAddedConn then duckAddedConn:Disconnect() end
     duckAddedConn = workspace.PlayerModels.ChildAdded:Connect(function(child)
         if duckOutlineEnabled and child:IsA("Model") and child.Name == "2018CGift_Duck" then
@@ -1574,25 +1532,21 @@ local function enableDuckOutline()
             removeDuckOutline(child)
         end
     end)
-    
     notify("雪糕", "🔵 礼物鸭蓝色轮廓已开启（实时刷新）", 2)
 end
 
 local function disableDuckOutline()
     if not duckOutlineEnabled then return end
     duckOutlineEnabled = false
-    
     if duckRefreshTask then task.cancel(duckRefreshTask); duckRefreshTask = nil end
     if duckAddedConn then duckAddedConn:Disconnect(); duckAddedConn = nil end
     if duckRemovingConn then duckRemovingConn:Disconnect(); duckRemovingConn = nil end
-    
     for _, hl in pairs(duckHighlights) do pcall(function() hl:Destroy() end) end
     duckHighlights = {}
-    
     notify("雪糕", "🔵 礼物鸭蓝色轮廓已关闭", 2)
 end
 
---- 判断是否为 Void 树苗箱
+-- ==================== Void 树苗箱轮廓 ====================
 local function isVoidCrate(model)
     if not model:IsA("Model") or model.Name ~= "SaplingCrate" then return false end
     local settings = model:FindFirstChild("Settings")
@@ -1646,9 +1600,7 @@ local function enableVoidCrateOutline()
     if voidCrateOutlineEnabled then return end
     voidCrateOutlineEnabled = true
     if type(voidCrateHighlights) ~= "table" then voidCrateHighlights = {} end
-    
     syncVoidCrateHighlights()
-    
     if voidCrateRefreshTask then task.cancel(voidCrateRefreshTask) end
     voidCrateRefreshTask = task.spawn(function()
         while voidCrateOutlineEnabled do
@@ -1656,7 +1608,6 @@ local function enableVoidCrateOutline()
             task.wait(2)
         end
     end)
-    
     if voidCrateAddedConn then voidCrateAddedConn:Disconnect() end
     voidCrateAddedConn = workspace.PlayerModels.ChildAdded:Connect(function(child)
         if voidCrateOutlineEnabled and isVoidCrate(child) then
@@ -1669,21 +1620,17 @@ local function enableVoidCrateOutline()
             removeVoidCrateHighlight(child)
         end
     end)
-    
     notify("雪糕", "🟣 Void树苗箱紫色轮廓已开启（实时刷新）", 2)
 end
 
 local function disableVoidCrateOutline()
     if not voidCrateOutlineEnabled then return end
     voidCrateOutlineEnabled = false
-    
     if voidCrateRefreshTask then task.cancel(voidCrateRefreshTask); voidCrateRefreshTask = nil end
     if voidCrateAddedConn then voidCrateAddedConn:Disconnect(); voidCrateAddedConn = nil end
     if voidCrateRemovingConn then voidCrateRemovingConn:Disconnect(); voidCrateRemovingConn = nil end
-    
     for _, hl in pairs(voidCrateHighlights) do pcall(function() hl:Destroy() end) end
     voidCrateHighlights = {}
-    
     notify("雪糕", "🟣 Void树苗箱紫色轮廓已关闭", 2)
 end
 
@@ -1750,8 +1697,8 @@ local function disableEsp()
     espGui = nil; espFrames = nil
     notify("雪糕", "ESP已关闭", 2)
 end
--- ==================== 加载 UI（使用补丁提供的 win） ====================
-local win = _G.OathWin
+-- ==================== 加载 UI（使用第 1 段定义的 win） ====================
+-- 注意：win 已在第 1 段声明，此处不重新声明
 
 -- ==================== Tab 定义 ====================
 local Tab1    = win:Tab("玩家",  "2700297399")
@@ -1780,7 +1727,6 @@ local Sectionzhengli = Tab:section("物品整理",       false)
 local Sectionhuanjin = Tab2:section("环境",          false)
 local Sectionmogui   = Tab4:section("魔鬼功能(慎用)", false)
 
-
 -- ==================== 物品整理 ====================
 local currentSortTool = nil
 local sortStartHeight = 1
@@ -1796,12 +1742,12 @@ local function isSortable(model)
     if model:FindFirstChild("BlueprintWoodClass") then return false end
     if model:FindFirstChild("ButtonRemote_SpawnButton") then return false end
     if model:FindFirstChild("PurchasedBoxItemName") then
-        local itemName = model.PurchasedBoxItemName.Value
-        if itemName == nil or itemName == "" or itemName == " " then return false end
+        local v = model.PurchasedBoxItemName.Value
+        if v == nil or v == "" or v == " " then return false end
     end
     if model:FindFirstChild("BoxItemName") then
-        local itemName = model.BoxItemName.Value
-        if itemName == nil or itemName == "" or itemName == " " then return false end
+        local v = model.BoxItemName.Value
+        if v == nil or v == "" or v == " " then return false end
     end
     if model:FindFirstChild("TreeClass") then return true end
     if model:FindFirstChild("Owner") then return true end
@@ -1851,9 +1797,7 @@ local function giveSortTool()
         local zCount = bai.zlz or 3
         local layerHeight = maxSize.Y * 0.8
         local sortedCount = 0
-        local colInRow = 0
-        local rowInLayer = 0
-        local layerCount = 0
+        local colInRow, rowInLayer, layerCount = 0, 0, 0
         table.sort(items, function(a, b)
             local szA = getModelSize(a); local szB = getModelSize(b)
             return szA.X * szA.Z < szB.X * szB.Z
@@ -1972,8 +1916,6 @@ if Sectionzhengli then
         else notify("雪糕", "没有找到整理工具", 2) end
     end)
     Sectionzhengli:Label("提示：1. 点击同类任意物品，自动排列所有同类物品")
-else
-    warn("物品整理 UI 未加载：Sectionzhengli 不存在")
 end
 
 Section5:Button("一键加工（分解可用 速度快）", function()
@@ -2125,7 +2067,7 @@ SectionEVIL:Button("开始合成恶魔鸭", function()
     startEvilDuckCombine()
 end)
 
--- ==================== 自动购买 Tab ====================
+-- ==================== 自动购买 ====================
 local StoresFolder = workspace:WaitForChild("Stores")
 local REPLICATED_STORAGE = game:GetService("ReplicatedStorage")
 local TRANSLATE_URL = "https://raw.githubusercontent.com/XueGao1337/lumbertycoommodded/refs/heads/main/翻译商店.lua"
@@ -2134,7 +2076,7 @@ local translateMapping = {}
 
 local function loadTranslations()
     local success, content = pcall(game.HttpGet, game, TRANSLATE_URL)
-    if not success or not content then warn("无法加载翻译文件，将只显示英文名"); return false end
+    if not success or not content then warn("无法加载翻译文件"); return false end
     local func, err = loadstring(content)
     if not func then warn("翻译文件格式错误: " .. tostring(err)); return false end
     local ok, mapping = pcall(func)
@@ -2205,7 +2147,7 @@ local npcMapping = {}
 for storeName, info in pairs(storeInfoMapping) do
     local dynamicId = dynamicIds[info.name]
     npcMapping[storeName] = { name = info.name, id = dynamicId, path = info.path }
-    if not dynamicId then warn("未获取到商人 " .. info.name .. " 的 ID，该商店可能未开门") end
+    if not dynamicId then warn("未获取到商人 " .. info.name .. " 的 ID") end
 end
 
 loadTranslations()
@@ -2216,8 +2158,11 @@ for _, store in pairs(StoresFolder:GetChildren()) do
     if shopItems and #shopItems:GetChildren() > 0 then
         local storeName = store.Name
         local npcInfo = npcMapping[storeName]
-        if not npcInfo then warn("警告：商店 " .. storeName .. " 未在映射表中找到，跳过")
-        else table.insert(allStores, { name = storeName, object = store, shopItems = shopItems, npc = npcInfo }) end
+        if npcInfo then
+            table.insert(allStores, { name = storeName, object = store, shopItems = shopItems, npc = npcInfo })
+        else
+            warn("警告：商店 " .. storeName .. " 未在映射表中找到，跳过")
+        end
     end
 end
 table.sort(allStores, function(a,b) return a.name < b.name end)
@@ -2242,13 +2187,13 @@ else
         local store = storeInfo.object
         local shopItems = storeInfo.shopItems
         local npcInfo = storeInfo.npc
-        if not npcInfo or not npcInfo.id then notify("错误", "商店 " .. storeInfo.name .. " NPC信息无效，无法购买", 5); return false end
+        if not npcInfo or not npcInfo.id then notify("错误", "商店 " .. storeInfo.name .. " NPC信息无效", 5); return false end
         local npcChar = store:FindFirstChild(npcInfo.path)
         if not npcChar then notify("错误", "找不到NPC: " .. npcInfo.path, 3); return false end
         local dialog = npcChar:FindFirstChild("Dialog")
         if not dialog then notify("错误", "NPC缺少Dialog", 3); return false end
         local counter = store:FindFirstChild("Counter")
-        if not counter or not counter:IsA("BasePart") then notify("错误", "商店 " .. storeInfo.name .. " 没有找到Counter部件", 3); return false end
+        if not counter or not counter:IsA("BasePart") then notify("错误", "找不到Counter", 3); return false end
         local NPCDialog = REPLICATED_STORAGE:WaitForChild("NPCDialog", 10)
         if not NPCDialog then notify("错误", "NPCDialog 未找到", 3); return false end
         local function sendPurchaseAndCollect()
@@ -2277,7 +2222,7 @@ else
                 notify("商品消失", selectedItemName .. " 不在货架上，等待...", 3)
                 if not waitForItemRefresh(shopItems, selectedItemName, 15) then
                     if stopPurchaseFlag then break end
-                    notify("超时", "等待商品 " .. selectedItemName .. " 出现超时，停止", 3)
+                    notify("超时", "等待商品出现超时，停止", 3)
                     break
                 end
                 itemModel = shopItems:FindFirstChild(selectedItemName)
@@ -2287,15 +2232,12 @@ else
             if not itemPrimary then notify("错误", "无法定位商品模型", 3); break end
             if not itemModel.PrimaryPart then itemModel.PrimaryPart = itemPrimary end
             if stopPurchaseFlag then break end
-            safeTeleport(itemPrimary.CFrame + Vector3.new(0, 2, 0))
-            task.wait(0.06)
+            safeTeleport(itemPrimary.CFrame + Vector3.new(0, 2, 0)); task.wait(0.06)
             if stopPurchaseFlag then break end
-            local counterSurface = counter.CFrame + Vector3.new(0, 0.6, 0)
-            dragToPosition(itemModel, counterSurface)
+            dragToPosition(itemModel, counter.CFrame + Vector3.new(0, 0.6, 0))
             task.wait(0.02)
             if stopPurchaseFlag then break end
-            safeTeleport(counter.CFrame + Vector3.new(0, 2.5, 0))
-            task.wait(0.02)
+            safeTeleport(counter.CFrame + Vector3.new(0, 2.5, 0)); task.wait(0.02)
             local allItems = {}
             local requestCount = doubleConfirm and 2 or 1
             for k = 1, requestCount do
@@ -2308,18 +2250,16 @@ else
             end
             for _, item in ipairs(allItems) do
                 if stopPurchaseFlag then break end
-                dragToPosition(item, originalPos)
-                task.wait(0.02)
+                dragToPosition(item, originalPos); task.wait(0.02)
             end
             successCycles = successCycles + 1
             if i < buyAmount and not stopPurchaseFlag then
-                notify("等待刷新", "商品被购买，等待它在货架上重新出现...", 2)
+                notify("等待刷新", "等待商品重新上架...", 2)
                 if not waitForItemRefresh(shopItems, selectedItemName, 30) then
                     if stopPurchaseFlag then break end
-                    notify("超时", "等待商品刷新超时，停止后续循环", 3)
-                    break
+                    notify("超时", "等待刷新超时，停止", 3); break
                 end
-                notify("刷新完成", "商品已重新上架，继续下一次购买", 2)
+                notify("刷新完成", "继续下一次购买", 2)
             end
         end
         safeTeleport(originalPos)
@@ -2370,8 +2310,7 @@ else
             if not selectedEntry then notify("雪糕", "请选择一个商品", 3); return end
             local store = selectedEntry.store
             local item = selectedEntry.item
-            if not store.npc or not store.npc.id then notify("雪糕", "商店 '" .. store.name .. "' 未开门，无法购买", 3); return end
-            _G.stopPurchaseFlag = false
+            if not store.npc or not store.npc.id then notify("雪糕", "商店 '" .. store.name .. "' 未开门", 3); return end
             pcall(function() purchaseCycle(store, item, buyAmount, doubleConfirm) end)
         end)
         SectionAllItems:Button("停止购买", function()
@@ -2404,9 +2343,7 @@ else
             section:Label("该商店暂无商品")
         else
             local selectedItem = valueMap[displayOptions2[1]]
-            local currentDisplay = displayOptions2[1]
             section:Dropdown("选择商品", "Dropdown_" .. storeName, displayOptions2, function(selectedDisplay)
-                currentDisplay = selectedDisplay
                 selectedItem = valueMap[selectedDisplay]
             end)
             local buyAmount2 = 1
@@ -2420,13 +2357,13 @@ else
                 if counter and counter:IsA("BasePart") then
                     safeTeleport(counter.CFrame + Vector3.new(0, 2.5, 0))
                     notify("传送", string.format("已传送到 %s 柜台", storeName), 2)
-                else notify("传送失败", string.format("商店 %s 没有找到 Counter 部件", storeName), 3) end
+                else notify("传送失败", string.format("商店 %s 没有 Counter 部件", storeName), 3) end
             end)
             if not npcInfo.id then
                 section:Button("开始循环购买（不可用）", function()
-                    notify("提示", "商店 " .. storeName .. " 当前未开门，无法购买", 3)
+                    notify("提示", "商店 " .. storeName .. " 当前未开门", 3)
                 end)
-                section:Button("停止购买", function() notify("提示", "商店未开门，无购买任务", 2) end)
+                section:Button("停止购买", function() notify("提示", "商店未开门", 2) end)
             else
                 section:Button("开始循环购买", function()
                     stopPurchaseFlag = false
@@ -2441,20 +2378,16 @@ else
             if npcInfo.id then
                 section:Label(string.format("NPC: %s (ID: %d)", npcInfo.name, npcInfo.id))
             else
-                section:Label(string.format("NPC: %s (ID未获取，可能商店未开门)", npcInfo.name))
+                section:Label(string.format("NPC: %s (ID未获取)", npcInfo.name))
             end
         end
     end
 
     local infoSection = Tab3:section("使用说明", true)
-    infoSection:Label("1. 启动时会等待最多5秒获取商人ID（控制台可看到进度）")
-    infoSection:Label("2. 未获取到ID的商店会显示 [未开门]")
-    infoSection:Label("3. 所有商店均支持拖拽购买流程（需有Counter部件）")
-    infoSection:Label("4. 购买逻辑：飞到商品→拖上柜台→发送请求→拖回物品")
-    infoSection:Label("5. 双重确认开关：连续发送两次购买请求")
-    infoSection:Label("6. 刷新机制：购买后循环检测商品是否重新上架")
-
-    notify("加载完成", string.format("已加载 %d 个商店", #allStores), 4)
+    infoSection:Label("1. 未获取到ID的商店会显示 [未开门]")
+    infoSection:Label("2. 购买逻辑：飞到商品→拖上柜台→发送请求→拖回物品")
+    infoSection:Label("3. 双重确认开关：连续发送两次购买请求")
+    infoSection:Label("4. 刷新机制：购买后循环检测商品是否重新上架")
 end
 
 -- ==================== 玩家设置 ====================
@@ -2463,7 +2396,7 @@ Section3:Button("复制物品（放置电线 形状随便 再开启功能）", f
 end)
 Section3:Slider('设置速度', 'Sliderflag', 16, 100, 600, false, function(s)
     bai.walkspeed = s
-    spawn(function()
+    task.spawn(function()
         while task.wait() do
             if lp.Character then lp.Character.Humanoid.WalkSpeed = bai.walkspeed end
         end
@@ -2471,7 +2404,7 @@ Section3:Slider('设置速度', 'Sliderflag', 16, 100, 600, false, function(s)
 end)
 Section3:Slider('设置跳跃', 'Sliderflag', 50, 50, 600, false, function(s)
     bai.JumpPower = s
-    spawn(function()
+    task.spawn(function()
         while task.wait() do
             if lp.Character then lp.Character.Humanoid.JumpPower = bai.JumpPower end
         end
@@ -2498,11 +2431,11 @@ Section3:Button("安全自杀（删除头部）", function() lp.Character.Head:D
 Section3:Button("解锁最大焦距", function() lp.CameraMaxZoomDistance = 9e9 end)
 
 Section4:Dropdown("传送", "Dropdown", {
-    "出生点", "木材反斗城", "回家", "连接逻辑店", "土地商店", "会员商店", "画店",
-    "桥对岸", "沙滩", "火木", "雪山", "洞穴", "码头", "黑市", "糖果原", "雪地入口",
-    "盖克斯航运", "玻璃冰木入口", "云层", "山边商品", "章鱼哥祭坛", "沼泽商店",
-    "石头商店", "沼泽", "冰胡", "沙漠", "辐射商店", "核污染区", "种子商人",
-    "鲍勃的店", "家具店", "车店", "罗布克斯商店", "肯德坤专卖店", "秋季商店"
+    "出生点","木材反斗城","回家","连接逻辑店","土地商店","会员商店","画店",
+    "桥对岸","沙滩","火木","雪山","洞穴","码头","黑市","糖果原","雪地入口",
+    "盖克斯航运","玻璃冰木入口","云层","山边商品","章鱼哥祭坛","沼泽商店",
+    "石头商店","沼泽","冰胡","沙漠","辐射商店","核污染区","种子商人",
+    "鲍勃的店","家具店","车店","罗布克斯商店","肯德坤专卖店","秋季商店"
 }, function(b)
     local list = b
     if list == "出生点" then tp(CFrame.new(187, 3, 55))
@@ -2547,11 +2480,11 @@ Section4:Dropdown("传送", "Dropdown", {
 end)
 
 local teleList = {
-    "恶魔鸭合成地点", "裂纹木所在地", "回家", "连接逻辑店", "土地商店", "会员商店", "画店",
-    "桥对岸", "沙滩", "火木", "雪山", "洞穴", "码头", "黑市", "糖果原", "雪地入口",
-    "盖克斯航运", "玻璃冰木入口", "云层", "山边商品", "章鱼哥祭坛", "沼泽商店",
-    "石头商店", "沼泽", "冰胡", "星星岛", "辐射商店", "核污染区", "种子商人",
-    "鲍勃的店", "家具店", "车店", "罗布克斯商店", "肯德坤专卖店", "秋季商店"
+    "恶魔鸭合成地点","裂纹木所在地","回家","连接逻辑店","土地商店","会员商店","画店",
+    "桥对岸","沙滩","火木","雪山","洞穴","码头","黑市","糖果原","雪地入口",
+    "盖克斯航运","玻璃冰木入口","云层","山边商品","章鱼哥祭坛","沼泽商店",
+    "石头商店","沼泽","冰胡","星星岛","辐射商店","核污染区","种子商人",
+    "鲍勃的店","家具店","车店","罗布克斯商店","肯德坤专卖店","秋季商店"
 }
 Section6:Dropdown("传送", 'Dropdown', teleList, function(val)
     local cf = nil
@@ -2636,13 +2569,9 @@ local function setTeleportPoint()
     if not hrp then notify("雪糕", "无法获取玩家位置", 3) return end
     teleportTargetCF = hrp.CFrame
     local marker = Instance.new("Part")
-    marker.Name = "baiBasedropCord"
-    marker.Anchored = true
-    marker.Parent = workspace
-    marker.Shape = Enum.PartType.Ball
-    marker.Size = Vector3.new(2, 2, 2)
-    marker.Color = Color3.fromRGB(0, 217, 255)
-    marker.Material = Enum.Material.ForceField
+    marker.Name = "baiBasedropCord"; marker.Anchored = true; marker.Parent = workspace
+    marker.Shape = Enum.PartType.Ball; marker.Size = Vector3.new(2, 2, 2)
+    marker.Color = Color3.fromRGB(0, 217, 255); marker.Material = Enum.Material.ForceField
     marker.CFrame = teleportTargetCF
     teleportMarker = marker
     notify("雪糕", "传送点已设置（球体标记）", 3)
@@ -2727,18 +2656,14 @@ local function selectSameNameItems()
     for _, model in pairs(workspace.PlayerModels:GetChildren()) do
         if model:IsA("Model") and isSelectable(model) then
             if model.Name == targetName and not selectedItems[model] then
-                selectedItems[model] = true
-                highlightItem(model)
-                count = count + 1
+                selectedItems[model] = true; highlightItem(model); count = count + 1
             end
         end
     end
     for _, log in pairs(workspace.LogModels:GetChildren()) do
         if isSelectable(log) then
             if log.Name == targetName and not selectedItems[log] then
-                selectedItems[log] = true
-                highlightItem(log)
-                count = count + 1
+                selectedItems[log] = true; highlightItem(log); count = count + 1
             end
         end
     end
@@ -2826,10 +2751,9 @@ SectionTeleport:Button("传送所有选中物品", function()
     if not next(selectedItems) then notify("雪糕", "没有选中的物品", 3); return end
     task.spawn(teleportSelectedItems)
 end)
-SectionTeleport:Label("提示：1. 选择模式开启后点击物品只能选中，不能取消")
-SectionTeleport:Label("      2. 同名字选择基于物品的 Name（如 Duck、Crate 等）")
-SectionTeleport:Label("      3. 传送完毕后自动清空所有选中")
-SectionTeleport:Label("      4. 自动过滤：建筑蓝图、车辆、已打开盒子")
+SectionTeleport:Label("提示：1. 选择模式开启后点击物品只能选中")
+SectionTeleport:Label("2. 同名字选择基于物品的 Name")
+SectionTeleport:Label("3. 传送完毕后自动清空所有选中")
 
 -- ==================== 基地 ====================
 Section1:Button("点击土地免费获得", function()
@@ -2839,7 +2763,7 @@ Section1:Button("点击土地免费获得", function()
         local target = mouse.Target.Parent
         if target.Name == "Property" and target.Owner.Value == nil then
             rep.PropertyPurchasing.ClientPurchasedProperty:FireServer(target, target.OriginSquare.OriginCFrame.Value.p + Vector3.new(0, 3, 0))
-            wait(0.5); freeland = true
+            task.wait(0.5); freeland = true
             Instance.new('RemoteEvent', game:service 'ReplicatedStorage'.Interaction).Name = "Ban"
             lp.Character.HumanoidRootPart.CFrame = target.OriginSquare.CFrame + Vector3.new(0, 10, 0)
         else notify("雪糕", "这个土地有主人了", 4) end
@@ -2853,6 +2777,7 @@ Section1:Button("最大土地（需拥有土地）", function()
     if not base then notify("雪糕", "你没有土地", 3) return end
     local spos = square.Position
     local function expand(pos) rep.PropertyPurchasing.ClientExpandedProperty:FireServer(base, pos) end
+    for _, dx in ipairs({40, -40, 0, 0}) do end
     expand(CFrame.new(spos.X + 40, spos.Y, spos.Z))
     expand(CFrame.new(spos.X - 40, spos.Y, spos.Z))
     expand(CFrame.new(spos.X, spos.Y, spos.Z + 40))
@@ -2947,8 +2872,8 @@ end)
 local isRunning = false
 
 Sectionbringtree:Button("带来树", function()
-    if isRunning then notify("雪糕", "任务正在运行中，请勿重复启动", 2); return end
-    if not selectedTreeClass then notify("雪糕", "请先在下拉框中选择一种树木", 3); return end
+    if isRunning then notify("雪糕", "任务正在运行中", 2); return end
+    if not selectedTreeClass then notify("雪糕", "请先选择一种树木", 3); return end
     if batchCount < 1 then notify("雪糕", "请设置有效的数量", 3); return end
     isRunning = true
     task.spawn(function()
@@ -2961,7 +2886,7 @@ Sectionbringtree:Button("带来树", function()
             local ok = bringTreeRemote(selectedTreeClass)
             if ok then
                 successCount = successCount + 1
-                if batchCount > 1 then notify("雪糕", string.format("第 %d 次成功 (成功:%d, 失败:%d)", i, successCount, failCount), 2) end
+                if batchCount > 1 then notify("雪糕", string.format("第 %d 次成功", i), 2) end
             else
                 failCount = failCount + 1
                 notify("雪糕", string.format("第 %d 次失败，已停止", i), 3)
@@ -2991,7 +2916,7 @@ local itemNameMapping = {}
 
 local function loadTranslations2()
     local success, content = pcall(game.HttpGet, game, TRANSLATE_URL2)
-    if not success or not content then warn("无法加载翻译文件，将只显示英文名"); return false end
+    if not success or not content then warn("无法加载翻译文件"); return false end
     local func, err = loadstring(content)
     if not func then warn("翻译文件格式错误: " .. tostring(err)); return false end
     local ok, mapping = pcall(func)
@@ -3008,7 +2933,7 @@ end
 
 local function loadSpawnItemList()
     local success, content = pcall(game.HttpGet, game, ITEM_LIST_URL)
-    if not success or not content then notify("雪糕", "无法从网络加载物品列表，请检查网络", 3); return false end
+    if not success or not content then notify("雪糕", "无法从网络加载物品列表", 3); return false end
     local items = {}
     for line in content:gmatch("[^\r\n]+") do
         for word in line:gmatch("%S+") do
@@ -3026,15 +2951,14 @@ local function spawnAdminItem(itemName)
     local success, err = pcall(function()
         game:GetService("ReplicatedStorage"):WaitForChild("Interaction"):WaitForChild("SpawnItemPass"):FireServer(itemName)
     end)
-    if not success then warn("生成失败: " .. itemName .. " 原因: " .. tostring(err)); notify("雪糕", "生成失败: " .. itemName, 2) end
+    if not success then warn("生成失败: " .. itemName .. " 原因: " .. tostring(err)) end
 end
 
 local function startContinuousSpawn()
     if spawnLoopRunning then return end
     if selectedSpawnItem == "" then notify("雪糕", "请先在下拉框中选择一个物品", 3); return end
     spawnLoopRunning = true
-    local displayName = getDisplayName2(selectedSpawnItem)
-    notify("雪糕", string.format("开始连续生成 [%s] ，关闭开关即可停止", displayName), 4)
+    notify("雪糕", string.format("开始连续生成 [%s]", getDisplayName2(selectedSpawnItem)), 4)
     spawnLoopTask = task.spawn(function()
         while spawnLoopRunning do
             spawnAdminItem(selectedSpawnItem)
@@ -3074,9 +2998,9 @@ local function createSpawnUI()
         if state then startContinuousSpawn() else stopContinuousSpawn() end
     end)
     Sectionqita:Button("重新加载物品列表和翻译", function()
-        if spawnLoopRunning then notify("雪糕", "请先关闭连续生成，再重新加载", 3); return end
+        if spawnLoopRunning then notify("雪糕", "请先关闭连续生成", 3); return end
         loadTranslations2(); loadSpawnItemList()
-        notify("雪糕", "列表和翻译已重新加载，请重启脚本以刷新下拉菜单", 3)
+        notify("雪糕", "列表和翻译已重新加载，请重启脚本", 3)
     end)
     Sectionqita:Label("提示：开启开关后，每隔0.5秒生成一次当前选中的物品")
 end
@@ -3107,19 +3031,16 @@ local function openOneItem(model, originalCF)
     if not primaryPart then return false end
     local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
     if not hrp then return false end
-    local targetCF = primaryPart.CFrame + Vector3.new(0, 2, 0)
-    pcall(function() hrp.CFrame = targetCF end)
+    pcall(function() hrp.CFrame = primaryPart.CFrame + Vector3.new(0, 2, 0) end)
     task.wait(0.1)
     local success = false
     local remoteButton = model:FindFirstChild("ButtonRemote_Main")
     if remoteButton then
-        local ok, err = pcall(function() game:GetService("ReplicatedStorage").Interaction.RemoteProxy:FireServer(remoteButton) end)
-        if ok then notify("雪糕", "已发送按钮打开请求", 2); success = true
-        else notify("雪糕", "按钮打开失败: "..tostring(err), 2) end
+        local ok = pcall(function() game:GetService("ReplicatedStorage").Interaction.RemoteProxy:FireServer(remoteButton) end)
+        if ok then notify("雪糕", "已发送按钮打开请求", 2); success = true end
     elseif model:FindFirstChild("BoxItemName") or model:FindFirstChild("PurchasedBoxItemName") then
-        local ok, err = pcall(function() rep.Interaction.ClientInteracted:FireServer(model, 'Open box') end)
-        if ok then notify("雪糕", "已发送打开盒子请求", 2); success = true
-        else notify("雪糕", "打开盒子失败: "..tostring(err), 2) end
+        local ok = pcall(function() rep.Interaction.ClientInteracted:FireServer(model, 'Open box') end)
+        if ok then notify("雪糕", "已发送打开盒子请求", 2); success = true end
     else
         notify("雪糕", "该物品无法通过已知方式打开", 2)
     end
@@ -3176,13 +3097,13 @@ end
 -- ==================== 通行证 ====================
 do
     local gamepasses = lp:FindFirstChild("Gamepasses")
-    if not _G.GamepassesOriginalValues then _G.GamepassesOriginalValues = {} end
+    local GamepassesOriginalValues = {}
     function SaveGamepassesOriginal()
         if not gamepasses then return false end
-        _G.GamepassesOriginalValues = {}
+        GamepassesOriginalValues = {}
         for _, v in ipairs(gamepasses:GetDescendants()) do
             if v:IsA("BoolValue") or v:IsA("IntValue") or v:IsA("NumberValue") then
-                _G.GamepassesOriginalValues[v] = v.Value
+                GamepassesOriginalValues[v] = v.Value
             end
         end
         return true
@@ -3199,7 +3120,7 @@ do
     function RestoreGamepassesOriginal()
         if not gamepasses then return false end
         local count = 0
-        for obj, val in pairs(_G.GamepassesOriginalValues) do
+        for obj, val in pairs(GamepassesOriginalValues) do
             if obj and obj.Parent then obj.Value = val; count = count + 1 end
         end
         return count
@@ -3230,7 +3151,7 @@ Sectionqita:Toggle("远程打开物品（只开盒子，过滤建筑）", "Toggl
     if combinedRemoteEnabled then
         if combinedRemoteConn then combinedRemoteConn:Disconnect() end
         combinedRemoteConn = mouse.Button1Down:Connect(onMouseClick)
-        notify("雪糕", "远程打开已开启（只识别盒子，自动忽略建筑）", 3)
+        notify("雪糕", "远程打开已开启", 3)
     else
         if combinedRemoteConn then combinedRemoteConn:Disconnect(); combinedRemoteConn = nil end
         notify("雪糕", "远程打开已关闭", 3)
@@ -3239,11 +3160,11 @@ end)
 
 Sectionqita:Toggle("打开同类物品（相同 BoxItemName 值）", "Toggle_OpenSimilar", false, function(state)
     openSimilarEnabled = state
-    if state then notify("雪糕", "同类模式已启用（基于 BoxItemName 值，且自动过滤建筑）", 3)
+    if state then notify("雪糕", "同类模式已启用", 3)
     else notify("雪糕", "同类模式已关闭", 3) end
 end)
 Sectionqita:Label("提示：点击自己的盒子 → 自动传送打开 → 返回")
-Sectionqita:Label("同类模式：按 BoxItemName 值打开所有同类盒子，建筑自动忽略")
+Sectionqita:Label("同类模式：按 BoxItemName 值打开所有同类盒子")
 Sectionqita:Button("点击传送", function()
     local tool = Instance.new("Tool"); tool.RequiresHandle = false; tool.Name = "点击传送工具"
     tool.Activated:connect(function()
@@ -3266,8 +3187,8 @@ local duckTypeList = {
 local duckDisplayOptions = {}
 for _, v in ipairs(duckTypeList) do table.insert(duckDisplayOptions, v.display) end
 
-local selectedDuckName = duckTypeList[1].name
-local batchDuckCount = 1
+local selectedDuckName2 = duckTypeList[1].name
+local batchDuckCount2 = 1
 local duckBatchStop = false
 
 local function countDucks(duckName, ownOnly)
@@ -3308,20 +3229,20 @@ end
 
 SectionDuck:Dropdown("选择鸭子类型", "DuckDropdown", duckDisplayOptions, function(display)
     for _, v in ipairs(duckTypeList) do
-        if v.display == display then selectedDuckName = v.name; break end
+        if v.display == display then selectedDuckName2 = v.name; break end
     end
 end)
 SectionDuck:Textbox("带回数量（0=无限循环）", "DuckCount", "1", function(val)
-    local num = tonumber(val); if num and num >= 0 then batchDuckCount = num
+    local num = tonumber(val); if num and num >= 0 then batchDuckCount2 = num
     else notify("雪糕", "请输入非负整数", 2) end
 end)
 SectionDuck:Button("带回自己的", function()
     duckBatchStop = false
-    task.spawn(function() bringDucksBatch(selectedDuckName, true, batchDuckCount) end)
+    task.spawn(function() bringDucksBatch(selectedDuckName2, true, batchDuckCount2) end)
 end)
 SectionDuck:Button("带回无归属的", function()
     duckBatchStop = false
-    task.spawn(function() bringDucksBatch(selectedDuckName, false, batchDuckCount) end)
+    task.spawn(function() bringDucksBatch(selectedDuckName2, false, batchDuckCount2) end)
 end)
 SectionDuck:Button("停止当前任务", function()
     duckBatchStop = true
@@ -3331,236 +3252,9 @@ SectionDuck:Label("提示：数量填 0 表示无限循环带回所有符合条�
 SectionDuck:Label("注意：无归属鸭子即 Owner 为空的")
 SectionDuck:Button("执行天堂鸭序列并返回", function() executeSequenceAndReturn() end)
 SectionDuck:Button("一键合成复仇剑（可用）", function() craftRevengeSword() end)
-SectionDuck:Button("一键合成月亮鸭（合成完毕后需要自行使用带回无归属）", function() craftLunarDuck() end)
+SectionDuck:Button("一键合成月亮鸭", function() craftLunarDuck() end)
 
-local function autoGetGiftDuckDirect(targetCount)
-    targetCount = targetCount or 1
-    if duckAutoRunning then notify("雪糕", "任务已在运行中", 2); return end
-    duckAutoRunning = true
-    duckStopFlag = false
-    local successCount = 0
-    local startPos = lp.Character and lp.Character.HumanoidRootPart.CFrame
-    if not startPos then notify("雪糕", "无法获取玩家起始位置", 3); duckAutoRunning = false; return end
-    local function getPlayerPos()
-        local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-        return hrp and hrp.Position or nil
-    end
-    local function getMyDucks()
-        local ducks = {}
-        for _, m in pairs(workspace.PlayerModels:GetChildren()) do
-            if m:IsA("Model") and m.Name == "2018CGift_Duck" then
-                local owner = m:FindFirstChild("Owner")
-                if owner and owner.Value == lp then table.insert(ducks, m) end
-            end
-        end
-        return ducks
-    end
-    local initialDucks = {}
-    for _, d in ipairs(getMyDucks()) do initialDucks[d] = true end
-    local initialCount = #getMyDucks()
-    notify("雪糕", "初始鸭子数: " .. initialCount, 2)
-
-    local function buyCrate()
-        local fineFinds = workspace.Stores:FindFirstChild("FineFinds")
-        if not fineFinds then return nil, "找不到商店" end
-        local npcChar = fineFinds:FindFirstChild("Manachron")
-        if not npcChar then return nil, "找不到NPC" end
-        local dialog = npcChar:FindFirstChild("Dialog")
-        if not dialog then return nil, "NPC无对话框" end
-        local npcId = nil
-        local dialogData = dialog:FindFirstChild("DialogData")
-        if dialogData and dialogData:FindFirstChild("ID") then npcId = dialogData.ID.Value end
-        if not npcId then
-            local idVal = npcChar:FindFirstChild("ID") or npcChar:FindFirstChild("NpcId")
-            if idVal then npcId = idVal.Value end
-        end
-        if not npcId and npcMapping and npcMapping["FineFinds"] and npcMapping["FineFinds"].id then
-            npcId = npcMapping["FineFinds"].id
-        end
-        if not npcId then return nil, "无法获取NPC ID" end
-        local counter = fineFinds:FindFirstChild("Counter")
-        if not counter or not counter:IsA("BasePart") then return nil, "找不到Counter" end
-        local shopItems = fineFinds:FindFirstChild("ShopItems")
-        if not shopItems then return nil, "无ShopItems" end
-        local crateItem = shopItems:FindFirstChild("Crate")
-        if not crateItem then
-            for _ = 1, 10 do
-                crateItem = shopItems:FindFirstChild("Crate")
-                if crateItem then break end
-                task.wait(0.15)
-            end
-            if not crateItem then return nil, "Crate不在货架" end
-        end
-        local primary = crateItem.PrimaryPart or crateItem:FindFirstChild("WoodSection") or crateItem:FindFirstChild("Main") or crateItem:FindFirstChildWhichIsA("BasePart")
-        if not primary then return nil, "无法定位商品" end
-        if not crateItem.PrimaryPart then crateItem.PrimaryPart = primary end
-        safeTeleport(primary.CFrame + Vector3.new(0, 2, 0))
-        task.wait(0.07)
-        local counterSurface = counter.CFrame + Vector3.new(0, 0.6, 0)
-        dragToPosition(crateItem, counterSurface)
-        task.wait(0.05)
-        safeTeleport(counter.CFrame + Vector3.new(0, 2.5, 0))
-        task.wait(0.05)
-        local NPCDialog = REPLICATED_STORAGE:WaitForChild("NPCDialog", 10)
-        if not NPCDialog then return nil, "NPCDialog 未找到" end
-        local purchased = {}
-        local conn = workspace.PlayerModels.ChildAdded:Connect(function(m)
-            if m:IsA("Model") and m:FindFirstChild("Owner") and m.Owner.Value == lp then
-                task.wait(0.1)
-                table.insert(purchased, m)
-            end
-        end)
-        local args = { { Character = npcChar, Name = "Manachron", ID = npcId, Dialog = dialog }, "ConfirmPurchase" }
-        local ok1, err1 = pcall(function() NPCDialog.PlayerChatted:InvokeServer(unpack(args)) end)
-        task.wait(0.03)
-        local ok2, err2 = pcall(function() NPCDialog.PlayerChatted:InvokeServer(unpack(args)) end)
-        conn:Disconnect()
-        if not ok1 and not ok2 then return nil, "购买请求失败" end
-        task.wait(0.15)
-        return purchased[1], "成功"
-    end
-    local attempt = 0
-    while duckAutoRunning and not duckStopFlag and successCount < targetCount do
-        attempt = attempt + 1
-        notify("雪糕", string.format("购买 #%d (已获得 %d/%d)", attempt, successCount, targetCount), 2)
-        local crate, msg = buyCrate()
-        if not crate then
-            notify("雪糕", "购买失败: "..msg, 2)
-            task.wait(0.15)
-            if duckStopFlag then break end
-            local currentDucks = getMyDucks()
-            if #currentDucks > initialCount then
-                for _, d in ipairs(currentDucks) do
-                    if not initialDucks[d] and d.Parent then
-                        if not d.PrimaryPart then
-                            local prim = d:FindFirstChild("Main") or d:FindFirstChildWhichIsA("BasePart")
-                            if prim then d.PrimaryPart = prim end
-                        end
-                        if d.PrimaryPart then
-                            safeTeleport(d.PrimaryPart.CFrame + Vector3.new(0, 2, 0))
-                            task.wait(0.08)
-                            if dragToPosition(d, startPos) then
-                                safeTeleport(startPos)
-                                successCount = successCount + 1
-                                initialDucks[d] = true
-                                initialCount = initialCount + 1
-                                notify("雪糕", string.format("鸭子已带回 (%d/%d)", successCount, targetCount), 3)
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-            if duckStopFlag then break end
-            continue
-        end
-        local playerPos = getPlayerPos()
-        if not playerPos then notify("雪糕", "位置丢失", 2); continue end
-        local candidates = {}
-        for _, m in pairs(workspace.PlayerModels:GetChildren()) do
-            if m:IsA("Model") and m:FindFirstChild("Owner") and m.Owner.Value == lp then
-                local name = m.Name
-                if name:find("Crate Purchased by") or name:find("crate purchased by") then
-                    local prim = m.PrimaryPart or m:FindFirstChild("Main") or m:FindFirstChildWhichIsA("BasePart")
-                    if prim then
-                        local d = (prim.Position - playerPos).Magnitude
-                        if d <= 50 then table.insert(candidates, {model = m, dist = d}) end
-                    end
-                end
-            end
-        end
-        if #candidates == 0 then notify("雪糕", "未找到板条箱（50米）", 2); continue end
-        table.sort(candidates, function(a,b) return a.dist < b.dist end)
-        local crateBox = candidates[1].model
-        notify("雪糕", "找到板条箱", 2)
-        local opened = false
-        for retry = 1, 2 do
-            if duckStopFlag then break end
-            local ok = pcall(function() rep.Interaction.ClientInteracted:FireServer(crateBox, 'Open box') end)
-            if ok then opened = true; break end
-            task.wait(0.1)
-        end
-        if not opened then notify("雪糕", "打开失败", 2); continue end
-        local crateOpened = false
-        for _ = 1, 10 do
-            if duckStopFlag then break end
-            local pNow = getPlayerPos()
-            if pNow then
-                local cand = {}
-                for _, m in pairs(workspace.PlayerModels:GetChildren()) do
-                    if m:IsA("Model") and m.Name == "Crate" then
-                        local prim = m.PrimaryPart or m:FindFirstChild("Main") or m:FindFirstChildWhichIsA("BasePart")
-                        if prim then
-                            local d = (prim.Position - pNow).Magnitude
-                            if d <= 50 then table.insert(cand, {model = m, dist = d}) end
-                        end
-                    end
-                end
-                if #cand > 0 then
-                    table.sort(cand, function(a,b) return a.dist < b.dist end)
-                    local crateModel = cand[1].model
-                    local btn = crateModel:FindFirstChild("ButtonRemote_Main")
-                    if btn then
-                        pcall(function() game:GetService("ReplicatedStorage").Interaction.RemoteProxy:FireServer(btn) end)
-                        crateOpened = true
-                        break
-                    end
-                end
-            end
-            task.wait(0.04)
-        end
-        local currentDucks = getMyDucks()
-        if #currentDucks > initialCount then
-            for _, d in ipairs(currentDucks) do
-                if not initialDucks[d] and d.Parent then
-                    if not d.PrimaryPart then
-                        local prim = d:FindFirstChild("Main") or d:FindFirstChildWhichIsA("BasePart")
-                        if prim then d.PrimaryPart = prim end
-                    end
-                    if d.PrimaryPart then
-                        safeTeleport(d.PrimaryPart.CFrame + Vector3.new(0, 2, 0))
-                        task.wait(0.08)
-                        if dragToPosition(d, startPos) then
-                            safeTeleport(startPos)
-                            successCount = successCount + 1
-                            initialDucks[d] = true
-                            initialCount = initialCount + 1
-                            notify("雪糕", string.format("鸭子已带回 (%d/%d)", successCount, targetCount), 3)
-                            break
-                        end
-                    end
-                end
-            end
-        end
-        if successCount >= targetCount then break end
-        notify("雪糕", "未出鸭或已拖回，继续", 2)
-        task.wait(0.08)
-    end
-    if duckStopFlag then notify("雪糕", "已停止", 2)
-    elseif successCount >= targetCount then notify("雪糕", string.format("成功获取 %d 只鸭子", successCount), 3)
-    else notify("雪糕", "任务结束，未达到目标", 3) end
-    safeTeleport(startPos)
-    duckAutoRunning = false
-    duckStopFlag = false
-end
-
-SectionDuck:Textbox("目标获取数量", "TargetDuckCount", "1", function(v)
-    local num = tonumber(v)
-    if num and num > 0 then targetDuckCount = math.floor(num)
-    else targetDuckCount = 1 end
-end)
-SectionDuck:Button("开始获取普通鸭", function()
-    task.spawn(function() autoGetGiftDuckDirect(targetDuckCount) end)
-end)
-SectionDuck:Button("停止任务", function()
-    if duckAutoRunning then duckStopFlag = true end
-    if voidSaplingRunning then duckStopFlag = true end
-    if not duckAutoRunning and not voidSaplingRunning then notify("雪糕", "当前没有运行中的任务", 2)
-    else notify("雪糕", "正在停止任务...", 2) end
-end)
-
-SectionEVIL:Button("翻译此服务器恶魔鸭提示", function() translateEvilNotes() end)
-
+-- ==================== 玩家透视 ====================
 SectionESP:Toggle("礼物鸭透视", "Toggle_DuckOutline", false, function(state)
     if state then enableDuckOutline() else disableDuckOutline() end
 end)
@@ -3658,13 +3352,13 @@ Sectionmogui:Toggle("查看玩家基地", 'Toggleflag', false, function(state)
 end)
 
 Section4:Dropdown("传送到树", 'Dropdown',
-    {"普通树", "沼泽黄金", "樱花", "蓝木", "冰木", "火山木", "橡木", "巧克力木", "白桦木",
-     "黄金木", "雪地松", "僵尸木", "大巧克力树", "椰子树", "幽灵木", "南瓜木", "大理石木",
-     "天堂木", "虚拟木", "玻璃木", "糖果树", "积木树", "发光红色糖果木", "彩虹树", "雷电木",
-     "煤炭木", "岩浆树", "紫木", "下水道木", "辐射木", "地狱木", "沙滩木", "白洋木",
-     "发光彩虹木", "狗木", "幻影木", "红颜树", "石头木", "玻璃冰木", "砖头木", "卡通树",
-     "曲奇树", "生命树", "虚空木", "裂纹木", "幽灵食尸者", "生锈木", "金子木", "星空木",
-     "火焰木", "蓝色火焰木", "彩色火焰木", "星星木", "雪木", "死木"}, function(b)
+    {"普通树","沼泽黄金","樱花","蓝木","冰木","火山木","橡木","巧克力木","白桦木",
+     "黄金木","雪地松","僵尸木","大巧克力树","椰子树","幽灵木","南瓜木","大理石木",
+     "天堂木","虚拟木","玻璃木","糖果树","积木树","发光红色糖果木","彩虹树","雷电木",
+     "煤炭木","岩浆树","紫木","下水道木","辐射木","地狱木","沙滩木","白洋木",
+     "发光彩虹木","狗木","幻影木","红颜树","石头木","玻璃冰木","砖头木","卡通树",
+     "曲奇树","生命树","虚空木","裂纹木","幽灵食尸者","生锈木","金子木","星空木",
+     "火焰木","蓝色火焰木","彩色火焰木","星星木","雪木","死木"}, function(b)
         local map = {
             ['普通树']="Generic", ['沼泽黄金']="GoldSwampy", ['樱花']="Cherry", ['蓝木']="CaveCrawler",
             ['冰木']="Frost", ['火山木']="Volcano", ['橡木']="Oak", ['巧克力木']="Walnut", ['白桦木']="Birch",
