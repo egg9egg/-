@@ -1,7 +1,6 @@
 --[[
-    誓言面板 v4
+    誓言面板 v5
     卡密：誓言NB
-    功能：带来树（+/− 展开搜索）/ 一键加工
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -73,7 +72,6 @@ local function dragToPosition(model, targetCF)
     return true
 end
 
--- ==================== 数据 ====================
 local treeMapping = {
     ["普通树"]="Generic", ["沼泽黄金"]="GoldSwampy", ["樱花"]="Cherry", ["蓝木"]="CaveCrawler",
     ["冰木"]="Frost", ["火山木"]="Volcano", ["橡木"]="Oak", ["巧克力木"]="Walnut", ["白桦木"]="Birch",
@@ -94,7 +92,6 @@ local treeNames = {}
 for name in pairs(treeMapping) do table.insert(treeNames, name) end
 table.sort(treeNames)
 
--- ==================== 斧头 ====================
 local function loadWeaponConfig(name)
     local module = rep:FindFirstChild("LoadedAssets") and rep.LoadedAssets:FindFirstChild(name.."AxeClass")
     if not module then return nil end
@@ -168,7 +165,6 @@ local function getTreeClassFromModel(treeModel)
     return "Generic"
 end
 
--- ==================== 带来树 ====================
 local function bringTreeRemote(treeClass)
     local weaponName, weaponConfig, damage = selectBestWeapon(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
@@ -259,7 +255,6 @@ local function bringTreeRemote(treeClass)
     return true
 end
 
--- ==================== 一键加工 ====================
 local selectedTree, selectedSawmill, sawPos = nil, nil, nil
 local isDecomposeActive = false
 local decomposeConn = nil
@@ -446,7 +441,6 @@ local function startDecomposeSelection()
     end)
 end
 
--- ==================== 主面板 ====================
 local OathGui = new("ScreenGui",{
     Name="OathPanel", ResetOnSpawn=false,
     ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, Enabled=false
@@ -506,7 +500,6 @@ end
 pages[1].Visible = true
 tabBtns[1].label.TextColor3 = T.Text
 
--- 信息页
 local info = pages[1]
 local ic = new("Frame",{Size=UDim2.new(1,0,0,100), BackgroundColor3=T.Panel, BorderSizePixel=0}, info)
 crn(ic,10)
@@ -520,21 +513,19 @@ new("TextLabel",{
     Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Sub
 }, ic)
 
--- ==================== 窗口按钮 ====================
 local btnHolder = new("Frame",{
     Size=UDim2.fromOffset(50, 18),
     Position=UDim2.new(1, -14, 0, 14),
     AnchorPoint=Vector2.new(1, 0),
-    BackgroundTransparency=1,
-    ZIndex=10,
+    BackgroundTransparency=1, ZIndex=10,
 }, Main)
 
 local function makeWinDot(color, x, cb)
     local btn = new("TextButton",{
         Size=UDim2.fromOffset(16, 16),
         Position=UDim2.new(0, x, 0, 0),
-        BackgroundColor3=color,
-        BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=10,
+        BackgroundColor3=color, BorderSizePixel=0, Text="",
+        AutoButtonColor=false, ZIndex=10,
     }, btnHolder)
     crn(btn, 8)
     btn.MouseEnter:Connect(function() btn.BackgroundColor3 = color:Lerp(Color3.new(1,1,1), 0.25) end)
@@ -543,7 +534,6 @@ local function makeWinDot(color, x, cb)
     return btn
 end
 
--- ==================== 悬浮岛 ====================
 local Island = new("TextButton",{
     Size=UDim2.fromOffset(36, 36),
     Position=UDim2.new(0.5, 0, 0, 10),
@@ -637,7 +627,7 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
--- ==================== 拖动（全局监听，流畅无卡顿）====================
+-- 全局拖动监听
 do
     local dragging, actualDragging = false, false
     local dragStart, startPos = nil, nil
@@ -688,13 +678,11 @@ do
     end)
 end
 
--- RightShift 快捷键
 UIS.InputBegan:Connect(function(input, proc)
     if proc then return end
     if input.KeyCode == Enum.KeyCode.RightShift then OathGui.Enabled = not OathGui.Enabled end
 end)
 
--- ==================== 功能页 ====================
 local fc = pages[2]
 
 local function sectionHeader(title, order)
@@ -750,7 +738,7 @@ local function makeBox(text, placeholder, order, cb)
     box.FocusLost:Connect(function() if cb then pcall(cb, box.Text) end end)
 end
 
--- ==================== 加号下拉框（+ → −） ====================
+-- ==================== 加号下拉框（修复：加号固定顶部） ====================
 local function makeDropdownWithPlus(text, options, default, order, cb)
     local HEADER_H = 32
     local SEARCH_H = 26
@@ -783,9 +771,10 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
         TextTruncate=Enum.TextTruncate.AtEnd,
     }, container)
 
+    -- ★ 关键修复：位置用绝对偏移，固定顶部
     local plusBtn = new("TextButton",{
         Size=UDim2.fromOffset(22, 22),
-        Position=UDim2.new(1, -28, 0.5, -11),
+        Position=UDim2.new(1, -28, 0, 5),   -- y 用 0,5 而不是 0.5,-11
         BackgroundColor3=Color3.fromRGB(48, 48, 52),
         BorderSizePixel=0, Text="+",
         Font=Enum.Font.GothamBold, TextSize=16,
@@ -891,7 +880,6 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
     return container
 end
 
--- ==================== 功能分区内容 ====================
 sectionHeader("带来树", 1)
 
 local treeNamesWithPlaceholder = { "--- 请选择树木 ---" }
@@ -953,7 +941,6 @@ new("TextLabel",{
     TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=8
 }, fc)
 
--- ==================== 卡密 UI ====================
 local function showKeyUI()
     local KT = {
         Accent=Color3.fromRGB(88,220,130), Card=Color3.fromRGB(28,29,34),
