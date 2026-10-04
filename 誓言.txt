@@ -1,7 +1,7 @@
 --[[
-    誓言面板 v9
+    誓言面板 v10
     卡密：誓言NB
-    新增：选择锯木机（一键加工前必须先选）
+    修复：下拉列表展开时，拖动列表内选项不再拖动整个面板
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -46,6 +46,9 @@ local function notify(title, desc, duration)
         })
     end)
 end
+
+-- ★ 当前展开的下拉列表（用于阻止面板拖动）
+local activeDropdownFrame = nil
 
 -- ==================== 基础工具 ====================
 local lockPlayerConn = nil
@@ -580,7 +583,6 @@ local function startDecomposeSelection()
         return
     end
 
-    -- ★ 检查是否已选锯木机
     if not cachedSawmill or not cachedSawmill.Parent then
         notify("誓言", "请先使用「选择锯木机」按钮设置一个锯木机", 3)
         return
@@ -823,6 +825,7 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
+-- ★ 修复：下拉列表展开时，列表内不触发面板拖动
 do
     local dragging, actualDragging = false, false
     local dragStart, startPos = nil, nil
@@ -832,7 +835,19 @@ do
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
             if not Main.Visible then return end
+
             local mx, my = input.Position.X, input.Position.Y
+
+            -- 若鼠标落在展开的下拉列表内，不启动面板拖动
+            if activeDropdownFrame and activeDropdownFrame.Visible then
+                local lpos = activeDropdownFrame.AbsolutePosition
+                local lsize = activeDropdownFrame.AbsoluteSize
+                if mx >= lpos.X and mx <= lpos.X + lsize.X
+                and my >= lpos.Y and my <= lpos.Y + lsize.Y then
+                    return
+                end
+            end
+
             local mpos = Main.AbsolutePosition
             local msize = Main.AbsoluteSize
             if mx >= mpos.X and mx <= mpos.X + msize.X
@@ -1046,6 +1061,7 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
         if state then
             plusBtn.Text = "−"
             listFrame.Visible = true
+            activeDropdownFrame = listFrame   -- ★ 登记
             local cnt = buildItems(searchBox.Text)
             local listH = SEARCH_H + 8 + math.min(cnt * ITEM_H, MAX_LIST_H)
             TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, listH) }):Play()
@@ -1053,6 +1069,7 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
             TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
         else
             plusBtn.Text = "+"
+            activeDropdownFrame = nil          -- ★ 清空
             TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
             TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H) }):Play()
             task.delay(0.2, function() listFrame.Visible = false end)
@@ -1129,7 +1146,6 @@ makeBtn("停止", 5, function()
     else notify("誓言", "当前无任务", 2) end
 end)
 
--- ★ 一键加工 + 选择锯木机
 sectionHeader("一键加工", 6)
 makeBtn("选择锯木机", 7, selectSawmill)
 makeBtn("一键加工（分解 + 拖拽到锯木机）", 8, startDecomposeSelection)
