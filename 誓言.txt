@@ -1,6 +1,6 @@
 -- ============================================================
---  五分区 UI 补丁（修复功能分区空白）
---  插入到“主脚本.txt”最开头，并删除原 UI 加载两行
+--  五分区 UI 补丁（卡密 + 猫图片 + 兼容 LWUI）
+--  只需将原脚本里那两行改成：local win = _G.OathWin
 -- ============================================================
 
 local Players            = game:GetService("Players")
@@ -48,19 +48,18 @@ local function stroke(parent, color, thickness, transparency)
     }, parent)
 end
 
--- 清理旧 GUI
 for _, name in ipairs({ "OathPanel", "OathKeyUI", "main", "OathHiddenContainer" }) do
     local old = PlayerGui:FindFirstChild(name)
     if old then old:Destroy() end
 end
 
 -- ============================================================
---  ★ 关键：先创建隐藏容器承载原脚本所有 UI
+--  隐藏容器：原脚本所有 UI 先建到这里
 -- ============================================================
 local hiddenGui = new("ScreenGui", {
     Name = "OathHiddenContainer",
     ResetOnSpawn = false,
-    Enabled = false,             -- 隐藏，仅作为容器
+    Enabled = false,
     Parent = PlayerGui,
 })
 local functionContainer = new("Frame", {
@@ -72,7 +71,7 @@ local functionContainer = new("Frame", {
 new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, functionContainer)
 
 -- ============================================================
---  控件工厂函数
+--  控件工厂
 -- ============================================================
 local function makeActionButton(parent, text, order, callback)
     local btn = new("TextButton", {
@@ -382,7 +381,6 @@ local function makeLabel(parent, text, order)
     }, parent)
 end
 
--- Section
 local SectionObject = {}
 SectionObject.__index = SectionObject
 function SectionObject.new(container, title)
@@ -430,7 +428,6 @@ function SectionObject:Textbox(text, id, placeholder, callback)
     return makeTextbox(self.frame, text, placeholder, self.orderCounter, callback)
 end
 
--- Tab
 local TabObject = {}
 TabObject.__index = TabObject
 function TabObject.new(name)
@@ -495,12 +492,13 @@ function TabObject:section(title, collapsed)
     return sec
 end
 
--- ★ 全局 win（原脚本后续会用到）
-win = {}
+-- ★ 提供给原脚本使用的 win
+local win = {}
 win.__index = win
 function win:Tab(name, icon)
     return TabObject.new(name)
 end
+_G.OathWin = win
 
 -- ============================================================
 --  卡密 UI
@@ -542,7 +540,6 @@ local function showKeyUI()
     corner(Card, 22)
     stroke(Card, KeyTheme.Stroke, 1)
 
-    -- 猫图片
     local CatImage = new("ImageLabel", {
         Size = UDim2.new(1, 0, 0, 180),
         Position = UDim2.new(0, 0, 1, -180),
@@ -703,7 +700,7 @@ local function showKeyUI()
 end
 
 -- ============================================================
---  主面板构建（五分区）
+--  主面板构建
 -- ============================================================
 _G.buildMainPanel = function()
     print("[" .. GAME_TITLE .. "] " .. VERSION .. " 已加载")
@@ -812,7 +809,6 @@ _G.buildMainPanel = function()
     pages[1].Visible = true
     tabButtons[1].label.TextColor3 = Theme.Text
 
-    -- 信息页
     local info = pages[1]
     local infoCard = new("Frame", {
         Size = UDim2.new(1, 0, 0, 100),
@@ -839,15 +835,12 @@ _G.buildMainPanel = function()
         TextColor3 = Theme.Sub,
     }, infoCard)
 
-    -- ============================================================
-    --  ★ 把隐藏容器里的所有 UI 转移到功能分区
-    -- ============================================================
+    -- ★ 把 hiddenGui 里的 UI 转移到功能分区
     for _, child in ipairs(functionContainer:GetChildren()) do
         if child:IsA("GuiObject") then
             child.Parent = pages[2]
         end
     end
-    -- 销毁隐藏容器
     hiddenGui:Destroy()
 
     for i = 3, 5 do
@@ -886,8 +879,7 @@ _G.buildMainPanel = function()
         end
     end)
 
-    print("[Oath] 主面板创建完成，功能分区元素已转移")
+    print("[Oath] 主面板创建完成")
 end
 
--- 启动卡密验证
 showKeyUI()
