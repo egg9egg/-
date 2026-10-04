@@ -1,9 +1,7 @@
---[[
-    誓言面板 — 卡密验证 + 主脚本（木材大亨专用）
-    卡密：誓言NB
-    分区：信息 / 功能 / 脚本 / 设置 / 关于
-    功能整合自原「主脚本.txt」，使用面板 UI 承载
-]]
+-- ============================================================
+--  五分区 UI 补丁（卡密 + 猫图片 + 兼容原 LWUI 接口）
+--  将本段代码插入到“主脚本.txt”最开头，并删除原 UI 加载两行
+-- ============================================================
 
 local Players            = game:GetService("Players")
 local UserInputService   = game:GetService("UserInputService")
@@ -14,17 +12,12 @@ local ReplicatedStorage  = game:GetService("ReplicatedStorage")
 local lp = Players.LocalPlayer
 local PlayerGui = lp:WaitForChild("PlayerGui")
 local mouse = lp:GetMouse()
-local ws = workspace
-local rep = ReplicatedStorage
 
 local KEYS = { ["誓言NB"] = true }
-local GAME_TYPE  = "Lumber"
 local GAME_TITLE = "木材大亨2"
-local VERSION    = "V1.0.0"
+local VERSION = "V1.0.0"
 
---=========================================================
---  主题
---=========================================================
+-- 主题
 local Theme = {
     Accent  = Color3.fromRGB(88, 220, 130),
     Bg      = Color3.fromRGB(28, 28, 30),
@@ -40,20 +33,15 @@ local Theme = {
     Blue    = Color3.fromRGB(120, 200, 255),
 }
 
---=========================================================
---  工具函数
---=========================================================
 local function new(class, props, parent)
     local inst = Instance.new(class)
     for k, v in next, props do inst[k] = v end
     if parent then inst.Parent = parent end
     return inst
 end
-
 local function corner(parent, r)
     return new("UICorner", { CornerRadius = UDim.new(0, r or 8) }, parent)
 end
-
 local function stroke(parent, color, thickness, transparency)
     return new("UIStroke", {
         Color = color or Theme.Stroke,
@@ -69,1928 +57,9 @@ for _, name in ipairs({ "OathPanel", "OathKeyUI", "main" }) do
     if old then old:Destroy() end
 end
 
---=========================================================
---  原脚本核心逻辑（提取自「主脚本.txt」）
---=========================================================
-local DRAG_SECRET = "Ifyouarereadingthisstophackingbrolegitalsokrnlisbadbtw432rewdWdwFe432432rwDWDAVWdawgdGWAYDFGYTUW"
-local defaultDragAttempts = 30
-local defaultDragInterval = 0.01
-local dragAttempts = defaultDragAttempts
-local dragInterval = defaultDragInterval
-
-local CONFIG_FILE = "拖拽配置文件.txt"
-pcall(function()
-    if writefile and readfile then
-        local data = readfile(CONFIG_FILE)
-        if data then
-            local att, inter = data:match("(%d+):([%d.]+)")
-            if att and inter then
-                dragAttempts = tonumber(att) or defaultDragAttempts
-                dragInterval = tonumber(inter) or defaultDragInterval
-            end
-        end
-    end
-end)
-
-local duckCycleIndex = {}
-math.randomseed(os.time() + tick())
-
-local bai = {
-    awaysday = false, awaysdnight = false, nofog = false,
-    autodropae = false, autopick = false,
-    walkspeed = 16, JumpPower = 50,
-    noclipEnabled = false, noclipConn = nil, noclipCharConn = nil,
-}
-
--- 通知（内嵌）
-local function notify(title, desc, time)
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = tostring(title),
-            Text = tostring(desc),
-            Duration = time or 3,
-        })
-    end)
-end
-
--- 安全传送
-local function safeTeleport(cf)
-    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        hrp.CFrame = cf
-        task.wait(0.05)
-        if hrp.Position.Y < 0 then hrp.CFrame = cf + Vector3.new(0, 10, 0) end
-    end
-end
-local function safeTeleportNoWait(cf)
-    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        hrp.CFrame = cf
-        if hrp.Position.Y < 0 then hrp.CFrame = cf + Vector3.new(0, 10, 0) end
-    end
-end
-
-local function carTeleport(cf)
-    if lp.Character then
-        local Character = lp.Character
-        if Character.Humanoid.SeatPart ~= nil then
-            local Car = Character.Humanoid.SeatPart.Parent
-            spawn(function()
-                for i = 1, 5 do
-                    wait()
-                    Car:SetPrimaryPartCFrame(cf * CFrame.Angles(math.rad(Character.HumanoidRootPart.Orientation.x), math.rad(Character.HumanoidRootPart.Orientation.y), 0))
-                    rep.Interaction.ClientRequestOwnership:FireServer(Car.Main)
-                    rep.Interaction.ClientIsDragging:FireServer(Car.Main)
-                end
-            end)
-        end
-    end
-end
-
-local function tp(pos)
-    pos = pos or mouse.Hit + Vector3.new(0, lp.Character.HumanoidRootPart.Size.Y, 0)
-    if typeof(pos) == "CFrame" then
-        lp.Character:SetPrimaryPartCFrame(pos)
-    elseif typeof(pos) == "Vector3" then
-        lp.Character:MoveTo(pos)
-    end
-end
-
-local function droptool(cframe)
-    local tool = lp.Character:FindFirstChildOfClass("Tool")
-    if tool then tool.Parent = workspace; tool:SetPrimaryPartCFrame(cframe) end
-end
-
--- 拖拽到指定位置
-local function dragToPosition(model, targetCF)
-    local primary = model.PrimaryPart or model:FindFirstChild("WoodSection") or model:FindFirstChild("Main") or model:FindFirstChildWhichIsA("BasePart")
-    if not primary then return false end
-    if not model.PrimaryPart then model.PrimaryPart = primary end
-    for _ = 1, 3 do pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end); task.wait(0.01) end
-    for i = 1, dragAttempts do
-        pcall(function() rep.Interaction.ClientIsDragging:FireServer(model, DRAG_SECRET); model:SetPrimaryPartCFrame(targetCF) end)
-        task.wait(dragInterval)
-    end
-    return true
-end
-
--- 树映射
-local treeMapping = {
-    ["普通树"]="Generic", ["沼泽黄金"]="GoldSwampy", ["樱花"]="Cherry", ["蓝木"]="CaveCrawler",
-    ["冰木"]="Frost", ["火山木"]="Volcano", ["橡木"]="Oak", ["巧克力木"]="Walnut", ["白桦木"]="Birch",
-    ["黄金木"]="SnowGlow", ["雪地松"]="Pine", ["僵尸木"]="GreenSwampy", ["大巧克力树"]="Koa",
-    ["椰子树"]="Palm", ["幽灵木"]="Spooky", ["南瓜木"]="SpookyNeon", ["大理石木"]="Marble",
-    ["天堂木"]="Sky", ["虚拟木"]="Virtual", ["玻璃木"]="Taco", ["糖果树"]="CandycaneGreen",
-    ["积木树"]="CandycaneRed", ["发光红色糖果木"]="CandyNeon", ["彩虹树"]="Rainbow", ["雷电木"]="Electric",
-    ["煤炭木"]="GenericDead", ["岩浆树"]="Skittles", ["紫木"]="Cavern", ["下水道木"]="MuckySewer",
-    ["辐射木"]="Radioactive", ["地狱木"]="Hell", ["沙滩木"]="Sand", ["白洋木"]="Aspen",
-    ["发光彩虹木"]="NeonRainbow", ["狗木"]="Dog", ["幻影木"]="LoneCave", ["红颜树"]="Shine",
-    ["石头木"]="Magma", ["玻璃冰木"]="Ice", ["砖头木"]="Blah", ["卡通树"]="CobbleStone",
-    ["曲奇树"]="Cookie", ["生命树"]="GreatOak", ["虚空木"]="Void", ["裂纹木"]="Celestial",
-    ["幽灵食尸者"]="SpookyGhoul", ["生锈木"]="SewageTree", ["金子木"]="Gold", ["星空木"]="Spirit",
-    ["火焰木"]="Flame", ["蓝色火焰木"]="BlueFlame", ["彩色火焰木"]="RainbowFlame", ["星星木"]="Star",
-    ["雪木"]="Snow", ["死木"]="GenericDead",
-}
-local treeNames = {}
-for name in pairs(treeMapping) do table.insert(treeNames, name) end
-table.sort(treeNames)
-
--- 找最近的未砍树
-local function findUncutTree(treeClass)
-    local playerPos = lp.Character and lp.Character.HumanoidRootPart.Position
-    if not playerPos then return nil end
-    local nearestDist, nearestWood, nearestTree = math.huge, nil, nil
-    for _, region in pairs(ws:GetChildren()) do
-        if region.Name == "TreeRegion" then
-            for _, tree in pairs(region:GetChildren()) do
-                if tree:IsA("Model") and tree:FindFirstChild("TreeClass") and tree.TreeClass.Value == treeClass then
-                    local woodSections = {}
-                    for _, child in pairs(tree:GetChildren()) do
-                        if child.Name == "WoodSection" and child:IsA("BasePart") then table.insert(woodSections, child) end
-                    end
-                    if #woodSections >= 2 then
-                        local dist = (woodSections[1].Position - playerPos).Magnitude
-                        if dist < nearestDist then nearestDist, nearestWood, nearestTree = dist, woodSections[1], tree end
-                    end
-                end
-            end
-        end
-    end
-    return nearestWood, nearestTree
-end
-
--- 加载武器配置
-local function loadWeaponConfig(weaponName)
-    local module = rep:FindFirstChild("LoadedAssets") and rep.LoadedAssets:FindFirstChild(weaponName .. "AxeClass")
-    if not module then return nil end
-    local success, axeClass = pcall(require, module)
-    if not success then return nil end
-    local axeInstance = type(axeClass.new) == "function" and (axeClass.new() or axeClass.new({})) or axeClass
-    return { Damage = axeInstance.Damage or 10000, SwingCooldown = axeInstance.SwingCooldown or 0.3, SpecialTrees = axeInstance.SpecialTrees or {} }
-end
-
-local function selectBestWeapon(treeClass)
-    local toolFolder = lp:FindFirstChild("ToolFolder")
-    if not toolFolder then return nil, nil, "未找到 ToolFolder" end
-    local bestWeapon, bestDamage, bestConfig = nil, -1, nil
-    for _, child in pairs(toolFolder:GetChildren()) do
-        local config = loadWeaponConfig(child.Name)
-        if config then
-            local damage = (config.SpecialTrees[treeClass] and config.SpecialTrees[treeClass].Damage) or config.Damage
-            if damage > bestDamage then bestWeapon, bestDamage, bestConfig = child.Name, damage, config end
-        end
-    end
-    return bestWeapon, bestConfig, bestDamage
-end
-
--- 带来树（核心逻辑）
-local function bringTreeRemote(treeClass)
-    local weaponName, weaponConfig, damage = selectBestWeapon(treeClass)
-    if not weaponName then notify("誓言", "自动选武器失败", 3) return false end
-    local req = { LoveCave = 10000000, Shine = 80000000, Magma = 5000000, Ice = 8000000, Radioactive = 10000000,
-                  Scale = 40000000, Void = 5000000, Flame = 10000000, BlueFlame = 3500000, RainbowFlame = 3500000, Celestial = 10000000 }
-    if req[treeClass] and damage < req[treeClass] then
-        notify("誓言", string.format("伤害不足！需要至少 %.0f", req[treeClass]), 4)
-        return false
-    end
-    local cooldown = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].SwingCooldown) or weaponConfig.SwingCooldown
-
-    local woodSec, tree = findUncutTree(treeClass)
-    if not woodSec then notify("誓言", "附近没有可砍的树", 3) return false end
-
-    local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
-    if not tool then
-        local toolFolder = lp:FindFirstChild("ToolFolder")
-        if toolFolder then
-            local weaponObj = toolFolder:FindFirstChild(weaponName)
-            tool = weaponObj and (weaponObj:IsA("Tool") and weaponObj or weaponObj.Value) or nil
-        end
-    end
-    if not tool then notify("誓言", "未找到工具: " .. weaponName, 3) return false end
-
-    local cutEvent = tree:FindFirstChild("CutEvent")
-    if not cutEvent then notify("誓言", "无法获取CutEvent", 3) return false end
-    local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
-    local oldCamSubj = workspace.CurrentCamera.CameraSubject
-    workspace.CurrentCamera.CameraSubject = tree
-    local fallenLog, existingLogs = nil, {}
-    for _, log in pairs(ws.LogModels:GetChildren()) do existingLogs[log] = true end
-    local treeCenter = woodSec.Position
-    local stopCutting, timeoutReached = false, false
-    local sendTask = task.spawn(function()
-        while not stopCutting do
-            pcall(remote.FireServer, remote, cutEvent, { height = 0.3, faceVector = Vector3.new(-1, 0, 0), cooldown = cooldown, sectionId = 1, hitPoints = damage, tool = tool, cuttingClass = "Axe" })
-            task.wait(0.01)
-        end
-    end)
-    local timeoutTask = task.spawn(function() task.wait(5); if not stopCutting then timeoutReached = true; stopCutting = true end end)
-    while not fallenLog and not stopCutting do
-        for _, log in pairs(ws.LogModels:GetChildren()) do
-            if not existingLogs[log] and log:FindFirstChild("Owner") and log.Owner.Value == lp and log:FindFirstChild("TreeClass") and log.TreeClass.Value == treeClass then
-                if (log:GetPivot().Position - treeCenter).Magnitude < 100 then fallenLog = log; break end
-            end
-        end
-        task.wait(0.01)
-    end
-    stopCutting = true; task.cancel(sendTask); task.cancel(timeoutTask)
-    workspace.CurrentCamera.CameraSubject = oldCamSubj
-    if timeoutReached or not fallenLog then notify("誓言", "砍树超时", 3) return false end
-    local primary = fallenLog.PrimaryPart or fallenLog:FindFirstChild("WoodSection") or fallenLog:FindFirstChild("Main") or fallenLog:FindFirstChildWhichIsA("BasePart")
-    if not primary then notify("誓言", "无法定位木头", 3) return false end
-    if not fallenLog.PrimaryPart then fallenLog.PrimaryPart = primary end
-    local playerOriginalCF = lp.Character and lp.Character.HumanoidRootPart.CFrame
-    if not playerOriginalCF then notify("誓言", "无法获取玩家位置", 3) return false end
-    pcall(rep.Interaction.ClientInteracted.FireServer, rep.Interaction, primary, 'Click'); task.wait(0.01)
-    safeTeleport(primary.CFrame + Vector3.new(0, 0, 0)); task.wait(0.1)
-    for _ = 1, 3 do pcall(rep.Interaction.ClientRequestOwnership.FireServer, rep.Interaction, primary); task.wait(0.01) end
-    local oldCam = workspace.CurrentCamera.CameraSubject
-    local restored = false
-    local function restoreCamera()
-        if not restored then restored = true; workspace.CurrentCamera.CameraSubject = oldCam end
-    end
-    local timeoutId = task.spawn(function() task.wait(3); restoreCamera(); notify("誓言", "拖拽超时", 3) end)
-    local stopFollow = false
-    local followConn = RunService.Heartbeat:Connect(function()
-        if not stopFollow and fallenLog and fallenLog.PrimaryPart and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
-            lp.Character.HumanoidRootPart.CFrame = fallenLog.PrimaryPart.CFrame
-        end
-    end)
-    for i = 1, dragAttempts do
-        pcall(function()
-            rep.Interaction.ClientIsDragging:FireServer(fallenLog, DRAG_SECRET)
-            fallenLog:SetPrimaryPartCFrame(playerOriginalCF)
-        end)
-        task.wait(dragInterval)
-    end
-    stopFollow = true
-    if followConn then followConn:Disconnect() end
-    pcall(rep.Interaction.ClientRequestOwnership.FireServer, rep.Interaction, primary); task.wait(0.01)
-    pcall(rep.Interaction.ClientInteracted.FireServer, rep.Interaction, primary, 'Click')
-    safeTeleport(playerOriginalCF)
-    restoreCamera()
-    task.cancel(timeoutId)
-    return true
-end
-
--- 一键加工
-local function getBestAxeData(treeClass)
-    local toolFolder = lp:FindFirstChild("ToolFolder")
-    if not toolFolder then return nil, nil, "未找到 ToolFolder" end
-    local bestWeaponName, bestDamage, bestConfig = nil, -1, nil
-    for _, child in pairs(toolFolder:GetChildren()) do
-        local config = loadWeaponConfig(child.Name)
-        if config then
-            local damage = config.Damage or 0
-            if treeClass and config.SpecialTrees and config.SpecialTrees[treeClass] then
-                damage = config.SpecialTrees[treeClass].Damage or damage
-            end
-            if damage > bestDamage then
-                bestDamage = damage; bestWeaponName = child.Name; bestConfig = config
-            end
-        end
-    end
-    if not bestWeaponName then return nil, nil, "未找到可用的斧头配置" end
-    local toolObj = toolFolder:FindFirstChild(bestWeaponName)
-    local tool = toolObj and (toolObj:IsA("Tool") and toolObj or toolObj.Value)
-    if not tool then return nil, nil, "无法获取工具实例" end
-    return tool, bestConfig, nil
-end
-
-local function getTreeClassFromModel(treeModel)
-    local tc = treeModel:FindFirstChild("TreeClass")
-    if tc then return tc.Value end
-    local name = treeModel.Name
-    for _, suffix in ipairs({ "SpookyNeon", "Spooky", "GoldSwampy", "Cherry", "CaveCrawler", "MuckySewer" }) do
-        if name:find(suffix) then return suffix end
-    end
-    return "Generic"
-end
-
-local function dragLogToPosition(log, targetCF)
-    if not log then return false end
-    local primary = log.PrimaryPart or log:FindFirstChild("WoodSection") or log:FindFirstChild("Main") or log:FindFirstChildWhichIsA("BasePart")
-    if not primary then return false end
-    if not log.PrimaryPart then log.PrimaryPart = primary end
-    safeTeleportNoWait(primary.CFrame + Vector3.new(0, 2, 0))
-    for _ = 1, 3 do
-        pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end)
-        task.wait(0.01)
-    end
-    for i = 1, dragAttempts do
-        pcall(function()
-            rep.Interaction.ClientIsDragging:FireServer(log, DRAG_SECRET)
-            log:SetPrimaryPartCFrame(targetCF)
-        end)
-        task.wait(dragInterval)
-    end
-    return true
-end
-
-local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
-    if not sawmillPos then notify("誓言", "锯木机位置无效", 3) return end
-    local sections, rootSection = {}, nil
-    for _, child in pairs(treeModel:GetChildren()) do
-        if child.Name == "WoodSection" and child:IsA("BasePart") and child:FindFirstChild("ID") then
-            local id = child.ID.Value
-            if id >= 2 then table.insert(sections, { id = id, part = child })
-            elseif id == 1 then rootSection = child end
-        end
-    end
-    if #sections == 0 then notify("誓言", "该树没有可分解的部分", 3) return end
-    table.sort(sections, function(a, b) return a.id > b.id end)
-
-    local cutEvent = treeModel:FindFirstChild("CutEvent")
-    if not cutEvent then notify("誓言", "该模型没有 CutEvent", 3) return end
-
-    local treeClass = getTreeClassFromModel(treeModel)
-    local tool, config, err = getBestAxeData(treeClass)
-    if not tool then notify("誓言", err or "无法获取斧头数据", 3) return end
-
-    local damage = config and config.Damage or 10000
-    local cooldown = config and config.SwingCooldown or 0.3
-    if config and config.SpecialTrees and config.SpecialTrees[treeClass] then
-        damage = config.SpecialTrees[treeClass].Damage or damage
-        cooldown = config.SpecialTrees[treeClass].SwingCooldown or cooldown
-    end
-
-    local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
-    local playerOriginalCF = lp.Character and lp.Character.HumanoidRootPart.CFrame
-    if not playerOriginalCF then notify("誓言", "无法获取玩家位置", 3) return end
-
-    local initialLogs = {}
-    for _, log in pairs(ws.LogModels:GetChildren()) do initialLogs[log] = true end
-
-    local tasks = {}
-    for _, sec in ipairs(sections) do
-        local part = sec.part
-        local sectionId = sec.id
-        local stopFlag = false
-        local taskId = task.spawn(function()
-            while not stopFlag do
-                pcall(remote.FireServer, remote, cutEvent, {
-                    height = 0.11, faceVector = Vector3.new(-1, 0, 0),
-                    cooldown = cooldown, sectionId = sectionId,
-                    hitPoints = damage, tool = tool, cuttingClass = "Axe"
-                })
-                task.wait(0.01)
-                if not part or not part.Parent then break end
-            end
-        end)
-        tasks[taskId] = true
-    end
-
-    local function hasHighIDSections()
-        for _, child in pairs(treeModel:GetChildren()) do
-            if child.Name == "WoodSection" and child:FindFirstChild("ID") then
-                if child.ID.Value >= 2 then return true end
-            end
-        end
-        return false
-    end
-    local startTime = tick()
-    while hasHighIDSections() and tick() - startTime < 120 do task.wait(0.01) end
-    for taskId in pairs(tasks) do task.cancel(taskId) end
-    if hasHighIDSections() then notify("誓言", "停止", 3) return end
-
-    local function getAllMyLogs()
-        local logs = {}
-        for _, log in pairs(ws.LogModels:GetChildren()) do
-            if not initialLogs[log] and log:FindFirstChild("Owner") and log.Owner.Value == lp then
-                table.insert(logs, log)
-            end
-        end
-        return logs
-    end
-    local allLogs = getAllMyLogs()
-    if #allLogs == 0 then notify("誓言", "未找到木头", 3) return end
-
-    local targetPos = sawmillPos + Vector3.new(0.7, 0, 0)
-    for idx, log in ipairs(allLogs) do
-        if log and log.Parent then dragLogToPosition(log, targetPos) end
-    end
-    notify("誓言", "所有木头已拖到锯木机", 2)
-
-    if rootSection and rootSection.Parent then
-        if not treeModel.PrimaryPart then treeModel.PrimaryPart = rootSection end
-        safeTeleport(rootSection.CFrame + Vector3.new(0, 2, 0))
-        dragToPosition(treeModel, targetPos)
-    end
-    notify("誓言", "分解完成", 3)
-end
-
-local selectedTree = nil
-local selectedSawmill = nil
-local sawPos = nil
-local isDecomposeActive = false
-local decomposeConn = nil
-
-local function startDecomposeSelection()
-    if isDecomposeActive then notify("誓言", "分解选择已激活", 2) return end
-    isDecomposeActive = true
-    selectedTree = nil; selectedSawmill = nil; sawPos = nil
-    notify("誓言", "请点击一棵树", 3)
-    local step = 0
-    decomposeConn = mouse.Button1Down:Connect(function()
-        local target = mouse.Target
-        if not target then return end
-        local model = target:FindFirstAncestorOfClass("Model")
-        if not model then return end
-        local hasWood = false
-        for _, child in pairs(model:GetChildren()) do
-            if child.Name == "WoodSection" then hasWood = true end
-        end
-        local isTree = hasWood and model:FindFirstChild("CutEvent")
-        local isSawmill = false
-        local sawmillObj = nil
-        local sawmillPos = nil
-        local itemName = model:FindFirstChild("ItemName")
-        if itemName and type(itemName.Value) == "string" and itemName.Value:find("Sawmill") then
-            isSawmill = true; sawmillObj = model
-        end
-        if not isSawmill then
-            if model.Name:find("Sawmill") or (model.Parent and model.Parent.Name:find("Sawmill")) then
-                sawmillObj = model.Parent or model; isSawmill = true
-            end
-        end
-        if isSawmill and sawmillObj then
-            local particles = sawmillObj:FindFirstChild("Particles")
-            if particles then sawmillPos = particles.CFrame
-            else notify("誓言", "该锯木机没有 Particles", 3); return end
-        end
-
-        if step == 0 and isTree then
-            selectedTree = model; step = 1
-            notify("誓言", "已选中树，请点击一个锯木机", 3)
-            return
-        end
-        if step == 1 and isSawmill and selectedTree then
-            if not sawmillPos then notify("誓言", "锯木机位置无效", 3); return end
-            selectedSawmill = sawmillObj; sawPos = sawmillPos
-            if decomposeConn then decomposeConn:Disconnect(); decomposeConn = nil end
-            isDecomposeActive = false
-            notify("誓言", "开始分解...", 3)
-            task.spawn(function()
-                decomposeAndProcess(selectedTree, selectedSawmill, sawPos)
-                selectedTree = nil; selectedSawmill = nil; sawPos = nil
-            end)
-            return
-        end
-        if step == 1 and isTree then
-            selectedTree = model
-            notify("誓言", "已更换选中的树", 3)
-            return
-        end
-        notify("誓言", "请按顺序点击（先树后锯木机）", 2)
-    end)
-end
-
--- 岩浆删除
-local autoDeleteRunning = false
-local autoDeleteTask = nil
-local function deleteLavaObjectsOnce(silent)
-    local count = 0
-    local target1 = workspace:FindFirstChild("HLArea") and workspace.HLArea:FindFirstChild("Model") and workspace.HLArea.Model:FindFirstChild("LavaKillingPart")
-    if target1 then pcall(function() target1:Destroy() end); count = count + 1 end
-    local plainsMaze = workspace:FindFirstChild("PlainsMaze")
-    if plainsMaze then
-        local function searchAndDestroy(parent)
-            for _, child in pairs(parent:GetChildren()) do
-                local lavaScript = child:FindFirstChild("Lava")
-                if lavaScript and (lavaScript:IsA("Script") or lavaScript:IsA("LocalScript")) then
-                    pcall(function() child:Destroy() end); count = count + 1
-                else
-                    if child:IsA("Model") or child:IsA("Folder") or child:IsA("BasePart") then searchAndDestroy(child) end
-                end
-            end
-        end
-        searchAndDestroy(plainsMaze)
-    end
-    if count > 0 and not silent then notify("誓言", "已删除 " .. count .. " 个岩浆", 2) end
-    return count
-end
-local function startAutoDelete(interval)
-    if autoDeleteRunning then return end
-    autoDeleteRunning = true
-    autoDeleteTask = task.spawn(function()
-        while autoDeleteRunning do deleteLavaObjectsOnce(true); task.wait(interval) end
-    end)
-    notify("誓言", "已开启自动删除岩浆", 3)
-end
-local function stopAutoDelete()
-    if not autoDeleteRunning then return end
-    autoDeleteRunning = false
-    if autoDeleteTask then task.cancel(autoDeleteTask); autoDeleteTask = nil end
-    notify("誓言", "已关闭自动删除岩浆", 3)
-end
-
--- 鸭子带回
-local function bringDuckc(duckName, ownOnly)
-    local ducks = {}
-    for _, model in pairs(ws.PlayerModels:GetChildren()) do
-        if model:IsA("Model") and model.Name == duckName then
-            local owner = model:FindFirstChild("Owner")
-            if (ownOnly and owner and owner.Value == lp) or (not ownOnly and (not owner or owner.Value == nil)) then
-                table.insert(ducks, model)
-            end
-        end
-    end
-    if #ducks == 0 then notify("誓言", ownOnly and "你没有该鸭子" or "没有无归属的该鸭子", 3) return end
-    if not duckCycleIndex[duckName] then duckCycleIndex[duckName] = 1 end
-    local selected = ducks[duckCycleIndex[duckName]]
-    duckCycleIndex[duckName] = duckCycleIndex[duckName] % #ducks + 1
-
-    local originalPos = lp.Character and lp.Character.HumanoidRootPart.CFrame
-    if not originalPos then return end
-    local primary = selected.PrimaryPart or selected:FindFirstChild("Main") or selected:FindFirstChildWhichIsA("BasePart")
-    if not primary then notify("誓言", "无法定位鸭子", 3) return end
-    if not selected.PrimaryPart then selected.PrimaryPart = primary end
-    safeTeleport(primary.CFrame + Vector3.new(0, 2, 0))
-    dragToPosition(selected, originalPos)
-end
-
--- NoClip
-local function applyNoClip(state)
-    if state then
-        if bai.noclipConn then bai.noclipConn:Disconnect() end
-        bai.noclipConn = RunService.Stepped:Connect(function()
-            if lp.Character then
-                for _, v in pairs(lp.Character:GetChildren()) do
-                    if v:IsA("BasePart") then v.CanCollide = false end
-                end
-            end
-        end)
-        if bai.noclipCharConn then bai.noclipCharConn:Disconnect() end
-        bai.noclipCharConn = lp.CharacterAdded:Connect(function()
-            if bai.noclipEnabled then
-                task.wait(0.1)
-                for _, v in pairs(lp.Character:GetChildren()) do
-                    if v:IsA("BasePart") then v.CanCollide = false end
-                end
-            end
-        end)
-    else
-        if bai.noclipConn then bai.noclipConn:Disconnect(); bai.noclipConn = nil end
-        if bai.noclipCharConn then bai.noclipCharConn:Disconnect(); bai.noclipCharConn = nil end
-        if lp.Character then
-            for _, v in pairs(lp.Character:GetChildren()) do
-                if v:IsA("BasePart") then v.CanCollide = true end
-            end
-        end
-    end
-    bai.noclipEnabled = state
-end
-
--- ESP
-local espEnabled = false
-local espGui, espFrames, espRenderConn, espPlayerAddedConn, espPlayerRemovingConn
-local function createEspFrame(p)
-    if espFrames[p] or not espGui then return end
-    local f = Instance.new("Frame"); f.Size = UDim2.new(0, 50, 0, 70); f.BackgroundTransparency = 1; f.Parent = espGui
-    local img = Instance.new("ImageLabel"); img.Size = UDim2.new(1, 0, 0, 50); img.BackgroundTransparency = 1; img.ScaleType = Enum.ScaleType.Fit; img.Parent = f
-    local txt = Instance.new("TextLabel"); txt.Size = UDim2.new(1, 0, 0, 20); txt.Position = UDim2.new(0, 0, 0, 50); txt.BackgroundTransparency = 1; txt.TextColor3 = Color3.new(1, 1, 1); txt.TextScaled = true; txt.Font = Enum.Font.GothamBold; txt.Text = "?"; txt.Parent = f
-    espFrames[p] = { frame = f, image = img, text = txt }
-    task.spawn(function()
-        local suc, thumb = pcall(function() return Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150) end)
-        if suc and espFrames[p] then espFrames[p].image.Image = thumb end
-    end)
-end
-local function removeEspFrame(p)
-    if espFrames[p] then espFrames[p].frame:Destroy(); espFrames[p] = nil end
-end
-local function updateEsp()
-    if not espEnabled then return end
-    local cam = workspace.CurrentCamera
-    local localPos = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    if not localPos then return end
-    for p, data in pairs(espFrames) do
-        local hrp = p.Character and p.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local pos, onScreen = cam:WorldToScreenPoint(hrp.Position)
-            if onScreen then
-                data.frame.Visible = true; data.frame.Position = UDim2.new(0, pos.X - 25, 0, pos.Y - 70)
-                data.text.Text = string.format("%.1f", (hrp.Position - localPos.Position).Magnitude)
-            else data.frame.Visible = false end
-        else data.frame.Visible = false end
-    end
-end
-local function enableEsp()
-    if espEnabled then return end
-    espEnabled = true
-    espGui = Instance.new("ScreenGui"); espGui.Name = "ESP_GUI_誓言"; espGui.ResetOnSpawn = false; espGui.Parent = PlayerGui
-    espFrames = {}
-    for _, p in pairs(Players:GetPlayers()) do if p ~= lp then createEspFrame(p) end end
-    espRenderConn = RunService.RenderStepped:Connect(updateEsp)
-    espPlayerAddedConn = Players.PlayerAdded:Connect(function(p) if p ~= lp then createEspFrame(p) end end)
-    espPlayerRemovingConn = Players.PlayerRemoving:Connect(removeEspFrame)
-    notify("誓言", "ESP已开启", 2)
-end
-local function disableEsp()
-    if not espEnabled then return end
-    espEnabled = false
-    if espRenderConn then espRenderConn:Disconnect() end
-    if espPlayerAddedConn then espPlayerAddedConn:Disconnect() end
-    if espPlayerRemovingConn then espPlayerRemovingConn:Disconnect() end
-    if espGui then espGui:Destroy() end
-    espGui = nil; espFrames = nil
-    notify("誓言", "ESP已关闭", 2)
-end
-
--- 礼物鸭轮廓
-local duckOutlineEnabled = false
-local duckHighlights = {}
-local duckRefreshTask = nil
-local function addDuckOutline(duckModel)
-    if not duckOutlineEnabled then return end
-    if duckHighlights[duckModel] then return end
-    local hl = Instance.new("Highlight")
-    hl.Parent = duckModel
-    hl.FillColor = Color3.fromRGB(0, 150, 255)
-    hl.FillTransparency = 0.7
-    hl.OutlineColor = Color3.fromRGB(0, 100, 200)
-    hl.OutlineTransparency = 0.3
-    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-    hl.Enabled = true
-    duckHighlights[duckModel] = hl
-end
-local function removeDuckOutline(duckModel)
-    local hl = duckHighlights[duckModel]
-    if hl then pcall(function() hl:Destroy() end); duckHighlights[duckModel] = nil end
-end
-local function syncDuckHighlights()
-    if not duckOutlineEnabled then return end
-    local currentDucks = {}
-    for _, model in pairs(workspace.PlayerModels:GetChildren()) do
-        if model:IsA("Model") and model.Name == "2018CGift_Duck" then
-            currentDucks[model] = true
-            if not duckHighlights[model] then addDuckOutline(model) end
-        end
-    end
-    for model, _ in pairs(duckHighlights) do
-        if not currentDucks[model] then removeDuckOutline(model) end
-    end
-end
-local function enableDuckOutline()
-    if duckOutlineEnabled then return end
-    duckOutlineEnabled = true
-    if type(duckHighlights) ~= "table" then duckHighlights = {} end
-    syncDuckHighlights()
-    if duckRefreshTask then task.cancel(duckRefreshTask) end
-    duckRefreshTask = task.spawn(function()
-        while duckOutlineEnabled do
-            syncDuckHighlights()
-            task.wait(2)
-        end
-    end)
-    notify("誓言", "🔵 礼物鸭透视已开启", 2)
-end
-local function disableDuckOutline()
-    if not duckOutlineEnabled then return end
-    duckOutlineEnabled = false
-    if duckRefreshTask then task.cancel(duckRefreshTask); duckRefreshTask = nil end
-    for _, hl in pairs(duckHighlights) do pcall(function() hl:Destroy() end) end
-    duckHighlights = {}
-    notify("誓言", "🔵 礼物鸭透视已关闭", 2)
-end
-
--- 带来所有木头
-local function bringAllMyLogsToFeet()
-    local originalPos = lp.Character and lp.Character.HumanoidRootPart.CFrame
-    if not originalPos then notify("誓言", "无法获取位置", 3) return end
-    local myLogs = {}
-    for _, log in pairs(ws.LogModels:GetChildren()) do
-        local owner = log:FindFirstChild("Owner")
-        if owner and owner.Value == lp then table.insert(myLogs, log) end
-    end
-    if #myLogs == 0 then notify("誓言", "没有你的木头", 3) return end
-    for i, log in ipairs(myLogs) do
-        local primary = log.PrimaryPart or log:FindFirstChild("WoodSection") or log:FindFirstChild("Main") or log:FindFirstChildWhichIsA("BasePart")
-        if primary then
-            if not log.PrimaryPart then log.PrimaryPart = primary end
-            safeTeleport(primary.CFrame + Vector3.new(0, 3, 0)); task.wait(0.1)
-            for _ = 1, 3 do pcall(rep.Interaction.ClientRequestOwnership.FireServer, rep.Interaction, primary); task.wait(0.05) end
-            for _ = 1, dragAttempts do
-                pcall(function()
-                    rep.Interaction.ClientIsDragging:FireServer(log, DRAG_SECRET)
-                    log:SetPrimaryPartCFrame(originalPos)
-                end)
-                task.wait(dragInterval)
-            end
-            pcall(rep.Interaction.ClientInteracted.FireServer, rep.Interaction, primary, 'Click')
-            safeTeleport(originalPos); task.wait(0.1)
-        end
-    end
-    notify("誓言", string.format("已带回 %d 块木头", #myLogs), 3)
-end
-
---=========================================================
---  主面板构建
---=========================================================
-local buildMainPanel
-
-buildMainPanel = function()
-    print("[" .. GAME_TITLE .. "] " .. VERSION .. " 已加载 — 按 RightShift 显示/隐藏")
-
-    local gui = new("ScreenGui", {
-        Name = "OathPanel",
-        ResetOnSpawn = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        IgnoreGuiInset = true,
-        DisplayOrder = 100,
-    }, PlayerGui)
-
-    local Main = new("Frame", {
-        Size = UDim2.fromOffset(620, 400),
-        Position = UDim2.fromScale(0.5, 0.5),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundColor3 = Theme.Bg,
-        BorderSizePixel = 0,
-        ClipsDescendants = true,
-    }, gui)
-    corner(Main, 16)
-    stroke(Main, Theme.Stroke, 1)
-
-    local uiScale = new("UIScale", { Scale = 1 }, Main)
-
-    local Sidebar = new("Frame", {
-        Size = UDim2.new(0, 150, 1, 0),
-        BackgroundColor3 = Theme.Sidebar,
-        BorderSizePixel = 0,
-    }, Main)
-    corner(Sidebar, 16)
-
-    new("Frame", {
-        Size = UDim2.new(0, 14, 1, -32),
-        Position = UDim2.new(1, 0, 0.5, 0),
-        AnchorPoint = Vector2.new(1, 0.5),
-        BackgroundColor3 = Theme.Sidebar,
-        BorderSizePixel = 0,
-    }, Sidebar)
-
-    new("TextLabel", {
-        Size = UDim2.new(0, 130, 0, 20),
-        Position = UDim2.new(0, 14, 0, 6),
-        BackgroundTransparency = 1,
-        Text = GAME_TITLE,
-        Font = Enum.Font.GothamBold,
-        TextSize = 16,
-        TextColor3 = Theme.Accent,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ZIndex = 2,
-    }, Sidebar)
-
-    local authorCapsule = new("Frame", {
-        Size = UDim2.new(0, 76, 0, 18),
-        Position = UDim2.new(0, 14, 0, 30),
-        BackgroundColor3 = Theme.Accent,
-        BackgroundTransparency = 0.82,
-        BorderSizePixel = 0,
-        ZIndex = 2,
-    }, Sidebar)
-    corner(authorCapsule, 9)
-    new("TextLabel", {
-        Size = UDim2.fromScale(1, 1),
-        BackgroundTransparency = 1,
-        Text = "作者:是我太傻",
-        Font = Enum.Font.GothamBold,
-        TextSize = 9,
-        TextColor3 = Theme.Accent,
-        TextXAlignment = Enum.TextXAlignment.Center,
-        ZIndex = 2,
-    }, authorCapsule)
-
-    local versionCapsule = new("Frame", {
-        Size = UDim2.new(0, 50, 0, 18),
-        Position = UDim2.new(0, 94, 0, 30),
-        BackgroundColor3 = Theme.Accent,
-        BackgroundTransparency = 0.82,
-        BorderSizePixel = 0,
-        ZIndex = 2,
-    }, Sidebar)
-    corner(versionCapsule, 9)
-    new("TextLabel", {
-        Size = UDim2.fromScale(1, 1),
-        BackgroundTransparency = 1,
-        Text = VERSION,
-        Font = Enum.Font.GothamBold,
-        TextSize = 9,
-        TextColor3 = Theme.Accent,
-        TextXAlignment = Enum.TextXAlignment.Center,
-        ZIndex = 2,
-    }, versionCapsule)
-
-    local BtnHolder = new("Frame", {
-        Size = UDim2.fromOffset(44, 18),
-        Position = UDim2.new(1, -14, 0, 14),
-        AnchorPoint = Vector2.new(1, 0),
-        BackgroundTransparency = 1,
-        ZIndex = 10,
-    }, Main)
-
-    local Content = new("Frame", {
-        Position = UDim2.new(0, 150, 0, 0),
-        Size = UDim2.new(1, -150, 1, 0),
-        BackgroundTransparency = 1,
-    }, Main)
-
-    local TabDefs = {
-        { name = "信息" },
-        { name = "功能" },
-        { name = "脚本" },
-        { name = "设置" },
-        { name = "关于" },
-    }
-
-    local TabHolder = new("Frame", {
-        Position = UDim2.new(0, 0, 0, 56),
-        Size = UDim2.new(1, 0, 1, -64),
-        BackgroundTransparency = 1,
-        ZIndex = 1,
-    }, Sidebar)
-    new("UIListLayout", {
-        Padding = UDim.new(0, 4),
-        SortOrder = Enum.SortOrder.LayoutOrder,
-        HorizontalAlignment = Enum.HorizontalAlignment.Center,
-    }, TabHolder)
-    new("UIPadding", {
-        PaddingLeft = UDim.new(0, 10),
-        PaddingRight = UDim.new(0, 10),
-        PaddingTop = UDim.new(0, 4),
-    }, TabHolder)
-
-    local TabHighlight = new("Frame", {
-        Size = UDim2.fromOffset(110, 32),
-        Position = UDim2.new(0, 10, 0, 60),
-        BackgroundColor3 = Color3.fromRGB(255, 255, 255),
-        BackgroundTransparency = 0.90,
-        BorderSizePixel = 0,
-        ZIndex = 0,
-    }, Sidebar)
-    corner(TabHighlight, 16)
-    stroke(TabHighlight, Color3.fromRGB(255, 255, 255), 1, 0.80)
-
-    local SliderBar = new("Frame", {
-        Size = UDim2.fromOffset(3, 16),
-        Position = UDim2.new(0, 10, 0, 68),
-        BackgroundColor3 = Theme.Accent,
-        BorderSizePixel = 0,
-        ZIndex = 5,
-    }, Sidebar)
-    corner(SliderBar, 2)
-
-    local Pages, TabButtons = {}, {}
-
-    for i, def in ipairs(TabDefs) do
-        local page = new("ScrollingFrame", {
-            Name = def.name,
-            Size = UDim2.fromScale(1, 1),
-            BackgroundTransparency = 1,
-            BorderSizePixel = 0,
-            ScrollBarThickness = 3,
-            ScrollBarImageColor3 = Theme.Stroke,
-            CanvasSize = UDim2.new(0, 0, 0, 0),
-            AutomaticCanvasSize = Enum.AutomaticSize.Y,
-            Visible = false,
-        }, Content)
-        new("UIListLayout", {
-            Padding = UDim.new(0, 8),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-        }, page)
-        new("UIPadding", {
-            PaddingTop = UDim.new(0, 48),
-            PaddingBottom = UDim.new(0, 10),
-            PaddingLeft = UDim.new(0, 14),
-            PaddingRight = UDim.new(0, 14),
-        }, page)
-        Pages[i] = page
-
-        local btn = new("TextButton", {
-            Size = UDim2.new(1, 0, 0, 32),
-            BackgroundTransparency = 1,
-            Text = "",
-            AutoButtonColor = false,
-            LayoutOrder = i,
-            ZIndex = 1,
-        }, TabHolder)
-        corner(btn, 16)
-        local lbl = new("TextLabel", {
-            Position = UDim2.new(0, 14, 0, 0),
-            Size = UDim2.new(1, -14, 1, 0),
-            BackgroundTransparency = 1,
-            Text = def.name,
-            Font = Enum.Font.GothamMedium,
-            TextSize = 13,
-            TextColor3 = Theme.Sub,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            ZIndex = 1,
-        }, btn)
-        TabButtons[i] = { button = btn, label = lbl }
-    end
-
-    local currentTab
-    local function selectTab(index)
-        if currentTab == index then return end
-        currentTab = index
-        for i, t in ipairs(TabButtons) do
-            local active = (i == index)
-            t.label.TextColor3 = active and Theme.Text or Theme.Sub
-            Pages[i].Visible = active
-        end
-        local hlY = 60 + (index - 1) * 36
-        TweenService:Create(TabHighlight, TweenInfo.new(0.18, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-            Position = UDim2.new(0, 10, 0, hlY),
-        }):Play()
-        local barY = 68 + (index - 1) * 36
-        TweenService:Create(SliderBar, TweenInfo.new(0.30, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Position = UDim2.new(0, 10, 0, barY),
-        }):Play()
-    end
-
-    for i, t in ipairs(TabButtons) do
-        t.button.MouseButton1Click:Connect(function() selectTab(i) end)
-        t.button.MouseEnter:Connect(function()
-            if currentTab ~= i then t.label.TextColor3 = Theme.Text end
-        end)
-        t.button.MouseLeave:Connect(function()
-            if currentTab ~= i then t.label.TextColor3 = Theme.Sub end
-        end)
-    end
-
-    -- 悬浮岛
-    local Island = new("TextButton", {
-        Size = UDim2.fromOffset(36, 36),
-        Position = UDim2.new(0.5, 0, 0, 10),
-        AnchorPoint = Vector2.new(0.5, 0),
-        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-        BorderSizePixel = 0,
-        Text = "",
-        AutoButtonColor = false,
-        Visible = false,
-        ClipsDescendants = true,
-        ZIndex = 50,
-    }, gui)
-    corner(Island, 18)
-    local IslandDot = new("Frame", {
-        Size = UDim2.fromOffset(8, 8),
-        Position = UDim2.new(0, 14, 0.5, -4),
-        BackgroundColor3 = Theme.Accent,
-        BorderSizePixel = 0,
-        ZIndex = 51,
-    }, Island)
-    corner(IslandDot, 4)
-    local IslandText = new("TextLabel", {
-        Position = UDim2.new(0, 30, 0, 0),
-        Size = UDim2.new(1, -40, 1, 0),
-        BackgroundTransparency = 1,
-        Text = GAME_TITLE .. " · 运行中",
-        Font = Enum.Font.GothamMedium,
-        TextSize = 12,
-        TextColor3 = Color3.fromRGB(255, 255, 255),
-        TextXAlignment = Enum.TextXAlignment.Left,
-        TextTransparency = 1,
-        ZIndex = 51,
-    }, Island)
-
-    task.spawn(function()
-        while true do
-            task.wait(1.2)
-            TweenService:Create(IslandDot, TweenInfo.new(0.6, Enum.EasingStyle.Sine), { BackgroundTransparency = 0.7 }):Play()
-            task.wait(0.6)
-            TweenService:Create(IslandDot, TweenInfo.new(0.6, Enum.EasingStyle.Sine), { BackgroundTransparency = 0 }):Play()
-        end
-    end)
-
-    local animating = false
-
-    local function closeUI()
-        if animating then return end
-        animating = true
-        TweenService:Create(Main, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-            Size = UDim2.fromOffset(180, 120), BackgroundTransparency = 1,
-        }):Play()
-        task.wait(0.18)
-        Main.Visible = false
-        Main.Size = UDim2.fromOffset(620, 400)
-        Main.BackgroundTransparency = 0
-        gui.Enabled = false
-        animating = false
-    end
-
-    local function minimize()
-        if animating or not Main.Visible then return end
-        animating = true
-        TweenService:Create(Main, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-            Size = UDim2.fromOffset(220, 140), BackgroundTransparency = 1,
-        }):Play()
-        task.wait(0.22)
-        Main.Visible = false
-        Main.Size = UDim2.fromOffset(620, 400)
-        Main.BackgroundTransparency = 0
-        Island.Visible = true
-        Island.Size = UDim2.fromOffset(36, 36)
-        TweenService:Create(Island, TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-            Size = UDim2.fromOffset(200, 36),
-        }):Play()
-        TweenService:Create(IslandText, TweenInfo.new(0.3), { TextTransparency = 0 }):Play()
-        task.wait(0.42)
-        animating = false
-    end
-
-    local function restore()
-        if animating or Main.Visible then return end
-        animating = true
-        TweenService:Create(Island, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-            Size = UDim2.fromOffset(36, 36),
-        }):Play()
-        TweenService:Create(IslandText, TweenInfo.new(0.15), { TextTransparency = 1 }):Play()
-        task.wait(0.28)
-        Island.Visible = false
-        Main.Visible = true
-        Main.Size = UDim2.fromOffset(280, 180)
-        Main.BackgroundTransparency = 1
-        TweenService:Create(Main, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-            Size = UDim2.fromOffset(620, 400),
-        }):Play()
-        TweenService:Create(Main, TweenInfo.new(0.28), { BackgroundTransparency = 0 }):Play()
-        task.wait(0.35)
-        animating = false
-    end
-
-    Island.MouseButton1Click:Connect(restore)
-
-    local function makeWinDot(color, x, callback)
-        local btn = new("TextButton", {
-            Size = UDim2.fromOffset(17, 17),
-            Position = UDim2.new(0, x, 0, 0),
-            BackgroundColor3 = color,
-            BorderSizePixel = 0,
-            Text = "",
-            AutoButtonColor = false,
-            ZIndex = 10,
-        }, BtnHolder)
-        corner(btn, 9)
-        btn.MouseEnter:Connect(function()
-            btn.BackgroundColor3 = color:Lerp(Color3.new(1, 1, 1), 0.25)
-        end)
-        btn.MouseLeave:Connect(function()
-            btn.BackgroundColor3 = color
-        end)
-        btn.MouseButton1Click:Connect(callback)
-        return btn
-    end
-
-    makeWinDot(Theme.Yellow, 0, minimize)
-    makeWinDot(Theme.Red, 25, closeUI)
-
-    Main.Size = UDim2.fromOffset(540, 350)
-    Main.BackgroundTransparency = 0.4
-    TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Size = UDim2.fromOffset(620, 400),
-        BackgroundTransparency = 0,
-    }):Play()
-
-    --=====================================================
-    --  控件工厂
-    --=====================================================
-    local function makeFolderSection(parent, title, order, contentHeight)
-        local header = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 34),
-            BackgroundColor3 = Theme.Panel,
-            BorderSizePixel = 0,
-            LayoutOrder = order,
-        }, parent)
-        corner(header, 8)
-        local folderIcon = new("TextLabel", {
-            Size = UDim2.fromOffset(28, 28),
-            Position = UDim2.new(0, 4, 0.5, 0),
-            AnchorPoint = Vector2.new(0, 0.5),
-            BackgroundTransparency = 1,
-            Text = "📁",
-            Font = Enum.Font.GothamBold,
-            TextSize = 20,
-            TextColor3 = Color3.fromRGB(255, 255, 255),
-            TextXAlignment = Enum.TextXAlignment.Center,
-            TextYAlignment = Enum.TextYAlignment.Center,
-        }, header)
-        new("TextLabel", {
-            Position = UDim2.new(0, 38, 0, 0),
-            Size = UDim2.new(1, -38, 1, 0),
-            BackgroundTransparency = 1,
-            Text = title,
-            Font = Enum.Font.GothamMedium,
-            TextSize = 13,
-            TextColor3 = Theme.Text,
-            TextXAlignment = Enum.TextXAlignment.Left,
-        }, header)
-        local headerBtn = new("TextButton", {
-            Size = UDim2.fromScale(1, 1),
-            BackgroundTransparency = 1,
-            Text = "",
-            AutoButtonColor = false,
-            ZIndex = 5,
-        }, header)
-        local container = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 0),
-            BackgroundTransparency = 1,
-            ClipsDescendants = true,
-            LayoutOrder = order + 1,
-        }, parent)
-        new("UIListLayout", {
-            Padding = UDim.new(0, 8),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-        }, container)
-        local expanded = false
-        headerBtn.MouseButton1Click:Connect(function()
-            expanded = not expanded
-            folderIcon.Text = expanded and "📂" or "📁"
-            TweenService:Create(container, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-                Size = UDim2.new(1, 0, 0, expanded and contentHeight or 0),
-            }):Play()
-        end)
-        return container
-    end
-
-    local function makeSliderCard(parent, label, minValue, maxValue, default, order, onChange)
-        local row = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 52),
-            BackgroundColor3 = Theme.RowBg,
-            BorderSizePixel = 0,
-            LayoutOrder = order,
-        }, parent)
-        corner(row, 8)
-        new("TextLabel", {
-            Position = UDim2.new(0, 12, 0, 8),
-            Size = UDim2.new(0.55, 0, 0, 16),
-            BackgroundTransparency = 1,
-            Text = label,
-            Font = Enum.Font.GothamMedium,
-            TextSize = 13,
-            TextColor3 = Theme.Text,
-            TextXAlignment = Enum.TextXAlignment.Left,
-        }, row)
-        local valueBox = new("TextBox", {
-            Position = UDim2.new(0.55, 0, 0, 6),
-            Size = UDim2.new(0.45, -12, 0, 20),
-            BackgroundColor3 = Color3.fromRGB(24, 25, 29),
-            BorderSizePixel = 0,
-            Text = tostring(default),
-            Font = Enum.Font.GothamBold,
-            TextSize = 12,
-            TextColor3 = Theme.Accent,
-            TextXAlignment = Enum.TextXAlignment.Center,
-            ClearTextOnFocus = false,
-        }, row)
-        corner(valueBox, 6)
-        local track = new("Frame", {
-            Position = UDim2.new(0, 12, 0, 36),
-            Size = UDim2.new(1, -24, 0, 4),
-            BackgroundColor3 = Color3.fromRGB(55, 57, 64),
-            BorderSizePixel = 0,
-        }, row)
-        corner(track, 2)
-        local span = math.max(maxValue - minValue, 1)
-        local ratio = math.clamp((default - minValue) / span, 0, 1)
-        local fill = new("Frame", {
-            Size = UDim2.new(ratio, 0, 1, 0),
-            BackgroundColor3 = Theme.Accent,
-            BorderSizePixel = 0,
-        }, track)
-        corner(fill, 2)
-        local knob = new("Frame", {
-            Size = UDim2.fromOffset(12, 12),
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.new(ratio, 0, 0.5, 0),
-            BackgroundColor3 = Color3.fromRGB(240, 240, 245),
-            BorderSizePixel = 0,
-            ZIndex = 2,
-        }, track)
-        corner(knob, 6)
-        local hit = new("TextButton", {
-            Size = UDim2.new(1, 16, 3, 16),
-            Position = UDim2.new(0, -8, 0.5, 0),
-            AnchorPoint = Vector2.new(0, 0.5),
-            BackgroundTransparency = 1,
-            Text = "",
-            ZIndex = 3,
-        }, track)
-        local dragging, focused = false, false
-        local currentValue = default
-        local function setValue(value, updateBox)
-            value = math.clamp(math.floor(value + 0.5), minValue, maxValue)
-            currentValue = value
-            local rel = (value - minValue) / span
-            fill.Size = UDim2.new(rel, 0, 1, 0)
-            knob.Position = UDim2.new(rel, 0, 0.5, 0)
-            if updateBox and not focused then valueBox.Text = tostring(value) end
-            if onChange then onChange(value) end
-        end
-        setValue(default, false)
-        local function applyFromX(x)
-            local rel = math.clamp((x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
-            setValue(minValue + rel * span, true)
-        end
-        hit.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true; applyFromX(input.Position.X)
-            end
-        end)
-        UserInputService.InputChanged:Connect(function(input)
-            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                applyFromX(input.Position.X)
-            end
-        end)
-        UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = false
-            end
-        end)
-        valueBox.Focused:Connect(function() focused = true end)
-        valueBox.FocusLost:Connect(function()
-            focused = false
-            local num = tonumber(valueBox.Text)
-            if not num then valueBox.Text = tostring(currentValue); return end
-            setValue(num, true)
-        end)
-    end
-
-    local function makeToggleButton(parent, label, order, onToggle)
-        local row = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 34),
-            BackgroundColor3 = Theme.RowBg,
-            BorderSizePixel = 0,
-            LayoutOrder = order,
-        }, parent)
-        corner(row, 8)
-        new("TextLabel", {
-            Position = UDim2.new(0, 12, 0, 0),
-            Size = UDim2.new(1, -60, 1, 0),
-            BackgroundTransparency = 1,
-            Text = label,
-            Font = Enum.Font.GothamMedium,
-            TextSize = 13,
-            TextColor3 = Theme.Text,
-            TextXAlignment = Enum.TextXAlignment.Left,
-        }, row)
-        local track = new("TextButton", {
-            Size = UDim2.fromOffset(38, 20),
-            Position = UDim2.new(1, -50, 0.5, 0),
-            AnchorPoint = Vector2.new(0, 0.5),
-            BackgroundColor3 = Color3.fromRGB(55, 57, 64),
-            Text = "",
-            AutoButtonColor = false,
-        }, row)
-        corner(track, 10)
-        local knob = new("Frame", {
-            Size = UDim2.fromOffset(16, 16),
-            Position = UDim2.new(0, 2, 0.5, -8),
-            BackgroundColor3 = Color3.fromRGB(240, 240, 245),
-            BorderSizePixel = 0,
-        }, track)
-        corner(knob, 8)
-        local state = false
-        track.MouseButton1Click:Connect(function()
-            state = not state
-            TweenService:Create(track, TweenInfo.new(0.15), {
-                BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(55, 57, 64),
-            }):Play()
-            TweenService:Create(knob, TweenInfo.new(0.15), {
-                Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
-            }):Play()
-            if onToggle then onToggle(state) end
-        end)
-    end
-
-    local function makeActionButton(parent, text, order, onClick)
-        local btn = new("TextButton", {
-            Size = UDim2.new(1, 0, 0, 34),
-            BackgroundColor3 = Theme.RowBg,
-            BorderSizePixel = 0,
-            Text = text,
-            Font = Enum.Font.GothamMedium,
-            TextSize = 13,
-            TextColor3 = Theme.Text,
-            AutoButtonColor = false,
-            LayoutOrder = order,
-        }, parent)
-        corner(btn, 8)
-        btn.MouseEnter:Connect(function()
-            TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = Theme.Hover }):Play()
-        end)
-        btn.MouseLeave:Connect(function()
-            TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = Theme.RowBg }):Play()
-        end)
-        btn.MouseButton1Click:Connect(function()
-            TweenService:Create(btn, TweenInfo.new(0.08), { BackgroundColor3 = Theme.Accent }):Play()
-            task.delay(0.12, function()
-                TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.RowBg }):Play()
-            end)
-            if onClick then
-                local ok, err = pcall(onClick, btn)
-                if not ok then warn("[按钮错误] " .. tostring(err)) end
-            end
-        end)
-        return btn
-    end
-
-    --=====================================================
-    --  分区 1：信息
-    --=====================================================
-    do
-        local page = Pages[1]
-        local headerCard = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            BackgroundColor3 = Theme.Panel,
-            BorderSizePixel = 0,
-            LayoutOrder = 1,
-        }, page)
-        corner(headerCard, 10)
-        new("UIPadding", {
-            PaddingTop = UDim.new(0, 14),
-            PaddingBottom = UDim.new(0, 14),
-            PaddingLeft = UDim.new(0, 12),
-            PaddingRight = UDim.new(0, 12),
-        }, headerCard)
-        new("UIListLayout", {
-            Padding = UDim.new(0, 10),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-            HorizontalAlignment = Enum.HorizontalAlignment.Center,
-        }, headerCard)
-        new("TextLabel", {
-            Size = UDim2.new(1, 0, 0, 20),
-            BackgroundTransparency = 1,
-            Text = GAME_TITLE .. " · Panel",
-            Font = Enum.Font.GothamBold,
-            TextSize = 14,
-            TextColor3 = Theme.Text,
-            LayoutOrder = 1,
-        }, headerCard)
-        new("TextLabel", {
-            Size = UDim2.new(1, 0, 0, 16),
-            BackgroundTransparency = 1,
-            Text = "游戏已识别，功能已就绪",
-            Font = Enum.Font.Gotham,
-            TextSize = 12,
-            TextColor3 = Theme.Sub,
-            LayoutOrder = 2,
-        }, headerCard)
-
-        local btnRow = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 30),
-            BackgroundTransparency = 1,
-            LayoutOrder = 3,
-        }, headerCard)
-        new("UIListLayout", {
-            FillDirection = Enum.FillDirection.Horizontal,
-            Padding = UDim.new(0, 8),
-            HorizontalAlignment = Enum.HorizontalAlignment.Center,
-            VerticalAlignment = Enum.VerticalAlignment.Center,
-            SortOrder = Enum.SortOrder.LayoutOrder,
-        }, btnRow)
-
-        local function makeCopyButton(text, copyValue, order)
-            local btn = new("TextButton", {
-                Size = UDim2.new(0, 150, 0, 30),
-                BackgroundColor3 = Theme.Accent,
-                BorderSizePixel = 0,
-                Text = text,
-                Font = Enum.Font.GothamMedium,
-                TextSize = 11,
-                TextColor3 = Color3.fromRGB(12, 24, 16),
-                AutoButtonColor = false,
-                LayoutOrder = order,
-            }, btnRow)
-            corner(btn, 15)
-            btn.MouseButton1Click:Connect(function()
-                local ok = pcall(function()
-                    if setclipboard then setclipboard(copyValue)
-                    elseif toclipboard then toclipboard(copyValue)
-                    else error("no clipboard") end
-                end)
-                if ok then
-                    btn.Text = "已复制 ✓"
-                    task.wait(1.2)
-                    btn.Text = text
-                end
-            end)
-            return btn
-        end
-
-        makeCopyButton("复制作者 QQ 号", "3767465890", 1)
-        makeCopyButton("复制 QQ 群", "1109682737", 2)
-
-        local logCard = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            BackgroundColor3 = Theme.Panel,
-            BorderSizePixel = 0,
-            LayoutOrder = 2,
-        }, page)
-        corner(logCard, 10)
-        new("UIPadding", {
-            PaddingTop = UDim.new(0, 12),
-            PaddingBottom = UDim.new(0, 12),
-            PaddingLeft = UDim.new(0, 12),
-            PaddingRight = UDim.new(0, 12),
-        }, logCard)
-        new("UIListLayout", {
-            Padding = UDim.new(0, 8),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-        }, logCard)
-        new("TextLabel", {
-            Size = UDim2.new(1, 0, 0, 18),
-            BackgroundTransparency = 1,
-            Text = "更新日志",
-            Font = Enum.Font.GothamBold,
-            TextSize = 13,
-            TextColor3 = Theme.Text,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            LayoutOrder = 1,
-        }, logCard)
-        local entry = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            BackgroundColor3 = Theme.RowBg,
-            BorderSizePixel = 0,
-            LayoutOrder = 2,
-        }, logCard)
-        corner(entry, 8)
-        new("UIPadding", {
-            PaddingTop = UDim.new(0, 8),
-            PaddingBottom = UDim.new(0, 8),
-            PaddingLeft = UDim.new(0, 10),
-            PaddingRight = UDim.new(0, 10),
-        }, entry)
-        new("UIListLayout", {
-            Padding = UDim.new(0, 4),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-        }, entry)
-
-        local function addLine(text, order)
-            local row = new("Frame", {
-                Size = UDim2.new(1, 0, 0, 16),
-                BackgroundTransparency = 1,
-                LayoutOrder = order,
-            }, entry)
-            local dot = new("Frame", {
-                Size = UDim2.fromOffset(4, 4),
-                Position = UDim2.new(0, 2, 0.5, -2),
-                BackgroundColor3 = Theme.Accent,
-                BorderSizePixel = 0,
-            }, row)
-            corner(dot, 2)
-            new("TextLabel", {
-                Position = UDim2.new(0, 14, 0, 0),
-                Size = UDim2.new(1, -14, 1, 0),
-                BackgroundTransparency = 1,
-                Text = text,
-                Font = Enum.Font.Gotham,
-                TextSize = 12,
-                TextColor3 = Theme.Text,
-                TextXAlignment = Enum.TextXAlignment.Left,
-            }, row)
-        end
-        addLine("整合原版功能：带来树 / 一键加工", 2)
-        addLine("鸭子带回 / 物品传送 / 商店购买", 3)
-        addLine("透视 / 环境 / 魔鬼功能", 4)
-    end
-
-    --=====================================================
-    --  分区 2：功能
-    --=====================================================
-    do
-        local page = Pages[2]
-
-        -- 人物
-        local personContainer = makeFolderSection(page, "人物", 1, 340)
-        local PersonState = { SpeedValue = 16, SpeedKeep = false, JumpValue = 50, JumpKeep = false,
-                              InfiniteJump = false, GravityValue = 196, GravityKeep = false }
-
-        local function applySpeed()
-            local char = lp.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then hum.WalkSpeed = PersonState.SpeedValue end
-        end
-        local function applyJump()
-            local char = lp.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then hum.UseJumpPower = true; hum.JumpPower = PersonState.JumpValue end
-        end
-        local function applyGravity() workspace.Gravity = PersonState.GravityValue end
-
-        task.spawn(function()
-            while true do
-                task.wait(0.1)
-                if PersonState.SpeedKeep then applySpeed() end
-                if PersonState.JumpKeep then applyJump() end
-                if PersonState.GravityKeep then applyGravity() end
-            end
-        end)
-        UserInputService.JumpRequest:Connect(function()
-            if not PersonState.InfiniteJump then return end
-            local char = lp.Character
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
-        end)
-
-        makeSliderCard(personContainer, "移动速度", 0, 400, 16, 1, function(v)
-            PersonState.SpeedValue = v; if PersonState.SpeedKeep then applySpeed() end
-        end)
-        makeToggleButton(personContainer, "保持开启", 2, function(s)
-            PersonState.SpeedKeep = s
-            if s then applySpeed()
-            else
-                local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
-                if hum then hum.WalkSpeed = 16 end
-            end
-        end)
-        makeSliderCard(personContainer, "跳跃高度", 0, 400, 50, 3, function(v)
-            PersonState.JumpValue = v; if PersonState.JumpKeep then applyJump() end
-        end)
-        makeToggleButton(personContainer, "保持开启", 4, function(s)
-            PersonState.JumpKeep = s
-            if s then applyJump()
-            else
-                local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
-                if hum then hum.UseJumpPower = true; hum.JumpPower = 50 end
-            end
-        end)
-        makeToggleButton(personContainer, "无限跳跃", 5, function(s) PersonState.InfiniteJump = s end)
-        makeSliderCard(personContainer, "修改重力", 0, 400, 196, 6, function(v)
-            PersonState.GravityValue = v; if PersonState.GravityKeep then applyGravity() end
-        end)
-        makeToggleButton(personContainer, "保持开启", 7, function(s)
-            PersonState.GravityKeep = s
-            if s then applyGravity() else workspace.Gravity = 196.2 end
-        end)
-        makeToggleButton(personContainer, "穿墙", 8, function(s) applyNoClip(s) end)
-
-        -- 传送
-        local tpContainer = makeFolderSection(page, "传送", 3, 42)
-        local teleportList = {
-            "出生点", "木材反斗城", "回家", "连接逻辑店", "土地商店", "会员商店", "画店",
-            "桥对岸", "沙滩", "火木", "雪山", "洞穴", "码头", "黑市", "糖果原", "雪地入口",
-            "盖克斯航运", "玻璃冰木入口", "云层", "山边商品", "章鱼哥祭坛", "沼泽商店",
-            "石头商店", "沼泽", "冰胡", "沙漠", "辐射商店", "核污染区", "种子商人",
-            "鲍勃的店", "家具店", "车店", "罗布克斯商店", "肯德坤专卖店", "秋季商店"
-        }
-        local tpCoords = {
-            ["出生点"] = CFrame.new(187, 3, 55),
-            ["木材反斗城"] = CFrame.new(265, 5, 57),
-            ["洞穴"] = CFrame.new(3581, -177, 430),
-            ["连接逻辑店"] = CFrame.new(4607, 9, -798),
-            ["雪山"] = CFrame.new(1451.66, 412.20, 3183.47),
-            ["土地商店"] = CFrame.new(258, 5, -99),
-            ["画店"] = CFrame.new(5207, -156, 719),
-            ["火木"] = CFrame.new(-1585, 625, 1140),
-            ["沙滩"] = CFrame.new(2549, 5, -42),
-            ["桥对岸"] = CFrame.new(109, 5, -1166),
-            ["会员商店"] = CFrame.new(907, 4, -92),
-            ["码头"] = CFrame.new(1122, 1, -203),
-            ["黑市"] = CFrame.new(-22, 61, 1377),
-            ["糖果原"] = CFrame.new(-561, 272, 2312),
-            ["雪地入口"] = CFrame.new(888, 61, 1188),
-            ["盖克斯航运"] = CFrame.new(1894, -2, 1581),
-            ["玻璃冰木入口"] = CFrame.new(1929, 256, 2918),
-            ["云层"] = CFrame.new(2073, 495, 2967),
-            ["山边商品"] = CFrame.new(-640, 160, 374),
-            ["章鱼哥祭坛"] = CFrame.new(-1622, 196, 941),
-            ["沼泽商店"] = CFrame.new(-1274, 133, -1443),
-            ["沼泽"] = CFrame.new(-999, 133, -1191),
-            ["石头商店"] = CFrame.new(-2387, 302, -1899),
-            ["冰胡"] = CFrame.new(-2149, 321, 743),
-            ["沙漠"] = CFrame.new(-612, 46, -3169),
-            ["辐射商店"] = CFrame.new(172, 12, -2627),
-            ["核污染区"] = CFrame.new(207, 15, -2752),
-            ["种子商人"] = CFrame.new(-24, 18, -2684),
-            ["鲍勃的店"] = CFrame.new(261, 9, -2541),
-            ["家具店"] = CFrame.new(492, 4, -1723),
-            ["车店"] = CFrame.new(512, 4, -1459),
-            ["罗布克斯商店"] = CFrame.new(652, 4, -1589),
-            ["肯德坤专卖店"] = CFrame.new(65, 4, -455),
-            ["秋季商店"] = CFrame.new(6004, 4, 33),
-        }
-
-        -- 下拉需要简单实现：用列表按钮代替
-        local tpLabel = new("TextLabel", {
-            Size = UDim2.new(1, 0, 0, 18),
-            BackgroundTransparency = 1,
-            Text = "选择传送地点：",
-            Font = Enum.Font.GothamBold,
-            TextSize = 11,
-            TextColor3 = Theme.Sub,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            LayoutOrder = 1,
-        }, tpContainer)
-        for i, place in ipairs(teleportList) do
-            makeActionButton(tpContainer, "→ " .. place, i + 1, function()
-                if place == "回家" then
-                    for _, v in pairs(workspace.Properties:GetChildren()) do
-                        if v.Owner.Value == lp then
-                            safeTeleport(v.OriginSquare.CFrame + Vector3.new(0, 10, 0))
-                            break
-                        end
-                    end
-                else
-                    local cf = tpCoords[place]
-                    if cf then safeTeleport(cf) end
-                end
-            end)
-        end
-
-        -- 带来树
-        local bringContainer = makeFolderSection(page, "带来树", 5, 120)
-        new("TextLabel", {
-            Size = UDim2.new(1, 0, 0, 16),
-            BackgroundTransparency = 1,
-            Text = "选择树木种类（点击直接执行）：",
-            Font = Enum.Font.GothamBold,
-            TextSize = 11,
-            TextColor3 = Theme.Sub,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            LayoutOrder = 1,
-        }, bringContainer)
-
-        -- 常用树直接列出
-        local commonTrees = { "普通树", "樱花", "冰木", "火山木", "橡木", "白桦木", "黄金木", "雪地松", "椰子树", "幽灵木" }
-        for i, name in ipairs(commonTrees) do
-            makeActionButton(bringContainer, "带来: " .. name, i + 1, function()
-                local class = treeMapping[name]
-                if class then
-                    task.spawn(function() bringTreeRemote(class) end)
-                end
-            end)
-        end
-
-        -- 一键加工
-        local cutContainer = makeFolderSection(page, "一键加工", 7, 42)
-        makeActionButton(cutContainer, "一键加工（分解可用 速度快）", 1, function()
-            startDecomposeSelection()
-        end)
-
-        -- 木头
-        local logContainer = makeFolderSection(page, "木头", 9, 42)
-        makeActionButton(logContainer, "传送所有木头到你脚下", 1, function()
-            task.spawn(bringAllMyLogsToFeet)
-        end)
-
-        -- 鸭子
-        local duckContainer = makeFolderSection(page, "鸭子", 11, 130)
-        local duckList = {
-            { name = "2018CGift_Duck", display = "礼物鸭" },
-            { name = "Duck", display = "🦆 普通鸭" },
-            { name = "DuckAngel", display = "👼 天堂鸭" },
-            { name = "DuckEvil", display = "😈 恶魔鸭" },
-            { name = "LunarDuck", display = "🌙 月亮鸭" },
-            { name = "FallenDuck", display = "💀 堕落鸭" },
-        }
-        for i, d in ipairs(duckList) do
-            makeActionButton(duckContainer, "带回自己的: " .. d.display, i, function()
-                task.spawn(function() bringDuckc(d.name, true) end)
-            end)
-        end
-        makeActionButton(duckContainer, "带回无归属的礼物鸭", #duckList + 1, function()
-            task.spawn(function() bringDuckc("2018CGift_Duck", false) end)
-        end)
-
-        -- 环境
-        local envContainer = makeFolderSection(page, "环境", 13, 200)
-        makeToggleButton(envContainer, "终日白天", 1, function(s)
-            bai.awaysday = s
-            if s then
-                task.spawn(function()
-                    while bai.awaysday do game:GetService('Lighting').TimeOfDay = '14:00:00'; task.wait(0.5) end
-                end)
-            end
-        end)
-        makeToggleButton(envContainer, "终日黑夜", 2, function(s)
-            bai.awaysdnight = s
-            if s then
-                task.spawn(function()
-                    while bai.awaysdnight do game:GetService('Lighting').TimeOfDay = '2:00:00'; task.wait(0.5) end
-                end)
-            end
-        end)
-        makeToggleButton(envContainer, "去除雾", 3, function(s)
-            bai.nofog = s
-            if s then
-                task.spawn(function()
-                    while bai.nofog do game:GetService('Lighting').FogEnd = 1000000; task.wait(0.5) end
-                end)
-            end
-        end)
-        makeToggleButton(envContainer, "消除阴影", 4, function(s) game.Lighting.GlobalShadows = not s end)
-        makeActionButton(envContainer, "删除灵视神殿石头及门", 5, function()
-            pcall(function() workspace.Region_Mountainside.BoulderRegen.Boulder:Destroy() end)
-            pcall(function() workspace.Region_Mountainside.Door.Door:Destroy() end)
-            notify("誓言", "已删除石头与门", 3)
-        end)
-
-        -- 岩浆
-        local lavaContainer = makeFolderSection(page, "岩浆", 15, 76)
-        makeToggleButton(lavaContainer, "开启自动删除岩浆伤害", 1, function(s)
-            if s then startAutoDelete(3) else stopAutoDelete() end
-        end)
-        makeActionButton(lavaContainer, "手动执行一次岩浆删除", 2, function()
-            deleteLavaObjectsOnce(false)
-        end)
-
-        -- 透视
-        local espContainer = makeFolderSection(page, "透视", 17, 76)
-        makeToggleButton(espContainer, "礼物鸭透视（蓝色轮廓）", 1, function(s)
-            if s then enableDuckOutline() else disableDuckOutline() end
-        end)
-        makeToggleButton(espContainer, "玩家头像 + 距离", 2, function(s)
-            if s then enableEsp() else disableEsp() end
-        end)
-
-        -- 魔鬼
-        local devilContainer = makeFolderSection(page, "魔鬼", 19, 76)
-        local selectedPlayer = lp.Name
-        -- 简化：直接用文本显示当前玩家
-        local playerLabel = new("TextLabel", {
-            Size = UDim2.new(1, 0, 0, 16),
-            BackgroundTransparency = 1,
-            Text = "目标玩家: " .. selectedPlayer,
-            Font = Enum.Font.GothamBold,
-            TextSize = 11,
-            TextColor3 = Theme.Accent,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            LayoutOrder = 1,
-        }, devilContainer)
-
-        local playerIndex = 0
-        makeActionButton(devilContainer, "切换到下一个玩家", 2, function()
-            local players = Players:GetPlayers()
-            playerIndex = (playerIndex % #players) + 1
-            selectedPlayer = players[playerIndex].Name
-            playerLabel.Text = "目标玩家: " .. selectedPlayer
-        end)
-        makeActionButton(devilContainer, "传送到玩家旁边", 3, function()
-            local target = Players:FindFirstChild(selectedPlayer)
-            if target and target.Character then
-                safeTeleport(target.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0))
-            end
-        end)
-        makeActionButton(devilContainer, "传送到玩家基地", 4, function()
-            for _, v in pairs(workspace.Properties:GetChildren()) do
-                if v.Owner.Value == Players:FindFirstChild(selectedPlayer) then
-                    safeTeleport(v.OriginSquare.CFrame + Vector3.new(0, 10, 0))
-                    break
-                end
-            end
-        end)
-    end
-
-    --=====================================================
-    --  分区 3：脚本
-    --=====================================================
-    do
-        local page = Pages[3]
-        local container = makeFolderSection(page, "快捷操作", 1, 76)
-        makeActionButton(container, "重置角色", 1, function()
-            local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
-            if hum then hum.Health = 0 end
-        end)
-        makeActionButton(container, "重置面板位置", 2, function()
-            Main.Position = UDim2.fromScale(0.5, 0.5)
-        end)
-        local tip = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 46),
-            BackgroundColor3 = Theme.Panel,
-            BorderSizePixel = 0,
-            LayoutOrder = 3,
-        }, page)
-        corner(tip, 8)
-        new("TextLabel", {
-            Position = UDim2.new(0, 12, 0, 0),
-            Size = UDim2.new(1, -24, 1, 0),
-            BackgroundTransparency = 1,
-            Text = "提示：按 RightShift 可以快速显示 / 隐藏整个面板。",
-            Font = Enum.Font.Gotham,
-            TextSize = 11,
-            TextColor3 = Theme.Sub,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            TextWrapped = true,
-        }, tip)
-    end
-
-    --=====================================================
-    --  分区 4：设置
-    --=====================================================
-    do
-        local page = Pages[4]
-        local container = makeFolderSection(page, "界面设置", 1, 52)
-        makeSliderCard(container, "界面缩放 (%)", 50, 150, 100, 1, function(v) uiScale.Scale = v / 100 end)
-    end
-
-    --=====================================================
-    --  分区 5：关于
-    --=====================================================
-    do
-        local page = Pages[5]
-        local card = new("Frame", {
-            Size = UDim2.new(1, 0, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            BackgroundColor3 = Theme.Panel,
-            BorderSizePixel = 0,
-            LayoutOrder = 1,
-        }, page)
-        corner(card, 10)
-        new("UIPadding", {
-            PaddingTop = UDim.new(0, 14),
-            PaddingBottom = UDim.new(0, 14),
-            PaddingLeft = UDim.new(0, 14),
-            PaddingRight = UDim.new(0, 14),
-        }, card)
-        new("UIListLayout", {
-            Padding = UDim.new(0, 8),
-            SortOrder = Enum.SortOrder.LayoutOrder,
-        }, card)
-        new("TextLabel", {
-            Size = UDim2.new(1, 0, 0, 24),
-            BackgroundTransparency = 1,
-            Text = "誓言面板",
-            Font = Enum.Font.GothamBold,
-            TextSize = 18,
-            TextColor3 = Theme.Accent,
-            LayoutOrder = 1,
-        }, card)
-        local function addInfo(label, value, order)
-            local row = new("Frame", {
-                Size = UDim2.new(1, 0, 0, 26),
-                BackgroundColor3 = Theme.RowBg,
-                BorderSizePixel = 0,
-                LayoutOrder = order,
-            }, card)
-            corner(row, 6)
-            new("TextLabel", {
-                Position = UDim2.new(0, 10, 0, 0),
-                Size = UDim2.new(0.4, 0, 1, 0),
-                BackgroundTransparency = 1,
-                Text = label,
-                Font = Enum.Font.GothamMedium,
-                TextSize = 12,
-                TextColor3 = Theme.Sub,
-                TextXAlignment = Enum.TextXAlignment.Left,
-            }, row)
-            new("TextLabel", {
-                Position = UDim2.new(0.4, 0, 0, 0),
-                Size = UDim2.new(0.6, -10, 1, 0),
-                BackgroundTransparency = 1,
-                Text = value,
-                Font = Enum.Font.GothamBold,
-                TextSize = 12,
-                TextColor3 = Theme.Text,
-                TextXAlignment = Enum.TextXAlignment.Right,
-            }, row)
-        end
-        addInfo("作者", "是我太傻", 2)
-        addInfo("作者 QQ", "3767465890", 3)
-        addInfo("QQ 群", "1109682737", 4)
-        addInfo("当前版本", VERSION, 5)
-        addInfo("专用游戏", GAME_TITLE, 6)
-    end
-
-    --=====================================================
-    --  拖动 & 快捷键
-    --=====================================================
-    do
-        local dragging, dragStart, startPos
-        Main.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                dragging = true
-                dragStart = input.Position
-                startPos = Main.Position
-                local conn
-                conn = input.Changed:Connect(function()
-                    if input.UserInputState == Enum.UserInputState.End then
-                        dragging = false
-                        conn:Disconnect()
-                    end
-                end)
-            end
-        end)
-        UserInputService.InputChanged:Connect(function(input)
-            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                local delta = input.Position - dragStart
-                Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-            end
-        end)
-        UserInputService.InputBegan:Connect(function(input, processed)
-            if processed then return end
-            if input.KeyCode == Enum.KeyCode.RightShift then
-                if gui.Enabled and Main.Visible then closeUI()
-                else gui.Enabled = true; Island.Visible = false; Main.Visible = true end
-            end
-        end)
-    end
-
-    selectTab(1)
-end
-
---=========================================================
---  卡密验证 UI
---=========================================================
+-- ============================================================
+--  卡密验证 UI（含猫图片）
+-- ============================================================
 local function showKeyUI()
     local KeyTheme = {
         Accent = Color3.fromRGB(88, 220, 130),
@@ -2027,6 +96,31 @@ local function showKeyUI()
     }, Backdrop)
     corner(Card, 22)
     stroke(Card, KeyTheme.Stroke, 1)
+
+    -- 猫图片（底部）
+    local CatImage = new("ImageLabel", {
+        Size = UDim2.new(1, 0, 0, 180),
+        Position = UDim2.new(0, 0, 1, -180),
+        BackgroundTransparency = 1,
+        Image = "rbxthumb://type=Asset&id=75524296710231&w=420&h=420",
+        ScaleType = Enum.ScaleType.Crop,
+        ImageTransparency = 0,
+        ZIndex = 1,
+    }, Card)
+    local fade = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 40),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = KeyTheme.Card,
+        BorderSizePixel = 0,
+        ZIndex = 2,
+    }, CatImage)
+    new("UIGradient", {
+        Rotation = 90,
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(1, 1),
+        }),
+    }, fade)
 
     local accent = new("Frame", {
         Size = UDim2.new(0, 60, 0, 3),
@@ -2122,41 +216,16 @@ local function showKeyUI()
         TweenService:Create(InputStroke, TweenInfo.new(0.15), { Color = KeyTheme.Stroke }):Play()
     end)
 
-    Card.Size = UDim2.fromOffset(300, 330)
-    Card.BackgroundTransparency = 1
-    Title.TextTransparency = 1
-    Subtitle.TextTransparency = 1
-    InputHolder.BackgroundTransparency = 1
-    ConfirmBtn.BackgroundTransparency = 1
-
-    TweenService:Create(Card, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-        Size = UDim2.fromOffset(360, 400),
-        BackgroundTransparency = 0,
-    }):Play()
-    TweenService:Create(Title, TweenInfo.new(0.4), { TextTransparency = 0 }):Play()
-    TweenService:Create(Subtitle, TweenInfo.new(0.4), { TextTransparency = 0 }):Play()
-    TweenService:Create(InputHolder, TweenInfo.new(0.3), { BackgroundTransparency = 0 }):Play()
-    TweenService:Create(ConfirmBtn, TweenInfo.new(0.3), { BackgroundTransparency = 0 }):Play()
-
-    local function shake()
-        local original = Card.Position
-        local offsets = { 10, -10, 8, -8, 6, -6, 4, -4, 2, -2, 0 }
-        for _, o in ipairs(offsets) do
-            TweenService:Create(Card, TweenInfo.new(0.04), { Position = original + UDim2.fromOffset(o, 0) }):Play()
-            task.wait(0.04)
-        end
-        Card.Position = original
-    end
-
     local verifying = false
     local function verify()
         if verifying then return end
         verifying = true
-
         if KEYS[InputBox.Text] then
             TipLabel.TextColor3 = KeyTheme.Accent
             TipLabel.Text = "验证成功，正在加载..."
-            local ok, err = pcall(buildMainPanel)
+            local ok, err = pcall(function()
+                if _G.buildMainPanel then _G.buildMainPanel() end
+            end)
             if ok then
                 TweenService:Create(Card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
                     Size = UDim2.fromOffset(280, 320), BackgroundTransparency = 1,
@@ -2177,7 +246,6 @@ local function showKeyUI()
         else
             TipLabel.TextColor3 = KeyTheme.Red
             TipLabel.Text = "卡密错误，请重试"
-            shake()
             InputBox.Text = ""
             verifying = false
         end
@@ -2185,10 +253,623 @@ local function showKeyUI()
 
     ConfirmBtn.MouseButton1Click:Connect(verify)
     InputBox.FocusLost:Connect(function(enterPressed) if enterPressed then verify() end end)
-
-    task.wait(0.6)
+    task.wait(0.3)
     pcall(function() InputBox:CaptureFocus() end)
-    print("[Oath] 卡密验证界面已创建")
 end
 
+-- ============================================================
+--  兼容层：模拟原 LWUI 接口（Tab / section / Button 等）
+-- ============================================================
+local mainGui, mainFrame, functionContainer
+
+-- 控件创建函数
+local function makeActionButton(parent, text, order, callback)
+    local btn = new("TextButton", {
+        Size = UDim2.new(1, 0, 0, 34),
+        BackgroundColor3 = Theme.RowBg,
+        BorderSizePixel = 0,
+        Text = text,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        AutoButtonColor = false,
+        LayoutOrder = order,
+    }, parent)
+    corner(btn, 8)
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = Theme.Hover }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = Theme.RowBg }):Play()
+    end)
+    btn.MouseButton1Click:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.08), { BackgroundColor3 = Theme.Accent }):Play()
+        task.delay(0.12, function()
+            TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.RowBg }):Play()
+        end)
+        if callback then
+            local ok, err = pcall(callback)
+            if not ok then warn("[按钮错误] " .. tostring(err)) end
+        end
+    end)
+    return btn
+end
+
+local function makeToggleButton(parent, text, order, default, callback)
+    local row = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 34),
+        BackgroundColor3 = Theme.RowBg,
+        BorderSizePixel = 0,
+        LayoutOrder = order,
+    }, parent)
+    corner(row, 8)
+    new("TextLabel", {
+        Position = UDim2.new(0, 12, 0, 0),
+        Size = UDim2.new(1, -60, 1, 0),
+        BackgroundTransparency = 1,
+        Text = text,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, row)
+    local track = new("TextButton", {
+        Size = UDim2.fromOffset(38, 20),
+        Position = UDim2.new(1, -50, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundColor3 = default and Theme.Accent or Color3.fromRGB(55, 57, 64),
+        Text = "",
+        AutoButtonColor = false,
+    }, row)
+    corner(track, 10)
+    local knob = new("Frame", {
+        Size = UDim2.fromOffset(16, 16),
+        Position = default and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
+        BackgroundColor3 = Color3.fromRGB(240, 240, 245),
+        BorderSizePixel = 0,
+    }, track)
+    corner(knob, 8)
+    local state = default
+    track.MouseButton1Click:Connect(function()
+        state = not state
+        TweenService:Create(track, TweenInfo.new(0.15), {
+            BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(55, 57, 64),
+        }):Play()
+        TweenService:Create(knob, TweenInfo.new(0.15), {
+            Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
+        }):Play()
+        if callback then pcall(callback, state) end
+    end)
+end
+
+local function makeSliderCard(parent, text, minValue, maxValue, default, order, callback)
+    local row = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 52),
+        BackgroundColor3 = Theme.RowBg,
+        BorderSizePixel = 0,
+        LayoutOrder = order,
+    }, parent)
+    corner(row, 8)
+    new("TextLabel", {
+        Position = UDim2.new(0, 12, 0, 8),
+        Size = UDim2.new(0.55, 0, 0, 16),
+        BackgroundTransparency = 1,
+        Text = text,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, row)
+    local valueBox = new("TextBox", {
+        Position = UDim2.new(0.55, 0, 0, 6),
+        Size = UDim2.new(0.45, -12, 0, 20),
+        BackgroundColor3 = Color3.fromRGB(24, 25, 29),
+        BorderSizePixel = 0,
+        Text = tostring(default),
+        Font = Enum.Font.GothamBold,
+        TextSize = 12,
+        TextColor3 = Theme.Accent,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        ClearTextOnFocus = false,
+    }, row)
+    corner(valueBox, 6)
+    local track = new("Frame", {
+        Position = UDim2.new(0, 12, 0, 36),
+        Size = UDim2.new(1, -24, 0, 4),
+        BackgroundColor3 = Color3.fromRGB(55, 57, 64),
+        BorderSizePixel = 0,
+    }, row)
+    corner(track, 2)
+    local span = math.max(maxValue - minValue, 1)
+    local ratio = math.clamp((default - minValue) / span, 0, 1)
+    local fill = new("Frame", {
+        Size = UDim2.new(ratio, 0, 1, 0),
+        BackgroundColor3 = Theme.Accent,
+        BorderSizePixel = 0,
+    }, track)
+    corner(fill, 2)
+    local knob = new("Frame", {
+        Size = UDim2.fromOffset(12, 12),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(ratio, 0, 0.5, 0),
+        BackgroundColor3 = Color3.fromRGB(240, 240, 245),
+        BorderSizePixel = 0,
+        ZIndex = 2,
+    }, track)
+    corner(knob, 6)
+    local hit = new("TextButton", {
+        Size = UDim2.new(1, 16, 3, 16),
+        Position = UDim2.new(0, -8, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        Text = "",
+        ZIndex = 3,
+    }, track)
+    local dragging, focused = false, false
+    local currentValue = default
+    local function setValue(value, updateBox)
+        value = math.clamp(math.floor(value + 0.5), minValue, maxValue)
+        currentValue = value
+        local rel = (value - minValue) / span
+        fill.Size = UDim2.new(rel, 0, 1, 0)
+        knob.Position = UDim2.new(rel, 0, 0.5, 0)
+        if updateBox and not focused then valueBox.Text = tostring(value) end
+        if callback then pcall(callback, value) end
+    end
+    setValue(default, false)
+    local function applyFromX(x)
+        local rel = math.clamp((x - track.AbsolutePosition.X) / math.max(track.AbsoluteSize.X, 1), 0, 1)
+        setValue(minValue + rel * span, true)
+    end
+    hit.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; applyFromX(input.Position.X)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            applyFromX(input.Position.X)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    valueBox.Focused:Connect(function() focused = true end)
+    valueBox.FocusLost:Connect(function()
+        focused = false
+        local num = tonumber(valueBox.Text)
+        if not num then valueBox.Text = tostring(currentValue); return end
+        setValue(num, true)
+    end)
+end
+
+local function makeDropdown(parent, text, options, default, order, callback)
+    local container = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 34),
+        BackgroundColor3 = Theme.RowBg,
+        BorderSizePixel = 0,
+        LayoutOrder = order,
+    }, parent)
+    corner(container, 8)
+    local current = default or options[1]
+    local display = new("TextButton", {
+        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = text .. ": " .. tostring(current),
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AutoButtonColor = false,
+    }, container)
+    new("UIPadding", { PaddingLeft = UDim.new(0, 12) }, display)
+    local listFrame = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 0),
+        Position = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = Theme.Panel,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+        Visible = false,
+        ZIndex = 10,
+    }, container)
+    corner(listFrame, 8)
+    new("UIListLayout", { Padding = UDim.new(0, 2) }, listFrame)
+    local expanded = false
+    local function buildList()
+        for _, child in ipairs(listFrame:GetChildren()) do
+            if child:IsA("TextButton") then child:Destroy() end
+        end
+        for i, opt in ipairs(options) do
+            local btn = new("TextButton", {
+                Size = UDim2.new(1, 0, 0, 26),
+                BackgroundTransparency = 1,
+                Text = tostring(opt),
+                Font = Enum.Font.Gotham,
+                TextSize = 12,
+                TextColor3 = Theme.Text,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                LayoutOrder = i,
+                AutoButtonColor = false,
+            }, listFrame)
+            new("UIPadding", { PaddingLeft = UDim.new(0, 12) }, btn)
+            btn.MouseEnter:Connect(function() btn.BackgroundTransparency = 0.1; btn.BackgroundColor3 = Theme.Hover end)
+            btn.MouseLeave:Connect(function() btn.BackgroundTransparency = 1 end)
+            btn.MouseButton1Click:Connect(function()
+                current = opt
+                display.Text = text .. ": " .. tostring(current)
+                expanded = false
+                TweenService:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
+                task.delay(0.2, function() listFrame.Visible = false end)
+                if callback then pcall(callback, current) end
+            end)
+        end
+        listFrame.Size = UDim2.new(1, 0, 0, math.min(#options * 28, 200))
+    end
+    display.MouseButton1Click:Connect(function()
+        expanded = not expanded
+        if expanded then
+            buildList()
+            listFrame.Visible = true
+            listFrame.Size = UDim2.new(1, 0, 0, 0)
+            TweenService:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, math.min(#options * 28, 200)) }):Play()
+        else
+            TweenService:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
+            task.delay(0.2, function() listFrame.Visible = false end)
+        end
+    end)
+end
+
+local function makeTextbox(parent, text, placeholder, order, callback)
+    local row = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 34),
+        BackgroundColor3 = Theme.RowBg,
+        BorderSizePixel = 0,
+        LayoutOrder = order,
+    }, parent)
+    corner(row, 8)
+    new("TextLabel", {
+        Position = UDim2.new(0, 12, 0, 0),
+        Size = UDim2.new(0.4, 0, 1, 0),
+        BackgroundTransparency = 1,
+        Text = text,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, row)
+    local box = new("TextBox", {
+        Position = UDim2.new(0.4, 0, 0, 4),
+        Size = UDim2.new(0.6, -12, 0, 26),
+        BackgroundColor3 = Color3.fromRGB(24, 25, 29),
+        BorderSizePixel = 0,
+        Text = "",
+        PlaceholderText = placeholder or "",
+        PlaceholderColor3 = Theme.Sub,
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        TextColor3 = Theme.Text,
+        ClearTextOnFocus = false,
+    }, row)
+    corner(box, 6)
+    box.FocusLost:Connect(function()
+        if callback then pcall(callback, box.Text) end
+    end)
+end
+
+local function makeLabel(parent, text, order)
+    return new("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 20),
+        BackgroundTransparency = 1,
+        Text = text,
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        TextColor3 = Theme.Sub,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        LayoutOrder = order,
+    }, parent)
+end
+
+-- Section 对象
+local SectionObject = {}
+SectionObject.__index = SectionObject
+function SectionObject.new(container, title)
+    local self = setmetatable({}, SectionObject)
+    self.orderCounter = 0
+    self.frame = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundColor3 = Theme.Panel,
+        BorderSizePixel = 0,
+    }, container)
+    corner(self.frame, 8)
+    new("UIPadding", {
+        PaddingTop = UDim.new(0, 8),
+        PaddingBottom = UDim.new(0, 8),
+        PaddingLeft = UDim.new(0, 8),
+        PaddingRight = UDim.new(0, 8),
+    }, self.frame)
+    new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, self.frame)
+    if title and title ~= "" then self:Label(title) end
+    return self
+end
+function SectionObject:Label(text)
+    self.orderCounter = self.orderCounter + 1
+    return makeLabel(self.frame, text, self.orderCounter)
+end
+function SectionObject:Button(text, callback)
+    self.orderCounter = self.orderCounter + 1
+    return makeActionButton(self.frame, text, self.orderCounter, callback)
+end
+function SectionObject:Toggle(text, id, default, callback)
+    self.orderCounter = self.orderCounter + 1
+    return makeToggleButton(self.frame, text, self.orderCounter, default, callback)
+end
+function SectionObject:Slider(text, id, default, min, max, rounded, callback)
+    self.orderCounter = self.orderCounter + 1
+    return makeSliderCard(self.frame, text, min, max, default, self.orderCounter, callback)
+end
+function SectionObject:Dropdown(text, id, options, callback)
+    self.orderCounter = self.orderCounter + 1
+    return makeDropdown(self.frame, text, options, options[1], self.orderCounter, callback)
+end
+function SectionObject:Textbox(text, id, placeholder, callback)
+    self.orderCounter = self.orderCounter + 1
+    return makeTextbox(self.frame, text, placeholder, self.orderCounter, callback)
+end
+
+-- Tab 对象
+local TabObject = {}
+TabObject.__index = TabObject
+function TabObject.new(name)
+    local self = setmetatable({}, TabObject)
+    self.name = name
+    self.sections = {}
+    local folderHeader = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 34),
+        BackgroundColor3 = Theme.Panel,
+        BorderSizePixel = 0,
+    }, functionContainer)
+    corner(folderHeader, 8)
+    local icon = new("TextLabel", {
+        Size = UDim2.fromOffset(28, 28),
+        Position = UDim2.new(0, 4, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundTransparency = 1,
+        Text = "📁",
+        Font = Enum.Font.GothamBold,
+        TextSize = 20,
+        TextColor3 = Color3.fromRGB(255, 255, 255),
+    }, folderHeader)
+    new("TextLabel", {
+        Position = UDim2.new(0, 38, 0, 0),
+        Size = UDim2.new(1, -38, 1, 0),
+        BackgroundTransparency = 1,
+        Text = name,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, folderHeader)
+    local btn = new("TextButton", {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundTransparency = 1,
+        Text = "",
+        AutoButtonColor = false,
+        ZIndex = 5,
+    }, folderHeader)
+    local content = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 0),
+        BackgroundTransparency = 1,
+        ClipsDescendants = true,
+    }, functionContainer)
+    new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, content)
+    local expanded = false
+    btn.MouseButton1Click:Connect(function()
+        expanded = not expanded
+        icon.Text = expanded and "📂" or "📁"
+        TweenService:Create(content, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(1, 0, 0, expanded and content.AbsoluteSize.Y or 0),
+        }):Play()
+    end)
+    content.AutomaticSize = Enum.AutomaticSize.Y
+    content.Size = UDim2.new(1, 0, 0, 0)
+    self.container = content
+    return self
+end
+function TabObject:section(title, collapsed)
+    local sec = SectionObject.new(self.container, title)
+    table.insert(self.sections, sec)
+    return sec
+end
+
+-- win 对象（供原脚本 UI 代码使用）
+local win = {}
+win.__index = win
+function win:Tab(name, icon)
+    return TabObject.new(name)
+end
+
+-- ============================================================
+--  主面板构建（五分区）
+-- ============================================================
+_G.buildMainPanel = function()
+    print("[" .. GAME_TITLE .. "] " .. VERSION .. " 已加载")
+
+    local gui = new("ScreenGui", {
+        Name = "OathPanel",
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        IgnoreGuiInset = true,
+        DisplayOrder = 100,
+    }, PlayerGui)
+    mainGui = gui
+
+    local Main = new("Frame", {
+        Size = UDim2.fromOffset(620, 400),
+        Position = UDim2.fromScale(0.5, 0.5),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = Theme.Bg,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+    }, gui)
+    mainFrame = Main
+    corner(Main, 16)
+    stroke(Main, Theme.Stroke, 1)
+
+    local Sidebar = new("Frame", {
+        Size = UDim2.new(0, 150, 1, 0),
+        BackgroundColor3 = Theme.Sidebar,
+        BorderSizePixel = 0,
+    }, Main)
+    corner(Sidebar, 16)
+
+    new("TextLabel", {
+        Size = UDim2.new(0, 130, 0, 20),
+        Position = UDim2.new(0, 14, 0, 6),
+        BackgroundTransparency = 1,
+        Text = GAME_TITLE,
+        Font = Enum.Font.GothamBold,
+        TextSize = 16,
+        TextColor3 = Theme.Accent,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, Sidebar)
+
+    local tabs = { "信息", "功能", "脚本", "设置", "关于" }
+    local tabButtons = {}
+    local pageContainer = new("Frame", {
+        Position = UDim2.new(0, 150, 0, 0),
+        Size = UDim2.new(1, -150, 1, 0),
+        BackgroundTransparency = 1,
+    }, Main)
+
+    local pages = {}
+    for i, name in ipairs(tabs) do
+        local page = new("ScrollingFrame", {
+            Name = name,
+            Size = UDim2.fromScale(1, 1),
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            ScrollBarThickness = 3,
+            ScrollBarImageColor3 = Theme.Stroke,
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            AutomaticCanvasSize = Enum.AutomaticSize.Y,
+            Visible = false,
+        }, pageContainer)
+        new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, page)
+        new("UIPadding", {
+            PaddingTop = UDim.new(0, 48),
+            PaddingBottom = UDim.new(0, 10),
+            PaddingLeft = UDim.new(0, 14),
+            PaddingRight = UDim.new(0, 14),
+        }, page)
+        pages[i] = page
+    end
+
+    functionContainer = pages[2]  -- 功能分区
+
+    local holder = new("Frame", {
+        Position = UDim2.new(0, 0, 0, 56),
+        Size = UDim2.new(1, 0, 1, -64),
+        BackgroundTransparency = 1,
+    }, Sidebar)
+    new("UIListLayout", { Padding = UDim.new(0, 4), HorizontalAlignment = Enum.HorizontalAlignment.Center }, holder)
+    for i, name in ipairs(tabs) do
+        local btn = new("TextButton", {
+            Size = UDim2.new(1, 0, 0, 32),
+            BackgroundTransparency = 1,
+            Text = "",
+            AutoButtonColor = false,
+            LayoutOrder = i,
+        }, holder)
+        corner(btn, 16)
+        local lbl = new("TextLabel", {
+            Position = UDim2.new(0, 14, 0, 0),
+            Size = UDim2.new(1, -14, 1, 0),
+            BackgroundTransparency = 1,
+            Text = name,
+            Font = Enum.Font.GothamMedium,
+            TextSize = 13,
+            TextColor3 = Theme.Sub,
+            TextXAlignment = Enum.TextXAlignment.Left,
+        }, btn)
+        tabButtons[i] = { button = btn, label = lbl }
+        btn.MouseButton1Click:Connect(function()
+            for j, p in ipairs(pages) do
+                p.Visible = (j == i)
+                tabButtons[j].label.TextColor3 = (j == i) and Theme.Text or Theme.Sub
+            end
+        end)
+    end
+    pages[1].Visible = true
+    tabButtons[1].label.TextColor3 = Theme.Text
+
+    -- 信息页
+    local info = pages[1]
+    local infoCard = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 100),
+        BackgroundColor3 = Theme.Panel,
+        BorderSizePixel = 0,
+    }, info)
+    corner(infoCard, 10)
+    new("TextLabel", {
+        Size = UDim2.new(1, -20, 0, 30),
+        Position = UDim2.new(0, 10, 0, 10),
+        BackgroundTransparency = 1,
+        Text = "木材大亨2 · 誓言面板",
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        TextColor3 = Theme.Text,
+    }, infoCard)
+    new("TextLabel", {
+        Size = UDim2.new(1, -20, 0, 20),
+        Position = UDim2.new(0, 10, 0, 40),
+        BackgroundTransparency = 1,
+        Text = "作者：是我太傻   QQ：3767465890   群：1109682737",
+        Font = Enum.Font.Gotham,
+        TextSize = 11,
+        TextColor3 = Theme.Sub,
+    }, infoCard)
+
+    for i = 3, 5 do
+        new("TextLabel", {
+            Size = UDim2.new(1, 0, 0, 30),
+            BackgroundTransparency = 1,
+            Text = tabs[i] .. " 分区",
+            Font = Enum.Font.GothamBold,
+            TextSize = 14,
+            TextColor3 = Theme.Sub,
+        }, pages[i])
+    end
+
+    UserInputService.InputBegan:Connect(function(input, processed)
+        if processed then return end
+        if input.KeyCode == Enum.KeyCode.RightShift then
+            mainGui.Enabled = not mainGui.Enabled
+        end
+    end)
+
+    local dragging, dragStart, startPos
+    Main.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = Main.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
+            end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+
+    print("[Oath] 主面板创建完成")
+end
+
+-- 启动卡密验证
 showKeyUI()
