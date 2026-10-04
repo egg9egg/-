@@ -1,11 +1,15 @@
 -- ============================================================
---  五分区 UI 补丁（卡密 + 猫图片 + 兼容原 LWUI 接口）
---  完整脚本 = 本补丁 + 原脚本（原脚本那两行已替换为 local win = _G.OathWin）
+--  五分区 UI 补丁 v4（列表式，点击高亮白，按钮可点击）
+--  插入到“主脚本.txt”最开头，并把原脚本里这两行：
+--     local bailib = loadstring(...)()
+--     local win = bailib:new("木材大亨2", '')
+--  替换为一行：
+--     local win = _G.OathWin
 -- ============================================================
 
-local Players            = game:GetService("Players")
-local UserInputService   = game:GetService("UserInputService")
-local TweenService       = game:GetService("TweenService")
+local Players          = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService     = game:GetService("TweenService")
 
 local lp = Players.LocalPlayer
 local PlayerGui = lp:WaitForChild("PlayerGui")
@@ -21,6 +25,7 @@ local Theme = {
     Panel   = Color3.fromRGB(40, 40, 44),
     RowBg   = Color3.fromRGB(32, 32, 36),
     Hover   = Color3.fromRGB(52, 52, 58),
+    White   = Color3.fromRGB(255, 255, 255),
     Text    = Color3.fromRGB(232, 234, 238),
     Sub     = Color3.fromRGB(138, 141, 150),
     Stroke  = Color3.fromRGB(52, 52, 58),
@@ -35,7 +40,7 @@ local function new(class, props, parent)
     if parent then inst.Parent = parent end
     return inst
 end
-local function corner(parent, r) return new("UICorner", { CornerRadius = UDim.new(0, r or 8) }, parent) end
+local function corner(parent, r) return new("UICorner", { CornerRadius = UDim.new(0, r or 6) }, parent) end
 local function stroke(parent, color, thickness, transparency)
     return new("UIStroke", {
         Color = color or Theme.Stroke, Thickness = thickness or 1,
@@ -48,82 +53,144 @@ for _, name in ipairs({ "OathPanel", "OathKeyUI", "main", "OathHiddenContainer" 
     if old then old:Destroy() end
 end
 
--- 隐藏容器：原脚本 UI 先建到这里
+-- 隐藏容器
 local hiddenGui = new("ScreenGui", { Name = "OathHiddenContainer", ResetOnSpawn = false, Enabled = false, Parent = PlayerGui })
-local functionContainer = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y, BackgroundTransparency = 1, Parent = hiddenGui })
+local functionContainer = new("Frame", {
+    Size = UDim2.new(1, 0, 0, 0),
+    AutomaticSize = Enum.AutomaticSize.Y,
+    BackgroundTransparency = 1,
+    Parent = hiddenGui,
+})
 new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, functionContainer)
 
--- 控件工厂
-local function makeActionButton(parent, text, order, callback)
+-- ============================================================
+--  控件工厂（扁平列表，去掉折叠，点击高亮白）
+-- ============================================================
+local function makeButton(parent, text, order, callback)
     local btn = new("TextButton", {
-        Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = Theme.RowBg, BorderSizePixel = 0,
-        Text = text, Font = Enum.Font.GothamMedium, TextSize = 13, TextColor3 = Theme.Text,
-        AutoButtonColor = false, LayoutOrder = order,
+        Size = UDim2.new(1, 0, 0, 32),
+        BackgroundColor3 = Theme.RowBg,
+        BorderSizePixel = 0,
+        Text = "   " .. text,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 13,
+        TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AutoButtonColor = false,
+        LayoutOrder = order,
     }, parent)
-    corner(btn, 8)
-    btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = Theme.Hover }):Play() end)
-    btn.MouseLeave:Connect(function() TweenService:Create(btn, TweenInfo.new(0.12), { BackgroundColor3 = Theme.RowBg }):Play() end)
+    corner(btn, 6)
+    stroke(btn, Color3.fromRGB(48, 48, 52), 1, 0.3)
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundColor3 = Theme.Hover }):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.1), { BackgroundColor3 = Theme.RowBg }):Play()
+    end)
     btn.MouseButton1Click:Connect(function()
-        TweenService:Create(btn, TweenInfo.new(0.08), { BackgroundColor3 = Theme.Accent }):Play()
-        task.delay(0.12, function() TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.RowBg }):Play() end)
-        if callback then local ok, err = pcall(callback); if not ok then warn("[按钮错误] " .. tostring(err)) end end
+        btn.BackgroundColor3 = Theme.White
+        btn.TextColor3 = Color3.fromRGB(20, 20, 20)
+        task.delay(0.15, function()
+            TweenService:Create(btn, TweenInfo.new(0.15), { BackgroundColor3 = Theme.RowBg }):Play()
+            TweenService:Create(btn, TweenInfo.new(0.15), { TextColor3 = Theme.Text }):Play()
+        end)
+        if callback then
+            local ok, err = pcall(callback)
+            if not ok then warn("[按钮错误] " .. tostring(err)) end
+        end
     end)
     return btn
 end
 
-local function makeToggleButton(parent, text, order, default, callback)
-    local row = new("Frame", { Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = Theme.RowBg, BorderSizePixel = 0, LayoutOrder = order }, parent)
-    corner(row, 8)
-    new("TextLabel", { Position = UDim2.new(0, 12, 0, 0), Size = UDim2.new(1, -60, 1, 0), BackgroundTransparency = 1,
-        Text = text, Font = Enum.Font.GothamMedium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left }, row)
-    local track = new("TextButton", { Size = UDim2.fromOffset(38, 20), Position = UDim2.new(1, -50, 0.5, 0), AnchorPoint = Vector2.new(0, 0.5),
-        BackgroundColor3 = default and Theme.Accent or Color3.fromRGB(55, 57, 64), Text = "", AutoButtonColor = false }, row)
-    corner(track, 10)
-    local knob = new("Frame", { Size = UDim2.fromOffset(16, 16),
-        Position = default and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
-        BackgroundColor3 = Color3.fromRGB(240, 240, 245), BorderSizePixel = 0 }, track)
-    corner(knob, 8)
+local function makeToggle(parent, text, order, default, callback)
+    local row = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 32),
+        BackgroundColor3 = Theme.RowBg,
+        BorderSizePixel = 0,
+        LayoutOrder = order,
+    }, parent)
+    corner(row, 6)
+    stroke(row, Color3.fromRGB(48, 48, 52), 1, 0.3)
+    new("TextLabel", {
+        Position = UDim2.new(0, 12, 0, 0), Size = UDim2.new(1, -60, 1, 0),
+        BackgroundTransparency = 1, Text = text,
+        Font = Enum.Font.GothamMedium, TextSize = 13, TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, row)
+    local track = new("TextButton", {
+        Size = UDim2.fromOffset(36, 18), Position = UDim2.new(1, -46, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        BackgroundColor3 = default and Theme.Accent or Color3.fromRGB(55, 57, 64),
+        Text = "", AutoButtonColor = false,
+    }, row)
+    corner(track, 9)
+    local knob = new("Frame", {
+        Size = UDim2.fromOffset(14, 14),
+        Position = default and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7),
+        BackgroundColor3 = Color3.fromRGB(240, 240, 245), BorderSizePixel = 0,
+    }, track)
+    corner(knob, 7)
     local state = default
     track.MouseButton1Click:Connect(function()
         state = not state
         TweenService:Create(track, TweenInfo.new(0.15), { BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(55, 57, 64) }):Play()
-        TweenService:Create(knob, TweenInfo.new(0.15), { Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8) }):Play()
+        TweenService:Create(knob, TweenInfo.new(0.15), { Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7) }):Play()
         if callback then pcall(callback, state) end
     end)
 end
 
-local function makeSliderCard(parent, text, minValue, maxValue, default, order, callback)
-    local row = new("Frame", { Size = UDim2.new(1, 0, 0, 52), BackgroundColor3 = Theme.RowBg, BorderSizePixel = 0, LayoutOrder = order }, parent)
-    corner(row, 8)
-    new("TextLabel", { Position = UDim2.new(0, 12, 0, 8), Size = UDim2.new(0.55, 0, 0, 16), BackgroundTransparency = 1,
-        Text = text, Font = Enum.Font.GothamMedium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left }, row)
-    local valueBox = new("TextBox", { Position = UDim2.new(0.55, 0, 0, 6), Size = UDim2.new(0.45, -12, 0, 20),
-        BackgroundColor3 = Color3.fromRGB(24, 25, 29), BorderSizePixel = 0, Text = tostring(default),
-        Font = Enum.Font.GothamBold, TextSize = 12, TextColor3 = Theme.Accent,
-        TextXAlignment = Enum.TextXAlignment.Center, ClearTextOnFocus = false }, row)
-    corner(valueBox, 6)
-    local track = new("Frame", { Position = UDim2.new(0, 12, 0, 36), Size = UDim2.new(1, -24, 0, 4),
-        BackgroundColor3 = Color3.fromRGB(55, 57, 64), BorderSizePixel = 0 }, row)
+local function makeSlider(parent, text, minValue, maxValue, default, order, callback)
+    local row = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 48),
+        BackgroundColor3 = Theme.RowBg,
+        BorderSizePixel = 0,
+        LayoutOrder = order,
+    }, parent)
+    corner(row, 6)
+    stroke(row, Color3.fromRGB(48, 48, 52), 1, 0.3)
+    new("TextLabel", {
+        Position = UDim2.new(0, 12, 0, 6), Size = UDim2.new(0.55, 0, 0, 16),
+        BackgroundTransparency = 1, Text = text,
+        Font = Enum.Font.GothamMedium, TextSize = 13, TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, row)
+    local valueBox = new("TextBox", {
+        Position = UDim2.new(0.55, 0, 0, 4), Size = UDim2.new(0.45, -12, 0, 20),
+        BackgroundColor3 = Color3.fromRGB(24, 25, 29), BorderSizePixel = 0,
+        Text = tostring(default), Font = Enum.Font.GothamBold, TextSize = 12,
+        TextColor3 = Theme.Accent, TextXAlignment = Enum.TextXAlignment.Center,
+        ClearTextOnFocus = false,
+    }, row)
+    corner(valueBox, 4)
+    local track = new("Frame", {
+        Position = UDim2.new(0, 12, 0, 34), Size = UDim2.new(1, -24, 0, 3),
+        BackgroundColor3 = Color3.fromRGB(55, 57, 64), BorderSizePixel = 0,
+    }, row)
     corner(track, 2)
     local span = math.max(maxValue - minValue, 1)
     local ratio = math.clamp((default - minValue) / span, 0, 1)
     local fill = new("Frame", { Size = UDim2.new(ratio, 0, 1, 0), BackgroundColor3 = Theme.Accent, BorderSizePixel = 0 }, track)
     corner(fill, 2)
-    local knob = new("Frame", { Size = UDim2.fromOffset(12, 12), AnchorPoint = Vector2.new(0.5, 0.5),
-        Position = UDim2.new(ratio, 0, 0.5, 0), BackgroundColor3 = Color3.fromRGB(240, 240, 245), BorderSizePixel = 0, ZIndex = 2 }, track)
-    corner(knob, 6)
-    local hit = new("TextButton", { Size = UDim2.new(1, 16, 3, 16), Position = UDim2.new(0, -8, 0.5, 0),
-        AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Text = "", ZIndex = 3 }, track)
+    local knob = new("Frame", {
+        Size = UDim2.fromOffset(10, 10), AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(ratio, 0, 0.5, 0), BackgroundColor3 = Color3.fromRGB(240, 240, 245),
+        BorderSizePixel = 0, ZIndex = 2,
+    }, track)
+    corner(knob, 5)
+    local hit = new("TextButton", {
+        Size = UDim2.new(1, 16, 3, 16), Position = UDim2.new(0, -8, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Text = "", ZIndex = 3,
+    }, track)
     local dragging, focused = false, false
     local currentValue = default
-    local function setValue(value, updateBox)
-        value = math.clamp(math.floor(value + 0.5), minValue, maxValue)
-        currentValue = value
-        local rel = (value - minValue) / span
+    local function setValue(v, updateBox)
+        v = math.clamp(math.floor(v + 0.5), minValue, maxValue)
+        currentValue = v
+        local rel = (v - minValue) / span
         fill.Size = UDim2.new(rel, 0, 1, 0)
         knob.Position = UDim2.new(rel, 0, 0.5, 0)
-        if updateBox and not focused then valueBox.Text = tostring(value) end
-        if callback then pcall(callback, value) end
+        if updateBox and not focused then valueBox.Text = tostring(v) end
+        if callback then pcall(callback, v) end
     end
     setValue(default, false)
     local function applyFromX(x)
@@ -153,43 +220,56 @@ local function makeSliderCard(parent, text, minValue, maxValue, default, order, 
 end
 
 local function makeDropdown(parent, text, options, default, order, callback)
-    local container = new("Frame", { Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = Theme.RowBg, BorderSizePixel = 0, LayoutOrder = order }, parent)
-    corner(container, 8)
+    local container = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 32),
+        BackgroundColor3 = Theme.RowBg,
+        BorderSizePixel = 0,
+        LayoutOrder = order,
+    }, parent)
+    corner(container, 6)
+    stroke(container, Color3.fromRGB(48, 48, 52), 1, 0.3)
     local current = default or options[1]
-    local display = new("TextButton", { Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
-        Text = text .. ": " .. tostring(current), Font = Enum.Font.GothamMedium, TextSize = 13,
-        TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false }, container)
-    new("UIPadding", { PaddingLeft = UDim.new(0, 12) }, display)
-    local listFrame = new("Frame", { Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(0, 0, 1, 0),
-        BackgroundColor3 = Theme.Panel, BorderSizePixel = 0, ClipsDescendants = true, Visible = false, ZIndex = 10 }, container)
-    corner(listFrame, 8)
+    local display = new("TextButton", {
+        Size = UDim2.new(1, 0, 1, 0), BackgroundTransparency = 1,
+        Text = "   " .. text .. "  ▸  " .. tostring(current),
+        Font = Enum.Font.GothamMedium, TextSize = 12, TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false,
+    }, container)
+    local listFrame = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 0), Position = UDim2.new(0, 0, 1, 0),
+        BackgroundColor3 = Theme.Panel, BorderSizePixel = 0,
+        ClipsDescendants = true, Visible = false, ZIndex = 10,
+    }, container)
+    corner(listFrame, 6)
     new("UIListLayout", { Padding = UDim.new(0, 2) }, listFrame)
     local expanded = false
     local function buildList()
         for _, child in ipairs(listFrame:GetChildren()) do if child:IsA("TextButton") then child:Destroy() end end
         for i, opt in ipairs(options) do
-            local btn = new("TextButton", { Size = UDim2.new(1, 0, 0, 26), BackgroundTransparency = 1, Text = tostring(opt),
-                Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left,
-                LayoutOrder = i, AutoButtonColor = false }, listFrame)
-            new("UIPadding", { PaddingLeft = UDim.new(0, 12) }, btn)
+            local btn = new("TextButton", {
+                Size = UDim2.new(1, 0, 0, 24), BackgroundTransparency = 1,
+                Text = "   " .. tostring(opt), Font = Enum.Font.Gotham, TextSize = 12,
+                TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left,
+                LayoutOrder = i, AutoButtonColor = false,
+            }, listFrame)
             btn.MouseEnter:Connect(function() btn.BackgroundTransparency = 0.1; btn.BackgroundColor3 = Theme.Hover end)
             btn.MouseLeave:Connect(function() btn.BackgroundTransparency = 1 end)
             btn.MouseButton1Click:Connect(function()
                 current = opt
-                display.Text = text .. ": " .. tostring(current)
+                display.Text = "   " .. text .. "  ▸  " .. tostring(current)
                 expanded = false
                 TweenService:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
                 task.delay(0.2, function() listFrame.Visible = false end)
                 if callback then pcall(callback, current) end
             end)
         end
-        listFrame.Size = UDim2.new(1, 0, 0, math.min(#options * 28, 200))
+        listFrame.Size = UDim2.new(1, 0, 0, math.min(#options * 26, 200))
     end
     display.MouseButton1Click:Connect(function()
         expanded = not expanded
         if expanded then
             buildList(); listFrame.Visible = true; listFrame.Size = UDim2.new(1, 0, 0, 0)
-            TweenService:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, math.min(#options * 28, 200)) }):Play()
+            TweenService:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, math.min(#options * 26, 200)) }):Play()
         else
             TweenService:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
             task.delay(0.2, function() listFrame.Visible = false end)
@@ -198,73 +278,142 @@ local function makeDropdown(parent, text, options, default, order, callback)
 end
 
 local function makeTextbox(parent, text, placeholder, order, callback)
-    local row = new("Frame", { Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = Theme.RowBg, BorderSizePixel = 0, LayoutOrder = order }, parent)
-    corner(row, 8)
-    new("TextLabel", { Position = UDim2.new(0, 12, 0, 0), Size = UDim2.new(0.4, 0, 1, 0), BackgroundTransparency = 1,
-        Text = text, Font = Enum.Font.GothamMedium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left }, row)
-    local box = new("TextBox", { Position = UDim2.new(0.4, 0, 0, 4), Size = UDim2.new(0.6, -12, 0, 26),
-        BackgroundColor3 = Color3.fromRGB(24, 25, 29), BorderSizePixel = 0, Text = "",
-        PlaceholderText = placeholder or "", PlaceholderColor3 = Theme.Sub,
-        Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = Theme.Text, ClearTextOnFocus = false }, row)
-    corner(box, 6)
-    box.FocusLost:Connect(function() if callback then pcall(callback, box.Text) end end)
+    local row = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 32),
+        BackgroundColor3 = Theme.RowBg,
+        BorderSizePixel = 0,
+        LayoutOrder = order,
+    }, parent)
+    corner(row, 6)
+    stroke(row, Color3.fromRGB(48, 48, 52), 1, 0.3)
+    new("TextLabel", {
+        Position = UDim2.new(0, 12, 0, 0), Size = UDim2.new(0.4, 0, 1, 0),
+        BackgroundTransparency = 1, Text = text,
+        Font = Enum.Font.GothamMedium, TextSize = 12, TextColor3 = Theme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, row)
+    local box = new("TextBox", {
+        Position = UDim2.new(0.4, 0, 0, 4), Size = UDim2.new(0.6, -12, 0, 24),
+        BackgroundColor3 = Color3.fromRGB(24, 25, 29), BorderSizePixel = 0,
+        Text = "", PlaceholderText = placeholder or "",
+        PlaceholderColor3 = Theme.Sub,
+        Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = Theme.Text,
+        ClearTextOnFocus = false,
+    }, row)
+    corner(box, 4)
+    box.FocusLost:Connect(function()
+        if callback then pcall(callback, box.Text) end
+    end)
 end
 
 local function makeLabel(parent, text, order)
-    return new("TextLabel", { Size = UDim2.new(1, 0, 0, 20), BackgroundTransparency = 1, Text = text,
-        Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = Theme.Sub, TextXAlignment = Enum.TextXAlignment.Left, LayoutOrder = order }, parent)
+    return new("TextLabel", {
+        Size = UDim2.new(1, 0, 0, 18), BackgroundTransparency = 1,
+        Text = "   " .. text, Font = Enum.Font.Gotham, TextSize = 11,
+        TextColor3 = Theme.Sub, TextXAlignment = Enum.TextXAlignment.Left,
+        LayoutOrder = order,
+    }, parent)
 end
 
 local SectionObject = {}
 SectionObject.__index = SectionObject
-function SectionObject.new(container, title)
+function SectionObject.new(container, title, orderBase)
     local self = setmetatable({}, SectionObject)
-    self.orderCounter = 0
-    self.frame = new("Frame", { Size = UDim2.new(1, 0, 0, 0), AutomaticSize = Enum.AutomaticSize.Y,
-        BackgroundColor3 = Theme.Panel, BorderSizePixel = 0 }, container)
-    corner(self.frame, 8)
-    new("UIPadding", { PaddingTop = UDim.new(0, 8), PaddingBottom = UDim.new(0, 8),
-        PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8) }, self.frame)
-    new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, self.frame)
-    if title and title ~= "" then self:Label(title) end
+    self.orderCounter = orderBase or 0
+    if title and title ~= "" then
+        local header = new("Frame", {
+            Size = UDim2.new(1, 0, 0, 22),
+            BackgroundTransparency = 1,
+            LayoutOrder = self.orderCounter,
+        }, container)
+        self.orderCounter = self.orderCounter + 1
+        new("TextLabel", {
+            Size = UDim2.new(1, 0, 1, 0),
+            Position = UDim2.new(0, 6, 0, 0),
+            BackgroundTransparency = 1,
+            Text = "▸ " .. title,
+            Font = Enum.Font.GothamBold, TextSize = 12,
+            TextColor3 = Theme.Sub,
+            TextXAlignment = Enum.TextXAlignment.Left,
+        }, header)
+    end
+    self.container = container
     return self
 end
-function SectionObject:Label(text) self.orderCounter = self.orderCounter + 1; return makeLabel(self.frame, text, self.orderCounter) end
-function SectionObject:Button(text, callback) self.orderCounter = self.orderCounter + 1; return makeActionButton(self.frame, text, self.orderCounter, callback) end
-function SectionObject:Toggle(text, id, default, callback) self.orderCounter = self.orderCounter + 1; return makeToggleButton(self.frame, text, self.orderCounter, default, callback) end
-function SectionObject:Slider(text, id, default, min, max, rounded, callback) self.orderCounter = self.orderCounter + 1; return makeSliderCard(self.frame, text, min, max, default, self.orderCounter, callback) end
-function SectionObject:Dropdown(text, id, options, callback) self.orderCounter = self.orderCounter + 1; return makeDropdown(self.frame, text, options, options[1], self.orderCounter, callback) end
-function SectionObject:Textbox(text, id, placeholder, callback) self.orderCounter = self.orderCounter + 1; return makeTextbox(self.frame, text, placeholder, self.orderCounter, callback) end
+function SectionObject:Label(text)
+    self.orderCounter = self.orderCounter + 1
+    return makeLabel(self.container, text, self.orderCounter)
+end
+function SectionObject:Button(text, callback)
+    self.orderCounter = self.orderCounter + 1
+    return makeButton(self.container, text, self.orderCounter, callback)
+end
+function SectionObject:Toggle(text, id, default, callback)
+    self.orderCounter = self.orderCounter + 1
+    return makeToggle(self.container, text, self.orderCounter, default, callback)
+end
+function SectionObject:Slider(text, id, default, min, max, rounded, callback)
+    self.orderCounter = self.orderCounter + 1
+    return makeSlider(self.container, text, min, max, default, self.orderCounter, callback)
+end
+function SectionObject:Dropdown(text, id, options, callback)
+    self.orderCounter = self.orderCounter + 1
+    return makeDropdown(self.container, text, options, options[1], self.orderCounter, callback)
+end
+function SectionObject:Textbox(text, id, placeholder, callback)
+    self.orderCounter = self.orderCounter + 1
+    return makeTextbox(self.container, text, placeholder, self.orderCounter, callback)
+end
 
+local tabCounter = 0
 local TabObject = {}
 TabObject.__index = TabObject
 function TabObject.new(name)
+    tabCounter = tabCounter + 1
     local self = setmetatable({}, TabObject)
     self.name = name
-    local folderHeader = new("Frame", { Size = UDim2.new(1, 0, 0, 34), BackgroundColor3 = Theme.Panel, BorderSizePixel = 0 }, functionContainer)
-    corner(folderHeader, 8)
-    local icon = new("TextLabel", { Size = UDim2.fromOffset(28, 28), Position = UDim2.new(0, 4, 0.5, 0),
-        AnchorPoint = Vector2.new(0, 0.5), BackgroundTransparency = 1, Text = "📁",
-        Font = Enum.Font.GothamBold, TextSize = 20, TextColor3 = Color3.fromRGB(255, 255, 255) }, folderHeader)
-    new("TextLabel", { Position = UDim2.new(0, 38, 0, 0), Size = UDim2.new(1, -38, 1, 0), BackgroundTransparency = 1,
-        Text = name, Font = Enum.Font.GothamMedium, TextSize = 13, TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left }, folderHeader)
-    local btn = new("TextButton", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "", AutoButtonColor = false, ZIndex = 5 }, folderHeader)
-    local content = new("Frame", { Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1, ClipsDescendants = true }, functionContainer)
-    new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, content)
-    local expanded = false
-    btn.MouseButton1Click:Connect(function()
-        expanded = not expanded
-        icon.Text = expanded and "📂" or "📁"
-        TweenService:Create(content, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-            Size = UDim2.new(1, 0, 0, expanded and content.AbsoluteSize.Y or 0),
-        }):Play()
-    end)
-    content.AutomaticSize = Enum.AutomaticSize.Y
-    content.Size = UDim2.new(1, 0, 0, 0)
+    local header = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 28),
+        BackgroundColor3 = Theme.Sidebar,
+        BorderSizePixel = 0,
+        LayoutOrder = tabCounter * 1000,
+    }, functionContainer)
+    corner(header, 6)
+    new("Frame", {
+        Size = UDim2.fromOffset(3, 14),
+        Position = UDim2.new(0, 8, 0.5, -7),
+        BackgroundColor3 = Theme.Accent,
+        BorderSizePixel = 0,
+    }, header)
+    new("TextLabel", {
+        Size = UDim2.new(1, -30, 1, 0),
+        Position = UDim2.new(0, 20, 0, 0),
+        BackgroundTransparency = 1,
+        Text = name,
+        Font = Enum.Font.GothamBold, TextSize = 13,
+        TextColor3 = Theme.Accent,
+        TextXAlignment = Enum.TextXAlignment.Left,
+    }, header)
+    local content = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        BackgroundTransparency = 1,
+        LayoutOrder = tabCounter * 1000 + 1,
+    }, functionContainer)
+    new("UIListLayout", {
+        Padding = UDim.new(0, 4),
+        SortOrder = Enum.SortOrder.LayoutOrder,
+    }, content)
+    new("UIPadding", {
+        PaddingLeft = UDim.new(0, 4),
+        PaddingRight = UDim.new(0, 4),
+    }, content)
     self.container = content
     return self
 end
-function TabObject:section(title, collapsed) return SectionObject.new(self.container, title) end
+function TabObject:section(title, collapsed)
+    return SectionObject.new(self.container, title, 0)
+end
 
 local win = {}
 win.__index = win
@@ -355,7 +504,6 @@ local function showKeyUI()
     pcall(function() InputBox:CaptureFocus() end)
 end
 
--- 主面板
 _G.buildMainPanel = function()
     print("[" .. GAME_TITLE .. "] " .. VERSION .. " 已加载")
     local gui = new("ScreenGui", { Name = "OathPanel", ResetOnSpawn = false,
@@ -375,7 +523,7 @@ _G.buildMainPanel = function()
         local page = new("ScrollingFrame", { Name = name, Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1,
             BorderSizePixel = 0, ScrollBarThickness = 3, ScrollBarImageColor3 = Theme.Stroke,
             CanvasSize = UDim2.new(0, 0, 0, 0), AutomaticCanvasSize = Enum.AutomaticSize.Y, Visible = false }, pageContainer)
-        new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, page)
+        new("UIListLayout", { Padding = UDim.new(0, 4), SortOrder = Enum.SortOrder.LayoutOrder }, page)
         new("UIPadding", { PaddingTop = UDim.new(0, 48), PaddingBottom = UDim.new(0, 10),
             PaddingLeft = UDim.new(0, 14), PaddingRight = UDim.new(0, 14) }, page)
         pages[i] = page
@@ -783,12 +931,9 @@ local function bringTreeRemote(treeClass)
     local req = {LoveCave=10000000, Shine=80000000, Magma=5000000, Ice=8000000, Radioactive=10000000, Scale=40000000, Void=5000000, Flame=10000000, BlueFlame=3500000, RainbowFlame=3500000, Celestial=10000000}
     if req[treeClass] and damage < req[treeClass] then notify("雪糕", string.format("伤害不足！需要至少 %.0f", req[treeClass]), 4) return false end
     local cooldown = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].SwingCooldown) or weaponConfig.SwingCooldown
-    -- 已移除武器提示
 
     local woodSec, tree = findUncutTree(treeClass)
     if not woodSec then notify("雪糕", "附近没有可砍的树", 3) return false end
-
-    -- 已删除所有区域检测（岩浆/火焰危险区）
 
     local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
     if not tool then
@@ -824,7 +969,7 @@ local function bringTreeRemote(treeClass)
         task.wait(0.01)
     end
     stopCutting = true; task.cancel(sendTask); task.cancel(timeoutTask)
-    workspace.CurrentCamera.CameraSubject = oldCamSubj  -- 树掉后立即恢复视角
+    workspace.CurrentCamera.CameraSubject = oldCamSubj
     if timeoutReached or not fallenLog then notify("雪糕", "砍树超时", 3) return false end
     local primary = fallenLog.PrimaryPart or fallenLog:FindFirstChild("WoodSection") or fallenLog:FindFirstChild("Main") or fallenLog:FindFirstChildWhichIsA("BasePart")
     if not primary then notify("雪糕", "无法定位木头", 3) return false end
@@ -840,7 +985,6 @@ local function bringTreeRemote(treeClass)
         if not restored then restored=true; workspace.CurrentCamera.CameraSubject=oldCam; notify("雪糕", "视角已恢复", 2) end
     end
     local timeoutId = task.spawn(function() task.wait(3); restoreCamera(); notify("雪糕", "拖拽超时", 3) end)
-    -- 不再锁定视角到木头
     local stopFollow = false
     local followConn = game:GetService("RunService").Heartbeat:Connect(function()
         if not stopFollow and fallenLog and fallenLog.PrimaryPart and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
@@ -940,10 +1084,8 @@ local function dragLogToPosition(log, targetCF)
         log.PrimaryPart = primary
     end
     
-    -- ★ 传送玩家到木头旁边（安全传送，等待0.1秒）
     safeTeleportNoWait(primary.CFrame + Vector3.new(0, 2, 0))
     
-    -- 请求所有权
     for _ = 1, 3 do
         pcall(function()
             rep.Interaction.ClientRequestOwnership:FireServer(primary)
@@ -951,7 +1093,6 @@ local function dragLogToPosition(log, targetCF)
         task.wait(0.01)
     end
     
-    -- 使用 ClientIsDragging 循环拖拽
     for i = 1, dragAttempts do
         pcall(function()
             rep.Interaction.ClientIsDragging:FireServer(log, DRAG_SECRET)
@@ -970,7 +1111,6 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         return
     end
 
-    -- 收集 ID >= 2 的部分，记录 ID = 1 的树根
     local sections = {}
     local rootSection = nil
     for _, child in pairs(treeModel:GetChildren()) do
@@ -996,7 +1136,6 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         return
     end
 
-    -- 选择武器
     local treeClass = getTreeClassFromModel(treeModel)
     local tool, config, err = getBestAxeData(treeClass)
     if not tool then
@@ -1011,19 +1150,10 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         cooldown = config.SpecialTrees[treeClass].SwingCooldown or cooldown
     end
 
-    -- 伤害检查
     local req = {
-        LoveCave = 10000000,
-        Shine = 80000000,
-        Magma = 5000000,
-        Ice = 8000000,
-        Radioactive = 10000000,
-        Scale = 40000000,
-        Void = 5000000,
-        Flame = 10000000,
-        BlueFlame = 3500000,
-        RainbowFlame = 3500000,
-        Celestial = 10000000
+        LoveCave = 10000000, Shine = 80000000, Magma = 5000000, Ice = 8000000,
+        Radioactive = 10000000, Scale = 40000000, Void = 5000000, Flame = 10000000,
+        BlueFlame = 3500000, RainbowFlame = 3500000, Celestial = 10000000
     }
     if req[treeClass] and damage < req[treeClass] then
         notify("雪糕", string.format("伤害不足！需要至少 %.0f，当前 %.0f", req[treeClass], damage), 4)
@@ -1037,13 +1167,11 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         return
     end
 
-    -- 记录初始木头
     local initialLogs = {}
     for _, log in pairs(ws.LogModels:GetChildren()) do
         initialLogs[log] = true
     end
 
-    -- 启动砍伐所有 ID≥2 的部分（并行砍伐，但等待全部消失）
     local tasks = {}
     notify("雪糕", string.format("开始分解", #sections), 2)
 
@@ -1072,7 +1200,6 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         tasks[taskId] = true
     end
 
-    -- 等待所有 ID≥2 的 WoodSection 消失
     local function hasHighIDSections()
         for _, child in pairs(treeModel:GetChildren()) do
             if child.Name == "WoodSection" and child:FindFirstChild("ID") then
@@ -1099,7 +1226,6 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         return
     end
 
-    -- 获取所有掉落的木头（ID≥2）
     local function getAllMyLogs()
         local logs = {}
         for _, log in pairs(ws.LogModels:GetChildren()) do
@@ -1116,14 +1242,11 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         return
     end
 
-    -- 木头目标位置（锯木机位置）
     local targetPos = sawmillPos + Vector3.new(0.7, 0, 0)
 
-    -- 逐个拖拽所有木头到锯木机（顺序执行）
     for idx, log in ipairs(allLogs) do
         if log and log.Parent then
             dragLogToPosition(log, targetPos)
-            -- 仅对第一块木头触发加工动画（后续木头自动加工）
             if idx == 1 then
                 local temp = Instance.new("Part")
                 temp.Size = Vector3.one
@@ -1159,15 +1282,12 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
 
     notify("雪糕", "所有木头已拖拽到锯木机并加工", 2)
 
-    -- 最后处理树根（ID=1）：先传送到树根旁边，再拖到锯木机位置（与木头流程一致）
     if rootSection and rootSection.Parent then
         notify("雪糕", "正在将树根（整棵树）拖到锯木机位置...", 2)
         if not treeModel.PrimaryPart then
             treeModel.PrimaryPart = rootSection
         end
-        -- ★ 第一步：传送到树根旁边（同木头处理）
         safeTeleport(rootSection.CFrame + Vector3.new(0, 2, 0))
-        -- ★ 第二步：拖拽到目标位置
         dragToPosition(treeModel, targetPos)
         notify("雪糕", "树根已拖到锯木机位置", 3)
     else
@@ -1204,7 +1324,6 @@ local function startDecomposeSelection()
             return
         end
 
-        -- 检查是否是树（有 WoodSection 和 CutEvent）
         local isTree = false
         local hasWood = false
         for _, child in pairs(model:GetChildren()) do
@@ -1216,7 +1335,6 @@ local function startDecomposeSelection()
             isTree = true
         end
 
-        -- ★ 检查是否是锯木机（ItemName 包含 "Sawmill" 或模型名称包含 "Sawmill"）
         local isSawmill = false
         local sawmillObj = nil
         local sawmillPos = nil
@@ -1339,7 +1457,6 @@ local function executeSequenceAndReturn()
     task.wait(0.5); safeTeleport(oldCF); notify("雪糕", "序列完成", 3)
 end
 local function bringDuck(duckName, ownOnly, mode)
-    -- mode: "random" / "cycle" / nil(默认cycle)
     local ducks = {}
     for _, model in pairs(ws.PlayerModels:GetChildren()) do
         if model:IsA("Model") and model.Name == duckName then
@@ -1357,7 +1474,7 @@ local function bringDuck(duckName, ownOnly, mode)
     local selected
     if mode == "random" then
         selected = ducks[math.random(#ducks)]
-    else -- 顺序循环
+    else
         if not duckCycleIndex[duckName] then duckCycleIndex[duckName] = 1 end
         selected = ducks[duckCycleIndex[duckName]]
         duckCycleIndex[duckName] = duckCycleIndex[duckName] % #ducks + 1
@@ -1374,7 +1491,6 @@ local function bringDuck(duckName, ownOnly, mode)
 end
 
 local function bringDuckc(duckName, ownOnly, mode)
-    -- mode: "random" / "cycle" / nil(默认cycle)
     local ducks = {}
     for _, model in pairs(ws.PlayerModels:GetChildren()) do
         if model:IsA("Model") and model.Name == duckName then
@@ -1392,7 +1508,7 @@ local function bringDuckc(duckName, ownOnly, mode)
     local selected
     if mode == "random" then
         selected = ducks[math.random(#ducks)]
-    else -- 顺序循环
+    else
         if not duckCycleIndex[duckName] then duckCycleIndex[duckName] = 1 end
         selected = ducks[duckCycleIndex[duckName]]
         duckCycleIndex[duckName] = duckCycleIndex[duckName] % #ducks + 1
@@ -1882,7 +1998,7 @@ local function disableEsp()
     espGui = nil; espFrames = nil
     notify("雪糕", "ESP已关闭", 2)
 end
--- ==================== 加载 UI (使用五分区补丁的 win) ====================
+-- ==================== 加载 UI（使用补丁提供的 win） ====================
 local win = _G.OathWin
 
 -- ==================== Tab 定义 ====================
@@ -1890,7 +2006,7 @@ local Tab1    = win:Tab("玩家",  "2700297399")
 local Tab     = win:Tab("主要",  "2700297399")
 local Tab2    = win:Tab("环境",      "2700297399")
 local Tab4    = win:Tab("针对",  "2700297399")
-local Tab3    = win:Tab("购买",  "2700297399")   -- 全商店自动购买
+local Tab3    = win:Tab("购买",  "2700297399")
 
 -- 玩家功能 Tab
 local Section3       = Tab1:section("玩家",          false)
@@ -1918,7 +2034,7 @@ local Sectionhuanjin = Tab2:section("环境",          false)
 local Sectionmogui   = Tab4:section("魔鬼功能(慎用)", false)
 
 
--- ==================== 物品整理（使用 ClientIsDragging 拖拽排列，紧密贴合） ====================
+-- ==================== 物品整理 ====================
 local currentSortTool = nil
 local sortStartHeight = 1
 local sortGap = 0
@@ -2089,7 +2205,7 @@ local function bringAllMyLogsToFeet()
     notify(string.format("所有木头已传送（共 %d 块）", #myLogs),4)
 end
 
--- ==================== UI 部分 ====================
+-- ==================== 物品整理 UI ====================
 if Sectionzhengli then
     local sortPlayerDropdown = nil
     local function refreshSortPlayerList()
@@ -2148,6 +2264,7 @@ SectionEVIL:Button("删除恶魔鸭墙", function()
     end)
     notify("雪糕", "已尝试删除恶魔鸭墙", 3)
 end)
+
 local selectedMaterialKeys = {nil, nil, nil}
 local dragTargets = {
     [1] = CFrame.new(-223.74, 61.00, 940.42),
@@ -2283,3 +2400,1615 @@ SectionEVIL:Button("开始合成恶魔鸭", function()
     end
     startEvilDuckCombine()
 end)
+
+-- ==================== 自动购买 Tab ====================
+local StoresFolder = workspace:WaitForChild("Stores")
+local REPLICATED_STORAGE = game:GetService("ReplicatedStorage")
+local TRANSLATE_URL = "https://raw.githubusercontent.com/XueGao1337/lumbertycoommodded/refs/heads/main/翻译商店.lua"
+
+local translateMapping = {}
+
+local function loadTranslations()
+    local success, content = pcall(game.HttpGet, game, TRANSLATE_URL)
+    if not success or not content then warn("无法加载翻译文件，将只显示英文名"); return false end
+    local func, err = loadstring(content)
+    if not func then warn("翻译文件格式错误: " .. tostring(err)); return false end
+    local ok, mapping = pcall(func)
+    if not ok or type(mapping) ~= "table" then warn("翻译表加载失败"); return false end
+    translateMapping = mapping
+    return true
+end
+
+local function getDisplayName(enName)
+    local cnName = translateMapping[enName]
+    if cnName and cnName ~= "" then return cnName .. " (" .. enName .. ")"
+    else return enName end
+end
+
+local storeInfoMapping = {
+    AutumnCatalog    = { name = "William",      path = "William" },
+    BlackMarket      = { name = "sneakypotato7",path = "sneakypotato7" },
+    CarStore         = { name = "Jenny",        path = "Jenny" },
+    FineArt          = { name = "Timothy",      path = "Timothy" },
+    FineFinds        = { name = "Manachron",    path = "Manachron" },
+    FurnitureStore   = { name = "Corey",        path = "Corey" },
+    HLStand          = { name = "???",          path = "???" },
+    Igloo            = { name = "Cold Guy",     path = "Cold Guy" },
+    LogicStore       = { name = "Lincoln",      path = "Lincoln" },
+    MountainSide     = { name = "Mr.Bacon",     path = "Mr.Bacon" },
+    PlanterStore     = { name = "OGxOutcast",   path = "OGxOutcast" },
+    PlantomicsChoice = { name = "Null",         path = "Null" },
+    SallysSeasonal   = { name = "Sally",        path = "Sally" },
+    SaplingCart      = { name = "Billy",        path = "Billy" },
+    SeaSide          = { name = "Guy",          path = "Guy" },
+    StoneRUs         = { name = "dab529",       path = "dab529" },
+    TravelingTrader  = { name = "Trader",       path = "Trader" },
+    VIPSHOP          = { name = "Todd",         path = "Todd" },
+    WoodRUs          = { name = "Thom",         path = "Thom" },
+}
+
+local function GetAllCashierIds()
+    notify("雪糕", "正在获取商人 ID，请稍候...", 3)
+    local cashierIds = {}
+    local receivedCount = 0
+    local totalExpected = 0
+    for _ in pairs(storeInfoMapping) do totalExpected = totalExpected + 1 end
+    local connection = REPLICATED_STORAGE.NPCDialog.PromptChat.OnClientEvent:Connect(function(bu, data)
+        if data and data.Name and data.ID then
+            if not cashierIds[data.Name] then
+                cashierIds[data.Name] = data.ID
+                receivedCount = receivedCount + 1
+                warn("[ID获取] " .. data.Name .. " = " .. data.ID .. " (" .. receivedCount .. "/" .. totalExpected .. ")")
+            end
+        end
+    end)
+    local ok, err = pcall(function()
+        REPLICATED_STORAGE.NPCDialog.SetChattingValue:InvokeServer(1)
+    end)
+    if not ok then warn("SetChattingValue 调用失败: " .. tostring(err)) end
+    local timeout = 5
+    local startTime = tick()
+    while receivedCount < totalExpected and tick() - startTime < timeout do task.wait(0.1) end
+    connection:Disconnect()
+    pcall(function() REPLICATED_STORAGE.NPCDialog.SetChattingValue:InvokeServer(0) end)
+    warn("ID 获取完成，共获取 " .. receivedCount .. "/" .. totalExpected .. " 个")
+    return cashierIds
+end
+
+local dynamicIds = GetAllCashierIds()
+
+local npcMapping = {}
+for storeName, info in pairs(storeInfoMapping) do
+    local dynamicId = dynamicIds[info.name]
+    npcMapping[storeName] = { name = info.name, id = dynamicId, path = info.path }
+    if not dynamicId then warn("未获取到商人 " .. info.name .. " 的 ID，该商店可能未开门") end
+end
+
+loadTranslations()
+
+local allStores = {}
+for _, store in pairs(StoresFolder:GetChildren()) do
+    local shopItems = store:FindFirstChild("ShopItems")
+    if shopItems and #shopItems:GetChildren() > 0 then
+        local storeName = store.Name
+        local npcInfo = npcMapping[storeName]
+        if not npcInfo then warn("警告：商店 " .. storeName .. " 未在映射表中找到，跳过")
+        else table.insert(allStores, { name = storeName, object = store, shopItems = shopItems, npc = npcInfo }) end
+    end
+end
+table.sort(allStores, function(a,b) return a.name < b.name end)
+
+if #allStores == 0 then
+    notify("错误", "未找到任何可用的商店", 5)
+else
+    local stopPurchaseFlag = false
+
+    local function waitForItemRefresh(shopItems, itemName, timeout)
+        timeout = timeout or 10
+        local startTime = tick()
+        while tick() - startTime < timeout do
+            if stopPurchaseFlag then return false end
+            if shopItems:FindFirstChild(itemName) then return true end
+            task.wait(0.05)
+        end
+        return false
+    end
+
+    local function purchaseCycle(storeInfo, selectedItemName, buyAmount, doubleConfirm)
+        local store = storeInfo.object
+        local shopItems = storeInfo.shopItems
+        local npcInfo = storeInfo.npc
+        if not npcInfo or not npcInfo.id then notify("错误", "商店 " .. storeInfo.name .. " NPC信息无效，无法购买", 5); return false end
+        local npcChar = store:FindFirstChild(npcInfo.path)
+        if not npcChar then notify("错误", "找不到NPC: " .. npcInfo.path, 3); return false end
+        local dialog = npcChar:FindFirstChild("Dialog")
+        if not dialog then notify("错误", "NPC缺少Dialog", 3); return false end
+        local counter = store:FindFirstChild("Counter")
+        if not counter or not counter:IsA("BasePart") then notify("错误", "商店 " .. storeInfo.name .. " 没有找到Counter部件", 3); return false end
+        local NPCDialog = REPLICATED_STORAGE:WaitForChild("NPCDialog")
+        local function sendPurchaseAndCollect()
+            local purchasedItems = {}
+            local conn = workspace.PlayerModels.ChildAdded:Connect(function(model)
+                if model:IsA("Model") and model:FindFirstChild("Owner") and model.Owner.Value == lp then
+                    table.insert(purchasedItems, model)
+                    task.wait(0.5)
+                end
+            end)
+            local args = { { ID = npcInfo.id, Character = npcChar, Name = npcInfo.name, Dialog = dialog }, "ConfirmPurchase" }
+            local ok, err = pcall(function() NPCDialog.PlayerChatted:InvokeServer(unpack(args)) end)
+            if not ok then notify("购买失败", tostring(err), 3); conn:Disconnect(); return nil end
+            task.wait(0.5)
+            conn:Disconnect()
+            return purchasedItems
+        end
+        local originalPos = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if not originalPos then notify("错误", "无法获取玩家位置", 3); return false end
+        originalPos = originalPos.CFrame
+        local successCycles = 0
+        for i = 1, buyAmount do
+            if stopPurchaseFlag then break end
+            local itemModel = shopItems:FindFirstChild(selectedItemName)
+            if not itemModel then
+                notify("商品消失", selectedItemName .. " 不在货架上，等待...", 3)
+                if not waitForItemRefresh(shopItems, selectedItemName, 15) then
+                    if stopPurchaseFlag then break end
+                    notify("超时", "等待商品 " .. selectedItemName .. " 出现超时，停止", 3)
+                    break
+                end
+                itemModel = shopItems:FindFirstChild(selectedItemName)
+                if not itemModel then break end
+            end
+            local itemPrimary = itemModel.PrimaryPart or itemModel:FindFirstChild("WoodSection") or itemModel:FindFirstChild("Main") or itemModel:FindFirstChildWhichIsA("BasePart")
+            if not itemPrimary then notify("错误", "无法定位商品模型", 3); break end
+            if not itemModel.PrimaryPart then itemModel.PrimaryPart = itemPrimary end
+            if stopPurchaseFlag then break end
+            safeTeleport(itemPrimary.CFrame + Vector3.new(0, 2, 0))
+            task.wait(0.06)
+            if stopPurchaseFlag then break end
+            local counterSurface = counter.CFrame + Vector3.new(0, 0.6, 0)
+            dragToPosition(itemModel, counterSurface)
+            task.wait(0.02)
+            if stopPurchaseFlag then break end
+            safeTeleport(counter.CFrame + Vector3.new(0, 2.5, 0))
+            task.wait(0.02)
+            local allItems = {}
+            local requestCount = doubleConfirm and 2 or 1
+            for k = 1, requestCount do
+                if stopPurchaseFlag then break end
+                task.wait(0.08)
+                local items = sendPurchaseAndCollect()
+                if items then for _, it in ipairs(items) do table.insert(allItems, it) end
+                else break end
+                if k < requestCount then task.wait(0.05) end
+            end
+            for _, item in ipairs(allItems) do
+                if stopPurchaseFlag then break end
+                dragToPosition(item, originalPos)
+                task.wait(0.02)
+            end
+            successCycles = successCycles + 1
+            if i < buyAmount and not stopPurchaseFlag then
+                notify("等待刷新", "商品被购买，等待它在货架上重新出现...", 2)
+                if not waitForItemRefresh(shopItems, selectedItemName, 30) then
+                    if stopPurchaseFlag then break end
+                    notify("超时", "等待商品刷新超时，停止后续循环", 3)
+                    break
+                end
+                notify("刷新完成", "商品已重新上架，继续下一次购买", 2)
+            end
+        end
+        safeTeleport(originalPos)
+        if stopPurchaseFlag then
+            notify("已停止", "购买已中断，已返回原地", 3)
+            stopPurchaseFlag = false
+            return false
+        else
+            notify(storeInfo.name, string.format("完成 %d / %d 次", successCycles, buyAmount), 4)
+            return successCycles == buyAmount
+        end
+    end
+
+    local SectionAllItems = Tab3:section("所有商品（搜索）", false)
+    local allItemsList = {}
+    for _, store in ipairs(allStores) do
+        if store.shopItems then
+            for _, item in pairs(store.shopItems:GetChildren()) do
+                local itemName = item.Name
+                local translatedItem = getDisplayName(itemName)
+                local storeDisplay = getDisplayName(store.name)
+                table.insert(allItemsList, { display = storeDisplay .. " - " .. translatedItem, store = store, item = itemName, translated = translatedItem })
+            end
+        end
+    end
+    table.sort(allItemsList, function(a,b) return a.display < b.display end)
+    local displayOptions = {}
+    local itemMap = {}
+    for _, entry in ipairs(allItemsList) do
+        table.insert(displayOptions, entry.display)
+        itemMap[entry.display] = entry
+    end
+    if #displayOptions == 0 then
+        SectionAllItems:Label("暂无商品")
+    else
+        local selectedDisplay = displayOptions[1]
+        local selectedEntry = itemMap[selectedDisplay]
+        SectionAllItems:Dropdown("选择商品", "AllItemsDropdown", displayOptions, function(sel)
+            selectedDisplay = sel; selectedEntry = itemMap[sel]
+        end)
+        local buyAmount = 1
+        SectionAllItems:Textbox("循环次数", "AllItemsBuyAmount", "1", function(v)
+            local num = tonumber(v); if num and num > 0 then buyAmount = num else buyAmount = 1 end
+        end)
+        local doubleConfirm = false
+        SectionAllItems:Toggle("双重确认", "AllItemsDoubleConfirm", false, function(state) doubleConfirm = state end)
+        SectionAllItems:Button("开始购买", function()
+            if not selectedEntry then notify("雪糕", "请选择一个商品", 3); return end
+            local store = selectedEntry.store
+            local item = selectedEntry.item
+            if not store.npc or not store.npc.id then notify("雪糕", "商店 '" .. store.name .. "' 未开门，无法购买", 3); return end
+            _G.stopPurchaseFlag = false
+            pcall(function() purchaseCycle(store, item, buyAmount, doubleConfirm) end)
+        end)
+        SectionAllItems:Button("停止购买", function()
+            stopPurchaseFlag = true
+            notify("雪糕", "已发送停止信号", 3)
+        end)
+        SectionAllItems:Label(string.format("共 %d 种商品", #displayOptions))
+    end
+
+    for _, store in ipairs(allStores) do
+        local storeName = store.name
+        local shopItemsFolder = store.shopItems
+        local npcInfo = store.npc
+        local traderId = npcInfo and (npcInfo.id or "未获取")
+        local storeDisplay = getDisplayName(storeName)
+        local title = string.format("%s (ID: %s)", storeDisplay, traderId)
+        if not npcInfo.id then title = title .. " [未开门]" end
+        local section = Tab3:section(title, false)
+        local rawItems = {}
+        for _, item in pairs(shopItemsFolder:GetChildren()) do table.insert(rawItems, item.Name) end
+        table.sort(rawItems)
+        local displayOptions2 = {}
+        local valueMap = {}
+        for _, enName in ipairs(rawItems) do
+            local display = getDisplayName(enName)
+            displayOptions2[#displayOptions2 + 1] = display
+            valueMap[display] = enName
+        end
+        if #displayOptions2 == 0 then
+            section:Label("该商店暂无商品")
+        else
+            local selectedItem = valueMap[displayOptions2[1]]
+            local currentDisplay = displayOptions2[1]
+            section:Dropdown("选择商品", "Dropdown_" .. storeName, displayOptions2, function(selectedDisplay)
+                currentDisplay = selectedDisplay
+                selectedItem = valueMap[selectedDisplay]
+            end)
+            local buyAmount2 = 1
+            section:Textbox("循环次数", "Textbox_" .. storeName, "输入数字（默认1）", function(value)
+                local num = tonumber(value); if num and num > 0 then buyAmount2 = num else buyAmount2 = 1 end
+            end)
+            local doubleConfirmFlag = false
+            section:Toggle("双重确认", "Toggle_" .. storeName, doubleConfirmFlag, function(state) doubleConfirmFlag = state end)
+            section:Button("传送至柜台", function()
+                local counter = store.object:FindFirstChild("Counter")
+                if counter and counter:IsA("BasePart") then
+                    safeTeleport(counter.CFrame + Vector3.new(0, 2.5, 0))
+                    notify("传送", string.format("已传送到 %s 柜台", storeName), 2)
+                else notify("传送失败", string.format("商店 %s 没有找到 Counter 部件", storeName), 3) end
+            end)
+            if not npcInfo.id then
+                section:Button("开始循环购买（不可用）", function()
+                    notify("提示", "商店 " .. storeName .. " 当前未开门，无法购买", 3)
+                end)
+                section:Button("停止购买", function() notify("提示", "商店未开门，无购买任务", 2) end)
+            else
+                section:Button("开始循环购买", function()
+                    stopPurchaseFlag = false
+                    pcall(function() purchaseCycle(store, selectedItem, buyAmount2, doubleConfirmFlag) end)
+                end)
+                section:Button("停止购买", function()
+                    stopPurchaseFlag = true
+                    notify("正在停止", "已发送停止信号", 3)
+                end)
+            end
+            section:Label(string.format("共 %d 种商品", #rawItems))
+            if npcInfo.id then
+                section:Label(string.format("NPC: %s (ID: %d)", npcInfo.name, npcInfo.id))
+            else
+                section:Label(string.format("NPC: %s (ID未获取，可能商店未开门)", npcInfo.name))
+            end
+        end
+    end
+
+    local infoSection = Tab3:section("使用说明", true)
+    infoSection:Label("1. 启动时会等待最多5秒获取商人ID（控制台可看到进度）")
+    infoSection:Label("2. 未获取到ID的商店会显示 [未开门]")
+    infoSection:Label("3. 所有商店均支持拖拽购买流程（需有Counter部件）")
+    infoSection:Label("4. 购买逻辑：飞到商品→拖上柜台→发送请求→拖回物品")
+    infoSection:Label("5. 双重确认开关：连续发送两次购买请求")
+    infoSection:Label("6. 刷新机制：购买后循环检测商品是否重新上架")
+
+    notify("加载完成", string.format("已加载 %d 个商店", #allStores), 4)
+end
+
+-- ==================== 玩家设置 ====================
+Section3:Button("复制物品（放置电线 形状随便 再开启功能）", function()
+    loadstring(game:HttpGet'https://pastefy.app/ihdtvtLf/raw')()
+end)
+Section3:Slider('设置速度', 'Sliderflag', 16, 100, 600, false, function(s)
+    bai.walkspeed = s
+    spawn(function()
+        while task.wait() do
+            if lp.Character then lp.Character.Humanoid.WalkSpeed = bai.walkspeed end
+        end
+    end)
+end)
+Section3:Slider('设置跳跃', 'Sliderflag', 50, 50, 600, false, function(s)
+    bai.JumpPower = s
+    spawn(function()
+        while task.wait() do
+            if lp.Character then lp.Character.Humanoid.JumpPower = bai.JumpPower end
+        end
+    end)
+end)
+Section3:Slider('设置重力', 'Sliderflag', 198, -999, 999, false, function(s)
+    game.workspace.Gravity = s
+end)
+Section3:Slider('设置相机焦距', 'Sliderflag', 100, 0, 9999, false, function(s)
+    lp.CameraMaxZoomDistance = s
+end)
+Section3:Toggle("穿墙", 'Toggleflag', false, function(state) applyNoClip(state) end)
+Section3:Toggle("自身发光", 'Toggleflag', false, function(state)
+    if state then
+        local light = Instance.new('PointLight', lp.Character.Head); light.Name = 'bai'; light.Range = 150; light.Brightness = 1.7
+    else
+        pcall(function() lp.Character.Head.bai:remove() end)
+    end
+end)
+Section3:Button("加载隐身脚本", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/XueGao1337/lumbertycoommodded/refs/heads/main/隐身开源.lua"))()
+end)
+Section3:Button("安全自杀（删除头部）", function() lp.Character.Head:Destroy() end)
+Section3:Button("解锁最大焦距", function() lp.CameraMaxZoomDistance = 9e9 end)
+
+Section4:Dropdown("传送", "Dropdown", {
+    "出生点", "木材反斗城", "回家", "连接逻辑店", "土地商店", "会员商店", "画店",
+    "桥对岸", "沙滩", "火木", "雪山", "洞穴", "码头", "黑市", "糖果原", "雪地入口",
+    "盖克斯航运", "玻璃冰木入口", "云层", "山边商品", "章鱼哥祭坛", "沼泽商店",
+    "石头商店", "沼泽", "冰胡", "沙漠", "辐射商店", "核污染区", "种子商人",
+    "鲍勃的店", "家具店", "车店", "罗布克斯商店", "肯德坤专卖店", "秋季商店"
+}, function(b)
+    local list = b
+    if list == "出生点" then tp(CFrame.new(187, 3, 55))
+    elseif list == "木材反斗城" then tp(CFrame.new(265, 5, 57))
+    elseif list == "洞穴" then tp(CFrame.new(3581, -177, 430))
+    elseif list == "连接逻辑店" then tp(CFrame.new(4607, 9, -798))
+    elseif list == "雪山" then tp(CFrame.new(1451.66248, 412.208405, 3183.47607))
+    elseif list == "土地商店" then tp(CFrame.new(258, 5, -99))
+    elseif list == "画店" then tp(CFrame.new(5207, -156, 719))
+    elseif list == "火木" then tp(CFrame.new(-1585, 625, 1140))
+    elseif list == "沙滩" then tp(CFrame.new(2549, 5, -42))
+    elseif list == "桥对岸" then tp(CFrame.new(109, 5, -1166))
+    elseif list == "会员商店" then tp(CFrame.new(907, 4, -92))
+    elseif list == "码头" then tp(CFrame.new(1122, 1, -203))
+    elseif list == "黑市" then tp(CFrame.new(-22, 61, 1377))
+    elseif list == "糖果原" then tp(CFrame.new(-561, 272, 2312))
+    elseif list == "雪地入口" then tp(CFrame.new(888, 61, 1188))
+    elseif list == "盖克斯航运" then tp(CFrame.new(1894, -2, 1581))
+    elseif list == "玻璃冰木入口" then tp(CFrame.new(1929, 256, 2918))
+    elseif list == "云层" then tp(CFrame.new(2073, 495, 2967))
+    elseif list == "山边商品" then tp(CFrame.new(-640, 160, 374))
+    elseif list == "章鱼哥祭坛" then tp(CFrame.new(-1622, 196, 941))
+    elseif list == "沼泽商店" then tp(CFrame.new(-1274, 133, -1443))
+    elseif list == "沼泽" then tp(CFrame.new(-999, 133, -1191))
+    elseif list == "石头商店" then tp(CFrame.new(-2387, 302, -1899))
+    elseif list == "冰胡" then tp(CFrame.new(-2149, 321, 743))
+    elseif list == "沙漠" then tp(CFrame.new(-612, 46, -3169))
+    elseif list == "辐射商店" then tp(CFrame.new(172, 12, -2627))
+    elseif list == "核污染区" then tp(CFrame.new(207, 15, -2752))
+    elseif list == "种子商人" then tp(CFrame.new(-24, 18, -2684))
+    elseif list == "鲍勃的店" then tp(CFrame.new(261, 9, -2541))
+    elseif list == "家具店" then tp(CFrame.new(492, 4, -1723))
+    elseif list == "车店" then tp(CFrame.new(512, 4, -1459))
+    elseif list == "罗布克斯商店" then tp(CFrame.new(652, 4, -1589))
+    elseif list == "肯德坤专卖店" then tp(CFrame.new(65, 4, -455))
+    elseif list == "秋季商店" then tp(CFrame.new(6004, 4, 33))
+    elseif list == "回家" then
+        for i, v in pairs(game.Workspace.Properties:GetChildren()) do
+            if v.Owner.Value == lp then tp(v.OriginSquare.CFrame + Vector3.new(0, 10, 0)); break end
+        end
+    end
+end)
+
+local teleList = {
+    "恶魔鸭合成地点", "裂纹木所在地", "回家", "连接逻辑店", "土地商店", "会员商店", "画店",
+    "桥对岸", "沙滩", "火木", "雪山", "洞穴", "码头", "黑市", "糖果原", "雪地入口",
+    "盖克斯航运", "玻璃冰木入口", "云层", "山边商品", "章鱼哥祭坛", "沼泽商店",
+    "石头商店", "沼泽", "冰胡", "星星岛", "辐射商店", "核污染区", "种子商人",
+    "鲍勃的店", "家具店", "车店", "罗布克斯商店", "肯德坤专卖店", "秋季商店"
+}
+Section6:Dropdown("传送", 'Dropdown', teleList, function(val)
+    local cf = nil
+    if val == "出生点" then cf = CFrame.new(187, 5, 55)
+    elseif val == "回家" then
+        for _, v in pairs(workspace.Properties:GetChildren()) do
+            if v.Owner.Value == lp then cf = v.OriginSquare.CFrame + Vector3.new(0, 10, 0); break end
+        end
+    elseif val == "连接逻辑店" then cf = CFrame.new(4607, 9, -740)
+    elseif val == "土地商店" then cf = CFrame.new(230, 5, -99)
+    elseif val == "会员商店" then cf = CFrame.new(907, 4, -115)
+    elseif val == "画店" then cf = CFrame.new(5207, -156, 719)
+    elseif val == "桥对岸" then cf = CFrame.new(109, 5, -1166)
+    elseif val == "沙滩" then cf = CFrame.new(2549, 5, -42)
+    elseif val == "火木" then cf = CFrame.new(-1585, 625, 1140)
+    elseif val == "雪山" then cf = CFrame.new(1451.66248, 412.208405, 3183.47607)
+    elseif val == "洞穴" then cf = CFrame.new(3581, -177, 430)
+    elseif val == "码头" then cf = CFrame.new(1122, 1, -203)
+    elseif val == "黑市" then cf = CFrame.new(-15, 61, 1365)
+    elseif val == "糖果原" then cf = CFrame.new(-561, 272, 2312)
+    elseif val == "雪地入口" then cf = CFrame.new(888, 61, 1188)
+    elseif val == "盖克斯航运" then cf = CFrame.new(1894, -2, 1581)
+    elseif val == "玻璃冰木入口" then cf = CFrame.new(1929, 256, 2918)
+    elseif val == "云层" then cf = CFrame.new(2060, 495, 2967)
+    elseif val == "山边商品" then cf = CFrame.new(-640, 160, 374)
+    elseif val == "章鱼哥祭坛" then cf = CFrame.new(-1622, 196, 941)
+    elseif val == "沼泽商店" then cf = CFrame.new(-1274, 133, -1443)
+    elseif val == "石头商店" then cf = CFrame.new(-2395, 302, -1899)
+    elseif val == "沼泽" then cf = CFrame.new(-999, 133, -1191)
+    elseif val == "冰胡" then cf = CFrame.new(-2149, 321, 743)
+    elseif val == "星星岛" then cf = CFrame.new(-612, 46, -3169)
+    elseif val == "辐射商店" then cf = CFrame.new(172, 12, -2627)
+    elseif val == "核污染区" then cf = CFrame.new(207, 15, -2752)
+    elseif val == "种子商人" then cf = CFrame.new(-15, 18, -2680)
+    elseif val == "鲍勃的店" then cf = CFrame.new(245, 9, -2541)
+    elseif val == "家具店" then cf = CFrame.new(490, 4, -1690)
+    elseif val == "车店" then cf = CFrame.new(512, 4, -1490)
+    elseif val == "罗布克斯商店" then cf = CFrame.new(652, 4, -1565)
+    elseif val == "肯德坤专卖店" then cf = CFrame.new(100, 4, -455)
+    elseif val == "秋季商店" then cf = CFrame.new(6004, 4, 33)
+    end
+    if cf then carTeleport(cf) end
+end)
+
+Section:Toggle("自动扔斧头", 'Toggleflag', false, function(state)
+    bai.autodropae = state
+    if state then
+        while task.wait() do
+            if bai.autodropae == true then droptool(lp.Character.HumanoidRootPart.CFrame) end
+        end
+    end
+end)
+Section:Toggle("自动捡斧头", 'Toggleflag', false, function(state)
+    bai.autopick = state
+    if state then
+        while bai.autopick == true do
+            task.wait(0.5)
+            for a, b in pairs(workspace.PlayerModels:GetChildren()) do
+                if b:FindFirstChild("Owner") and b.Owner.Value == lp then
+                    if b:FindFirstChild("Type") and b.Type.Value == "Tool" then
+                        rep.Interaction.ClientInteracted:FireServer(b, 'Pick up tool')
+                    end
+                end
+            end
+        end
+    end
+end)
+
+-- ==================== 传送物品模块 ====================
+local teleportTargetCF = nil
+local teleportTargetPlayer = lp.Name
+local teleportMarker = nil
+local selectingMode = false
+local selectedItems = {}
+local selectionBoxes = {}
+local selectionConn = nil
+
+local function setTeleportPoint()
+    if teleportMarker then pcall(function() teleportMarker:Destroy() end); teleportMarker = nil end
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then notify("雪糕", "无法获取玩家位置", 3) return end
+    teleportTargetCF = hrp.CFrame
+    local marker = Instance.new("Part")
+    marker.Name = "baiBasedropCord"
+    marker.Anchored = true
+    marker.Parent = workspace
+    marker.Shape = Enum.PartType.Ball
+    marker.Size = Vector3.new(2, 2, 2)
+    marker.Color = Color3.fromRGB(0, 217, 255)
+    marker.Material = Enum.Material.ForceField
+    marker.CFrame = teleportTargetCF
+    teleportMarker = marker
+    notify("雪糕", "传送点已设置（球体标记）", 3)
+end
+
+local function clearTeleportPoint()
+    if teleportMarker then pcall(function() teleportMarker:Destroy() end); teleportMarker = nil end
+    teleportTargetCF = nil
+    notify("雪糕", "🗑️ 传送点已清除", 3)
+end
+
+local function isSelectable(model)
+    if not model or not model:IsA("Model") then return false end
+    if model:FindFirstChild("BlueprintWoodClass") then return false end
+    if model:FindFirstChild("ButtonRemote_SpawnButton") then return false end
+    local name = model.Name or ""
+    local hasPurchasedBoxItem = model:FindFirstChild("PurchasedBoxItemName")
+    local hasBoxItem = model:FindFirstChild("BoxItemName")
+    local hasType = model:FindFirstChild("Type")
+    if name:find("Crate") or name:find("Box") or name:find("Gift") then
+        local hasValidItem = false
+        if hasPurchasedBoxItem then
+            local val = hasPurchasedBoxItem.Value
+            if val and val ~= "" and val ~= " " then hasValidItem = true end
+        end
+        if not hasValidItem and hasBoxItem then
+            local val = hasBoxItem.Value
+            if val and val ~= "" and val ~= " " then hasValidItem = true end
+        end
+        if not hasValidItem and hasType then
+            local val = hasType.Value
+            if val and val ~= "" and val ~= " " then hasValidItem = true end
+        end
+        if not hasValidItem then return false end
+    end
+    local targetPlayer = game.Players:FindFirstChild(teleportTargetPlayer)
+    if not targetPlayer then return false end
+    local owner = model:FindFirstChild("Owner")
+    if owner and owner.Value == targetPlayer then return true end
+    if workspace.LogModels:FindFirstChild(model.Name) == model then
+        if owner and owner.Value == targetPlayer then return true end
+    end
+    return false
+end
+
+local function highlightItem(model)
+    if selectionBoxes[model] then return end
+    local primary = model.PrimaryPart or model:FindFirstChild("Main") or model:FindFirstChild("WoodSection") or model:FindFirstChildWhichIsA("BasePart")
+    if not primary then return end
+    local box = Instance.new("SelectionBox")
+    box.Adornee = primary; box.Color3 = Color3.fromRGB(0, 255, 0)
+    box.Transparency = 0.5; box.LineThickness = 0.05; box.Parent = primary
+    selectionBoxes[model] = box
+end
+local function unhighlightItem(model)
+    local box = selectionBoxes[model]
+    if box then pcall(function() box:Destroy() end); selectionBoxes[model] = nil end
+end
+local function clearSelection()
+    for model, _ in pairs(selectedItems) do unhighlightItem(model) end
+    selectedItems = {}
+    if selectionCountLabel then selectionCountLabel:SetText("已选中: 0") end
+end
+local function selectItem(model)
+    if not isSelectable(model) then notify("雪糕", "该物品不可选择或不属于所选玩家", 2); return end
+    if selectedItems[model] then notify("雪糕", "该物品已选中，不能重复选择", 2); return end
+    selectedItems[model] = true
+    highlightItem(model)
+    notify("雪糕", "已选中: " .. (model.Name or "物品"), 2)
+    if selectionCountLabel then
+        local count = 0
+        for _ in pairs(selectedItems) do count = count + 1 end
+        selectionCountLabel:SetText("已选中: " .. count)
+    end
+end
+local function selectSameNameItems()
+    local firstModel = next(selectedItems)
+    if not firstModel then notify("雪糕", "请先至少选中一个物品", 3); return end
+    local targetName = firstModel.Name
+    if not targetName then notify("雪糕", "无法获取物品名称", 3); return end
+    local count = 0
+    for _, model in pairs(workspace.PlayerModels:GetChildren()) do
+        if model:IsA("Model") and isSelectable(model) then
+            if model.Name == targetName and not selectedItems[model] then
+                selectedItems[model] = true
+                highlightItem(model)
+                count = count + 1
+            end
+        end
+    end
+    for _, log in pairs(workspace.LogModels:GetChildren()) do
+        if isSelectable(log) then
+            if log.Name == targetName and not selectedItems[log] then
+                selectedItems[log] = true
+                highlightItem(log)
+                count = count + 1
+            end
+        end
+    end
+    if count > 0 then notify("雪糕", string.format("已添加 %d 个同名物品", count), 3)
+    else notify("雪糕", "没有找到其他同名物品", 3) end
+    if selectionCountLabel then
+        local total = 0
+        for _ in pairs(selectedItems) do total = total + 1 end
+        selectionCountLabel:SetText("已选中: " .. total)
+    end
+end
+local function teleportSelectedItems()
+    if not teleportTargetCF then notify("雪糕", "请先设置传送点", 3); return end
+    local items = {}
+    for model, _ in pairs(selectedItems) do
+        if model and model.Parent then table.insert(items, model) end
+    end
+    if #items == 0 then notify("雪糕", "没有选中的物品", 3); return end
+    local originalPos = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not originalPos then notify("雪糕", "无法获取玩家位置", 3) return end
+    originalPos = originalPos.CFrame
+    local count = 0
+    for _, item in ipairs(items) do
+        local primary = item.PrimaryPart or item:FindFirstChild("Main") or item:FindFirstChild("WoodSection") or item:FindFirstChildWhichIsA("BasePart")
+        if primary then
+            if not item.PrimaryPart then item.PrimaryPart = primary end
+            safeTeleport(primary.CFrame + Vector3.new(0, 2, 0))
+            if dragToPosition(item, teleportTargetCF) then count = count + 1 end
+        end
+    end
+    safeTeleport(originalPos)
+    notify("雪糕", string.format("已传送 %d 个物品", count), 3)
+    clearSelection()
+    notify("雪糕", "已自动清空选中列表", 2)
+end
+
+local SectionTeleport = Tab:section("传送物品 (选择模式)", false)
+local teleportPlayerDropdown = nil
+local function refreshTeleportPlayerList()
+    local list = {}
+    for _, p in pairs(game.Players:GetPlayers()) do table.insert(list, p.Name) end
+    if teleportPlayerDropdown then
+        teleportPlayerDropdown:SetOptions(list)
+        if not table.find(list, teleportTargetPlayer) then
+            teleportPlayerDropdown:SetValue(lp.Name)
+        end
+    end
+end
+teleportPlayerDropdown = SectionTeleport:Dropdown("选择玩家", "TeleportPlayerDropdown", {lp.Name}, function(v)
+    teleportTargetPlayer = v
+    clearSelection()
+end)
+refreshTeleportPlayerList()
+SectionTeleport:Button("刷新玩家列表", refreshTeleportPlayerList)
+SectionTeleport:Button("设置传送点（当前位置）", setTeleportPoint)
+SectionTeleport:Button("删除传送点", clearTeleportPoint)
+local selectingToggle = nil
+selectingToggle = SectionTeleport:Toggle("选择模式（开启后点击物品选中）", "ToggleSelectMode", false, function(state)
+    selectingMode = state
+    if state then
+        if selectionConn then selectionConn:Disconnect() end
+        selectionConn = mouse.Button1Down:Connect(function()
+            if not selectingMode then return end
+            local target = mouse.Target
+            if not target then return end
+            local model = target:FindFirstAncestorOfClass("Model")
+            if not model then return end
+            if target:FindFirstAncestorOfClass("ScreenGui") then return end
+            selectItem(model)
+        end)
+        notify("雪糕", "选择模式已开启，点击物品选中（不能取消）", 3)
+    else
+        if selectionConn then selectionConn:Disconnect(); selectionConn = nil end
+        notify("雪糕", "选择模式已关闭", 3)
+    end
+end)
+local selectionCountLabel = SectionTeleport:Label("已选中: 0")
+SectionTeleport:Button("选择同名字物品", function()
+    if not selectingMode then notify("雪糕", "请先开启选择模式", 2); return end
+    selectSameNameItems()
+end)
+SectionTeleport:Button("清空所有选中", function() clearSelection() end)
+SectionTeleport:Button("传送所有选中物品", function()
+    if not teleportTargetCF then notify("雪糕", "请先设置传送点", 3); return end
+    if not next(selectedItems) then notify("雪糕", "没有选中的物品", 3); return end
+    task.spawn(teleportSelectedItems)
+end)
+SectionTeleport:Label("提示：1. 选择模式开启后点击物品只能选中，不能取消")
+SectionTeleport:Label("      2. 同名字选择基于物品的 Name（如 Duck、Crate 等）")
+SectionTeleport:Label("      3. 传送完毕后自动清空所有选中")
+SectionTeleport:Label("      4. 自动过滤：建筑蓝图、车辆、已打开盒子")
+
+-- ==================== 基地 ====================
+Section1:Button("点击土地免费获得", function()
+    local freeland = false
+    notify("雪糕", "请你点击一个空的土地", 4)
+    local click = mouse.Button1Up:Connect(function()
+        local target = mouse.Target.Parent
+        if target.Name == "Property" and target.Owner.Value == nil then
+            rep.PropertyPurchasing.ClientPurchasedProperty:FireServer(target, target.OriginSquare.OriginCFrame.Value.p + Vector3.new(0, 3, 0))
+            wait(0.5); freeland = true
+            Instance.new('RemoteEvent', game:service 'ReplicatedStorage'.Interaction).Name = "Ban"
+            lp.Character.HumanoidRootPart.CFrame = target.OriginSquare.CFrame + Vector3.new(0, 10, 0)
+        else notify("雪糕", "这个土地有主人了", 4) end
+    end)
+    repeat task.wait() until freeland
+    click:Disconnect()
+end)
+Section1:Button("最大土地（需拥有土地）", function()
+    local base, square
+    for _, v in pairs(workspace.Properties:GetChildren()) do if v.Owner.Value == lp then base = v; square = v.OriginSquare end end
+    if not base then notify("雪糕", "你没有土地", 3) return end
+    local spos = square.Position
+    local function expand(pos) rep.PropertyPurchasing.ClientExpandedProperty:FireServer(base, pos) end
+    expand(CFrame.new(spos.X + 40, spos.Y, spos.Z))
+    expand(CFrame.new(spos.X - 40, spos.Y, spos.Z))
+    expand(CFrame.new(spos.X, spos.Y, spos.Z + 40))
+    expand(CFrame.new(spos.X, spos.Y, spos.Z - 40))
+    expand(CFrame.new(spos.X + 40, spos.Y, spos.Z + 40))
+    expand(CFrame.new(spos.X + 40, spos.Y, spos.Z - 40))
+    expand(CFrame.new(spos.X - 40, spos.Y, spos.Z + 40))
+    expand(CFrame.new(spos.X - 40, spos.Y, spos.Z - 40))
+    expand(CFrame.new(spos.X + 80, spos.Y, spos.Z))
+    expand(CFrame.new(spos.X - 80, spos.Y, spos.Z))
+    expand(CFrame.new(spos.X, spos.Y, spos.Z + 80))
+    expand(CFrame.new(spos.X, spos.Y, spos.Z - 80))
+    expand(CFrame.new(spos.X + 80, spos.Y, spos.Z + 80))
+    expand(CFrame.new(spos.X + 80, spos.Y, spos.Z - 80))
+    expand(CFrame.new(spos.X - 80, spos.Y, spos.Z + 80))
+    expand(CFrame.new(spos.X - 80, spos.Y, spos.Z - 80))
+    expand(CFrame.new(spos.X + 40, spos.Y, spos.Z + 80))
+    expand(CFrame.new(spos.X - 40, spos.Y, spos.Z + 80))
+    expand(CFrame.new(spos.X + 80, spos.Y, spos.Z + 40))
+    expand(CFrame.new(spos.X + 80, spos.Y, spos.Z - 40))
+    expand(CFrame.new(spos.X - 80, spos.Y, spos.Z + 40))
+    expand(CFrame.new(spos.X - 80, spos.Y, spos.Z - 40))
+    expand(CFrame.new(spos.X + 40, spos.Y, spos.Z - 80))
+    expand(CFrame.new(spos.X - 40, spos.Y, spos.Z - 80))
+    notify("雪糕", "已尝试扩大土地", 3)
+end)
+Section1:Textbox("选择存档编号 (1-8)", 'TextBoxfalg', "输入1-8的数字", function(s) bai.soltnumber = s end)
+Section1:Button("加载存档", function()
+    local slot = tonumber(bai.soltnumber)
+    if slot and slot >= 1 and slot <= 8 then
+        local success, err = pcall(function() return rep.LoadSaveRequests.RequestLoad:InvokeServer(slot) end)
+        if success then notify("雪糕", "已尝试加载存档 "..slot, 3) else notify("雪糕", "加载失败: "..tostring(err), 3) end
+    else notify("雪糕", "存档编号无效", 3) end
+end)
+
+-- ==================== 木头/拖拽/岩浆/刷新私服 ====================
+Sectiontuozhuai:Toggle("拖拽器增强", 'Toggleflag', false, function(state) setDragEnhance(state) end)
+Section5:Button("传送所有木头到你脚下", function() bringAllMyLogsToFeet() end)
+Sectionshuaxin:Button("刷新私服（确保私服无人）", function() refreshPrivateServer() end)
+Sectionyanjiang:Toggle("开启自动删除岩浆伤害", 'Toggleflag', false, function(state)
+    if state then startAutoDelete(3) else stopAutoDelete() end
+end)
+Sectionyanjiang:Textbox("岩浆检查间隔（秒）", 'TextBoxfalg', "默认 1", function(val)
+    local num = tonumber(val)
+    if num and num > 0 then
+        if autoDeleteRunning then stopAutoDelete(); task.wait(0.5); startAutoDelete(num) end
+    else notify("雪糕", "请输入大于0的数字", 2) end
+end)
+Sectionyanjiang:Button("手动执行一次岩浆删除", function() deleteLavaObjectsOnce(false) end)
+Sectiontuozhuai:Textbox("次数", 'TextBoxfalg', "5", function(v)
+    local num = tonumber(v); if num and num > 0 then dragAttempts = num else notify("雪糕", "请输入大于0的数字", 2) end
+end)
+Sectiontuozhuai:Textbox("间隔", 'TextBoxfalg', "0.04", function(v)
+    local num = tonumber(v); if num and num > 0 then dragInterval = num else notify("雪糕", "请输入大于0的数字", 2) end
+end)
+Sectiontuozhuai:Button("保存配置", function() saveDragConfig() end)
+Sectiontuozhuai:Button("删除配置", function()
+    if writefile then
+        local success, err = pcall(function()
+            if isfile and isfile(CONFIG_FILE) then delfile(CONFIG_FILE) end
+        end)
+        if success then
+            dragAttempts = defaultDragAttempts
+            dragInterval = defaultDragInterval
+            notify("雪糕", "配置已删除，已恢复默认值 (次数="..defaultDragAttempts..", 间隔="..defaultDragInterval..")", 3)
+        else notify("雪糕", "删除失败: "..tostring(err), 3) end
+    else notify("雪糕", "当前环境不支持删除配置文件", 3) end
+end)
+
+-- ==================== 带来树 ====================
+local treeNamesWithPlaceholder = { "--- 请选择树木 ---" }
+for _, name in ipairs(treeNames) do table.insert(treeNamesWithPlaceholder, name) end
+local selectedTreeName = treeNamesWithPlaceholder[1]
+local selectedTreeClass = nil
+
+Sectionbringtree:Dropdown("选择树木种类", 'Dropdown', treeNamesWithPlaceholder, function(b)
+    if b == "--- 请选择树木 ---" then
+        selectedTreeName = b; selectedTreeClass = nil
+    else
+        selectedTreeName = b; selectedTreeClass = treeMapping[b]
+    end
+    bai.cuttreeselect = selectedTreeClass or "Generic"
+end)
+
+local batchCount = 1
+Sectionbringtree:Textbox("数量", "BatchCountBox", tostring(batchCount), function(v)
+    local num = tonumber(v)
+    if num and num > 0 then batchCount = math.floor(num)
+    else notify("雪糕", "请输入大于 0 的整数", 2) end
+end)
+
+local isRunning = false
+
+Sectionbringtree:Button("带来树", function()
+    if isRunning then notify("雪糕", "任务正在运行中，请勿重复启动", 2); return end
+    if not selectedTreeClass then notify("雪糕", "请先在下拉框中选择一种树木", 3); return end
+    if batchCount < 1 then notify("雪糕", "请设置有效的数量", 3); return end
+    isRunning = true
+    task.spawn(function()
+        local successCount = 0
+        local failCount = 0
+        for i = 1, batchCount do
+            if not isRunning then notify("雪糕", "任务已被用户停止", 2); break end
+            if batchCount == 1 then notify("雪糕", "开始砍树...", 2)
+            else notify("雪糕", string.format("开始第 %d/%d 次...", i, batchCount), 2) end
+            local ok = bringTreeRemote(selectedTreeClass)
+            if ok then
+                successCount = successCount + 1
+                if batchCount > 1 then notify("雪糕", string.format("第 %d 次成功 (成功:%d, 失败:%d)", i, successCount, failCount), 2) end
+            else
+                failCount = failCount + 1
+                notify("雪糕", string.format("第 %d 次失败，已停止", i), 3)
+                break
+            end
+            task.wait(0.1)
+        end
+        if batchCount > 1 then notify("雪糕", string.format("全部完成 — 成功 %d 次，失败 %d 次", successCount, failCount), 3)
+        else if successCount == 1 then notify("雪糕", "砍树完成", 3) end end
+        isRunning = false
+    end)
+end)
+
+Sectionbringtree:Button("停止", function()
+    if isRunning then isRunning = false; notify("雪糕", "正在停止任务...", 2)
+    else notify("雪糕", "当前没有运行中的任务", 2) end
+end)
+
+-- ==================== 管理员生成物品 ====================
+local spawnItemList = {}
+local selectedSpawnItem = ""
+local spawnLoopRunning = false
+local spawnLoopTask = nil
+local ITEM_LIST_URL = "https://raw.githubusercontent.com/XueGao1337/lumbertycoommodded/refs/heads/main/SpawningItemsList.txt"
+local TRANSLATE_URL2 = "https://raw.githubusercontent.com/XueGao1337/lumbertycoommodded/refs/heads/main/ItemNames_CN.lua"
+local itemNameMapping = {}
+
+local function loadTranslations2()
+    local success, content = pcall(game.HttpGet, game, TRANSLATE_URL2)
+    if not success or not content then warn("无法加载翻译文件，将只显示英文名"); return false end
+    local func, err = loadstring(content)
+    if not func then warn("翻译文件格式错误: " .. tostring(err)); return false end
+    local ok, mapping = pcall(func)
+    if not ok or type(mapping) ~= "table" then warn("翻译表加载失败"); return false end
+    itemNameMapping = mapping
+    return true
+end
+
+local function getDisplayName2(enName)
+    local cnName = itemNameMapping[enName]
+    if cnName then return enName .. " (" .. cnName .. ")"
+    else return enName end
+end
+
+local function loadSpawnItemList()
+    local success, content = pcall(game.HttpGet, game, ITEM_LIST_URL)
+    if not success or not content then notify("雪糕", "无法从网络加载物品列表，请检查网络", 3); return false end
+    local items = {}
+    for line in content:gmatch("[^\r\n]+") do
+        for word in line:gmatch("%S+") do
+            if word ~= "" then table.insert(items, word) end
+        end
+    end
+    if #items == 0 then notify("雪糕", "物品列表为空", 3); return false end
+    spawnItemList = items
+    notify("雪糕", string.format("已加载 %d 个物品", #items), 3)
+    return true
+end
+
+local function spawnAdminItem(itemName)
+    if not itemName or itemName == "" then return end
+    local success, err = pcall(function()
+        game:GetService("ReplicatedStorage"):WaitForChild("Interaction"):WaitForChild("SpawnItemPass"):FireServer(itemName)
+    end)
+    if not success then warn("生成失败: " .. itemName .. " 原因: " .. tostring(err)); notify("雪糕", "生成失败: " .. itemName, 2) end
+end
+
+local function startContinuousSpawn()
+    if spawnLoopRunning then return end
+    if selectedSpawnItem == "" then notify("雪糕", "请先在下拉框中选择一个物品", 3); return end
+    spawnLoopRunning = true
+    local displayName = getDisplayName2(selectedSpawnItem)
+    notify("雪糕", string.format("开始连续生成 [%s] ，关闭开关即可停止", displayName), 4)
+    spawnLoopTask = task.spawn(function()
+        while spawnLoopRunning do
+            spawnAdminItem(selectedSpawnItem)
+            task.wait(0.5)
+        end
+    end)
+end
+
+local function stopContinuousSpawn()
+    if not spawnLoopRunning then return end
+    spawnLoopRunning = false
+    if spawnLoopTask then task.cancel(spawnLoopTask); spawnLoopTask = nil end
+    notify("雪糕", "已停止连续生成", 3)
+end
+
+loadTranslations2()
+loadSpawnItemList()
+
+local function createSpawnUI()
+    if #spawnItemList == 0 then Sectionqita:Label("物品列表加载失败，请检查网络或重试"); return end
+    local displayOptions = {}
+    local valueMap = {}
+    for _, enName in ipairs(spawnItemList) do
+        local display = getDisplayName2(enName)
+        if valueMap[display] then display = display .. " [" .. enName .. "]" end
+        displayOptions[#displayOptions + 1] = display
+        valueMap[display] = enName
+    end
+    local currentDisplay = displayOptions[1]
+    selectedSpawnItem = valueMap[currentDisplay]
+    Sectionqita:Dropdown("选择要生成的物品", "Dropdown_SpawnItem", displayOptions, function(selectedDisplay)
+        currentDisplay = selectedDisplay
+        selectedSpawnItem = valueMap[selectedDisplay]
+        if spawnLoopRunning then notify("雪糕", "物品已切换为: " .. selectedSpawnItem, 3) end
+    end)
+    Sectionqita:Toggle("连续生成（间隔0.5秒）", "Toggle_ContinuousSpawn", false, function(state)
+        if state then startContinuousSpawn() else stopContinuousSpawn() end
+    end)
+    Sectionqita:Button("重新加载物品列表和翻译", function()
+        if spawnLoopRunning then notify("雪糕", "请先关闭连续生成，再重新加载", 3); return end
+        loadTranslations2(); loadSpawnItemList()
+        notify("雪糕", "列表和翻译已重新加载，请重启脚本以刷新下拉菜单", 3)
+    end)
+    Sectionqita:Label("提示：开启开关后，每隔0.5秒生成一次当前选中的物品")
+end
+createSpawnUI()
+
+-- ==================== 远程打开 ====================
+local combinedRemoteConn = nil
+local openSimilarEnabled = false
+
+local function isOwnedByPlayer(model)
+    local owner = model:FindFirstChild("Owner")
+    return owner and owner.Value == lp
+end
+local function hasBlueprintWoodClass(model) return model:FindFirstChild("BlueprintWoodClass") ~= nil end
+local function getItemKey2(model)
+    if not model then return nil end
+    if model:FindFirstChild("PurchasedBoxItemName") then return "PurchasedBox:" .. model.PurchasedBoxItemName.Value
+    elseif model:FindFirstChild("ItemName") then return "Item:" .. model.ItemName.Value
+    elseif model:FindFirstChild("DraggableItem") then return "Drag:" .. tostring(model.DraggableItem.Parent)
+    elseif model:FindFirstChild("ButtonRemote_Main") then return "Button:" .. model.Name end
+    return model.Name
+end
+local function openOneItem(model, originalCF)
+    if not model or not model.Parent then return false end
+    if not isOwnedByPlayer(model) then return false end
+    if hasBlueprintWoodClass(model) then return false end
+    local primaryPart = model.PrimaryPart or model:FindFirstChild("Main") or model:FindFirstChildWhichIsA("BasePart")
+    if not primaryPart then return false end
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    local targetCF = primaryPart.CFrame + Vector3.new(0, 2, 0)
+    pcall(function() hrp.CFrame = targetCF end)
+    task.wait(0.1)
+    local success = false
+    local remoteButton = model:FindFirstChild("ButtonRemote_Main")
+    if remoteButton then
+        local ok, err = pcall(function() game:GetService("ReplicatedStorage").Interaction.RemoteProxy:FireServer(remoteButton) end)
+        if ok then notify("雪糕", "已发送按钮打开请求", 2); success = true
+        else notify("雪糕", "按钮打开失败: "..tostring(err), 2) end
+    elseif model:FindFirstChild("BoxItemName") or model:FindFirstChild("PurchasedBoxItemName") then
+        local ok, err = pcall(function() rep.Interaction.ClientInteracted:FireServer(model, 'Open box') end)
+        if ok then notify("雪糕", "已发送打开盒子请求", 2); success = true
+        else notify("雪糕", "打开盒子失败: "..tostring(err), 2) end
+    else
+        notify("雪糕", "该物品无法通过已知方式打开", 2)
+    end
+    task.wait(0.2)
+    for _ = 1, 10 do
+        if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
+            pcall(function() lp.Character.HumanoidRootPart.CFrame = originalCF end)
+            break
+        end
+        task.wait(0.1)
+    end
+    return success
+end
+
+local function onMouseClick()
+    if not combinedRemoteConn then return end
+    local target = mouse.Target
+    if not target then return end
+    local model = target:FindFirstAncestorWhichIsA("Model")
+    if not model then return end
+    if not isOwnedByPlayer(model) then return end
+    if hasBlueprintWoodClass(model) then return end
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local originalCF = hrp.CFrame
+    if openSimilarEnabled then
+        local currentKey = getItemKey2(model)
+        local sameItems = {}
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("Model") and obj ~= model and isOwnedByPlayer(obj) and not hasBlueprintWoodClass(obj) then
+                local objKey = getItemKey2(obj)
+                if objKey and objKey == currentKey then table.insert(sameItems, obj) end
+            end
+        end
+        local success = openOneItem(model, originalCF)
+        if not success then return end
+        task.wait(0.3)
+        for _, other in ipairs(sameItems) do
+            if other and other.Parent then
+                local currentOriginal = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+                if currentOriginal then
+                    local ok = openOneItem(other, currentOriginal.CFrame)
+                    if not ok then break end
+                    task.wait(0.3)
+                end
+            end
+        end
+        notify("雪糕", "同类物品批量打开完成", 3)
+    else
+        openOneItem(model, originalCF)
+    end
+end
+
+-- ==================== 通行证 ====================
+do
+    local gamepasses = lp:FindFirstChild("Gamepasses")
+    if not _G.GamepassesOriginalValues then _G.GamepassesOriginalValues = {} end
+    function SaveGamepassesOriginal()
+        if not gamepasses then return false end
+        _G.GamepassesOriginalValues = {}
+        for _, v in ipairs(gamepasses:GetDescendants()) do
+            if v:IsA("BoolValue") or v:IsA("IntValue") or v:IsA("NumberValue") then
+                _G.GamepassesOriginalValues[v] = v.Value
+            end
+        end
+        return true
+    end
+    function UnlockAllGamepasses()
+        if not gamepasses then return false end
+        local count = 0
+        for _, v in ipairs(gamepasses:GetDescendants()) do
+            if v:IsA("BoolValue") then v.Value = true; count = count + 1
+            elseif v:IsA("IntValue") or v:IsA("NumberValue") then v.Value = 1; count = count + 1 end
+        end
+        return count
+    end
+    function RestoreGamepassesOriginal()
+        if not gamepasses then return false end
+        local count = 0
+        for obj, val in pairs(_G.GamepassesOriginalValues) do
+            if obj and obj.Parent then obj.Value = val; count = count + 1 end
+        end
+        return count
+    end
+    SaveGamepassesOriginal()
+end
+
+if lp:FindFirstChild("Gamepasses") then
+    Sectionqita:Button("解锁所有通行证", function()
+        local count = UnlockAllGamepasses()
+        notify("雪糕", "已解锁 " .. count .. " 个通行证", 2)
+    end)
+    Sectionqita:Button("恢复通行证原值", function()
+        local count = RestoreGamepassesOriginal()
+        notify("雪糕", "已恢复 " .. count .. " 个通行证的原始值", 2)
+    end)
+    Sectionqita:Button("重新保存当前值为原始值", function()
+        SaveGamepassesOriginal()
+        notify("雪糕", "已将当前通行证值保存为新的原始值", 2)
+    end)
+else
+    Sectionqita:Label("未找到 Gamepasses 文件夹")
+end
+
+local combinedRemoteEnabled = false
+Sectionqita:Toggle("远程打开物品（只开盒子，过滤建筑）", "Toggle_CombinedRemote", false, function(state)
+    combinedRemoteEnabled = state
+    if combinedRemoteEnabled then
+        if combinedRemoteConn then combinedRemoteConn:Disconnect() end
+        combinedRemoteConn = mouse.Button1Down:Connect(onMouseClick)
+        notify("雪糕", "远程打开已开启（只识别盒子，自动忽略建筑）", 3)
+    else
+        if combinedRemoteConn then combinedRemoteConn:Disconnect(); combinedRemoteConn = nil end
+        notify("雪糕", "远程打开已关闭", 3)
+    end
+end)
+
+Sectionqita:Toggle("打开同类物品（相同 BoxItemName 值）", "Toggle_OpenSimilar", false, function(state)
+    openSimilarEnabled = state
+    if state then notify("雪糕", "同类模式已启用（基于 BoxItemName 值，且自动过滤建筑）", 3)
+    else notify("雪糕", "同类模式已关闭", 3) end
+end)
+Sectionqita:Label("提示：点击自己的盒子 → 自动传送打开 → 返回")
+Sectionqita:Label("同类模式：按 BoxItemName 值打开所有同类盒子，建筑自动忽略")
+Sectionqita:Button("点击传送", function()
+    local tool = Instance.new("Tool"); tool.RequiresHandle = false; tool.Name = "点击传送工具"
+    tool.Activated:connect(function()
+        local pos = mouse.Hit + Vector3.new(0, 2.5, 0)
+        pos = CFrame.new(pos.X, pos.Y, pos.Z)
+        lp.Character.HumanoidRootPart.CFrame = pos
+    end)
+    tool.Parent = lp.Backpack
+end)
+
+-- ==================== 鸭子 ====================
+local duckTypeList = {
+    { name = "2018CGift_Duck", display = "礼物鸭" },
+    { name = "Duck", display = "🦆 普通鸭" },
+    { name = "DuckAngel", display = "👼 天堂鸭" },
+    { name = "DuckEvil", display = "😈 恶魔鸭" },
+    { name = "LunarDuck", display = "🌙 月亮鸭" },
+    { name = "FallenDuck", display = "💀 堕落鸭" },
+}
+local duckDisplayOptions = {}
+for _, v in ipairs(duckTypeList) do table.insert(duckDisplayOptions, v.display) end
+
+local selectedDuckName = duckTypeList[1].name
+local batchDuckCount = 1
+local duckBatchStop = false
+
+local function countDucks(duckName, ownOnly)
+    local count = 0
+    for _, model in pairs(workspace.PlayerModels:GetChildren()) do
+        if model:IsA("Model") and model.Name == duckName then
+            local owner = model:FindFirstChild("Owner")
+            if (ownOnly and owner and owner.Value == lp) or (not ownOnly and (not owner or owner.Value == nil)) then
+                count = count + 1
+            end
+        end
+    end
+    return count
+end
+
+local function bringDucksBatch(duckName, ownOnly, count)
+    if duckBatchStop then duckBatchStop = false end
+    local startPos = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not startPos then notify("雪糕", "无法获取玩家起始位置", 3); return end
+    startPos = startPos.CFrame
+    local successCount = 0
+    local maxLoops = (count == 0) and 9999 or count
+    for i = 1, maxLoops do
+        if duckBatchStop then notify("雪糕", "已停止批量带回", 3); break end
+        local remaining = countDucks(duckName, ownOnly)
+        if remaining == 0 then notify("雪糕", "已经没有符合条件的鸭子了", 3); break end
+        if count ~= 0 and successCount >= count then break end
+        bringDuckc(duckName, ownOnly, "cycle")
+        task.wait(0.01)
+        successCount = successCount + 1
+        pcall(function() safeTeleport(startPos) end)
+        if count == 0 and countDucks(duckName, ownOnly) == 0 then break end
+    end
+    pcall(function() safeTeleport(startPos) end)
+    notify("雪糕", string.format("批量带回结束，共带回 %d 只", successCount), 3)
+    duckBatchStop = false
+end
+
+SectionDuck:Dropdown("选择鸭子类型", "DuckDropdown", duckDisplayOptions, function(display)
+    for _, v in ipairs(duckTypeList) do
+        if v.display == display then selectedDuckName = v.name; break end
+    end
+end)
+SectionDuck:Textbox("带回数量（0=无限循环）", "DuckCount", "1", function(val)
+    local num = tonumber(val); if num and num >= 0 then batchDuckCount = num
+    else notify("雪糕", "请输入非负整数", 2) end
+end)
+SectionDuck:Button("带回自己的", function()
+    duckBatchStop = false
+    task.spawn(function() bringDucksBatch(selectedDuckName, true, batchDuckCount) end)
+end)
+SectionDuck:Button("带回无归属的", function()
+    duckBatchStop = false
+    task.spawn(function() bringDucksBatch(selectedDuckName, false, batchDuckCount) end)
+end)
+SectionDuck:Button("停止当前任务", function()
+    duckBatchStop = true
+    notify("雪糕", "正在停止...", 2)
+end)
+SectionDuck:Label("提示：数量填 0 表示无限循环带回所有符合条件的鸭子")
+SectionDuck:Label("注意：无归属鸭子即 Owner 为空的")
+SectionDuck:Button("执行天堂鸭序列并返回", function() executeSequenceAndReturn() end)
+SectionDuck:Button("一键合成复仇剑（可用）", function() craftRevengeSword() end)
+SectionDuck:Button("一键合成月亮鸭（合成完毕后需要自行使用带回无归属）", function() craftLunarDuck() end)
+
+local function autoGetGiftDuckDirect(targetCount)
+    targetCount = targetCount or 1
+    if duckAutoRunning then notify("雪糕", "任务已在运行中", 2); return end
+    duckAutoRunning = true
+    duckStopFlag = false
+    local successCount = 0
+    local startPos = lp.Character and lp.Character.HumanoidRootPart.CFrame
+    if not startPos then notify("雪糕", "无法获取玩家起始位置", 3); duckAutoRunning = false; return end
+    local function getPlayerPos()
+        local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        return hrp and hrp.Position or nil
+    end
+    local function getMyDucks()
+        local ducks = {}
+        for _, m in pairs(workspace.PlayerModels:GetChildren()) do
+            if m:IsA("Model") and m.Name == "2018CGift_Duck" then
+                local owner = m:FindFirstChild("Owner")
+                if owner and owner.Value == lp then table.insert(ducks, m) end
+            end
+        end
+        return ducks
+    end
+    local initialDucks = {}
+    for _, d in ipairs(getMyDucks()) do initialDucks[d] = true end
+    local initialCount = #getMyDucks()
+    notify("雪糕", "初始鸭子数: " .. initialCount, 2)
+
+    local function buyCrate()
+        local fineFinds = workspace.Stores:FindFirstChild("FineFinds")
+        if not fineFinds then return nil, "找不到商店" end
+        local npcChar = fineFinds:FindFirstChild("Manachron")
+        if not npcChar then return nil, "找不到NPC" end
+        local dialog = npcChar:FindFirstChild("Dialog")
+        if not dialog then return nil, "NPC无对话框" end
+        local npcId = nil
+        local dialogData = dialog:FindFirstChild("DialogData")
+        if dialogData and dialogData:FindFirstChild("ID") then npcId = dialogData.ID.Value end
+        if not npcId then
+            local idVal = npcChar:FindFirstChild("ID") or npcChar:FindFirstChild("NpcId")
+            if idVal then npcId = idVal.Value end
+        end
+        if not npcId and npcMapping and npcMapping["FineFinds"] and npcMapping["FineFinds"].id then
+            npcId = npcMapping["FineFinds"].id
+        end
+        if not npcId then return nil, "无法获取NPC ID" end
+        local counter = fineFinds:FindFirstChild("Counter")
+        if not counter or not counter:IsA("BasePart") then return nil, "找不到Counter" end
+        local shopItems = fineFinds:FindFirstChild("ShopItems")
+        if not shopItems then return nil, "无ShopItems" end
+        local crateItem = shopItems:FindFirstChild("Crate")
+        if not crateItem then
+            for _ = 1, 10 do
+                crateItem = shopItems:FindFirstChild("Crate")
+                if crateItem then break end
+                task.wait(0.15)
+            end
+            if not crateItem then return nil, "Crate不在货架" end
+        end
+        local primary = crateItem.PrimaryPart or crateItem:FindFirstChild("WoodSection") or crateItem:FindFirstChild("Main") or crateItem:FindFirstChildWhichIsA("BasePart")
+        if not primary then return nil, "无法定位商品" end
+        if not crateItem.PrimaryPart then crateItem.PrimaryPart = primary end
+        safeTeleport(primary.CFrame + Vector3.new(0, 2, 0))
+        task.wait(0.07)
+        local counterSurface = counter.CFrame + Vector3.new(0, 0.6, 0)
+        dragToPosition(crateItem, counterSurface)
+        task.wait(0.05)
+        safeTeleport(counter.CFrame + Vector3.new(0, 2.5, 0))
+        task.wait(0.05)
+        local NPCDialog = REPLICATED_STORAGE:WaitForChild("NPCDialog")
+        local purchased = {}
+        local conn = workspace.PlayerModels.ChildAdded:Connect(function(m)
+            if m:IsA("Model") and m:FindFirstChild("Owner") and m.Owner.Value == lp then
+                task.wait(0.1)
+                table.insert(purchased, m)
+            end
+        end)
+        local args = { { Character = npcChar, Name = "Manachron", ID = npcId, Dialog = dialog }, "ConfirmPurchase" }
+        local ok1, err1 = pcall(function() NPCDialog.PlayerChatted:InvokeServer(unpack(args)) end)
+        task.wait(0.03)
+        local ok2, err2 = pcall(function() NPCDialog.PlayerChatted:InvokeServer(unpack(args)) end)
+        conn:Disconnect()
+        if not ok1 and not ok2 then return nil, "购买请求失败" end
+        task.wait(0.15)
+        return purchased[1], "成功"
+    end
+    local attempt = 0
+    while duckAutoRunning and not duckStopFlag and successCount < targetCount do
+        attempt = attempt + 1
+        notify("雪糕", string.format("购买 #%d (已获得 %d/%d)", attempt, successCount, targetCount), 2)
+        local crate, msg = buyCrate()
+        if not crate then
+            notify("雪糕", "购买失败: "..msg, 2)
+            task.wait(0.15)
+            if duckStopFlag then break end
+            local currentDucks = getMyDucks()
+            if #currentDucks > initialCount then
+                for _, d in ipairs(currentDucks) do
+                    if not initialDucks[d] and d.Parent then
+                        if not d.PrimaryPart then
+                            local prim = d:FindFirstChild("Main") or d:FindFirstChildWhichIsA("BasePart")
+                            if prim then d.PrimaryPart = prim end
+                        end
+                        if d.PrimaryPart then
+                            safeTeleport(d.PrimaryPart.CFrame + Vector3.new(0, 2, 0))
+                            task.wait(0.08)
+                            if dragToPosition(d, startPos) then
+                                safeTeleport(startPos)
+                                successCount = successCount + 1
+                                initialDucks[d] = true
+                                initialCount = initialCount + 1
+                                notify("雪糕", string.format("鸭子已带回 (%d/%d)", successCount, targetCount), 3)
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            if duckStopFlag then break end
+            continue
+        end
+        local playerPos = getPlayerPos()
+        if not playerPos then notify("雪糕", "位置丢失", 2); continue end
+        local candidates = {}
+        for _, m in pairs(workspace.PlayerModels:GetChildren()) do
+            if m:IsA("Model") and m:FindFirstChild("Owner") and m.Owner.Value == lp then
+                local name = m.Name
+                if name:find("Crate Purchased by") or name:find("crate purchased by") then
+                    local prim = m.PrimaryPart or m:FindFirstChild("Main") or m:FindFirstChildWhichIsA("BasePart")
+                    if prim then
+                        local d = (prim.Position - playerPos).Magnitude
+                        if d <= 50 then table.insert(candidates, {model = m, dist = d}) end
+                    end
+                end
+            end
+        end
+        if #candidates == 0 then notify("雪糕", "未找到板条箱（50米）", 2); continue end
+        table.sort(candidates, function(a,b) return a.dist < b.dist end)
+        local crateBox = candidates[1].model
+        notify("雪糕", "找到板条箱", 2)
+        local opened = false
+        for retry = 1, 2 do
+            if duckStopFlag then break end
+            local ok = pcall(function() rep.Interaction.ClientInteracted:FireServer(crateBox, 'Open box') end)
+            if ok then opened = true; break end
+            task.wait(0.1)
+        end
+        if not opened then notify("雪糕", "打开失败", 2); continue end
+        local crateOpened = false
+        for _ = 1, 10 do
+            if duckStopFlag then break end
+            local pNow = getPlayerPos()
+            if pNow then
+                local cand = {}
+                for _, m in pairs(workspace.PlayerModels:GetChildren()) do
+                    if m:IsA("Model") and m.Name == "Crate" then
+                        local prim = m.PrimaryPart or m:FindFirstChild("Main") or m:FindFirstChildWhichIsA("BasePart")
+                        if prim then
+                            local d = (prim.Position - pNow).Magnitude
+                            if d <= 50 then table.insert(cand, {model = m, dist = d}) end
+                        end
+                    end
+                end
+                if #cand > 0 then
+                    table.sort(cand, function(a,b) return a.dist < b.dist end)
+                    local crateModel = cand[1].model
+                    local btn = crateModel:FindFirstChild("ButtonRemote_Main")
+                    if btn then
+                        pcall(function() game:GetService("ReplicatedStorage").Interaction.RemoteProxy:FireServer(btn) end)
+                        crateOpened = true
+                        break
+                    end
+                end
+            end
+            task.wait(0.04)
+        end
+        local currentDucks = getMyDucks()
+        if #currentDucks > initialCount then
+            for _, d in ipairs(currentDucks) do
+                if not initialDucks[d] and d.Parent then
+                    if not d.PrimaryPart then
+                        local prim = d:FindFirstChild("Main") or d:FindFirstChildWhichIsA("BasePart")
+                        if prim then d.PrimaryPart = prim end
+                    end
+                    if d.PrimaryPart then
+                        safeTeleport(d.PrimaryPart.CFrame + Vector3.new(0, 2, 0))
+                        task.wait(0.08)
+                        if dragToPosition(d, startPos) then
+                            safeTeleport(startPos)
+                            successCount = successCount + 1
+                            initialDucks[d] = true
+                            initialCount = initialCount + 1
+                            notify("雪糕", string.format("鸭子已带回 (%d/%d)", successCount, targetCount), 3)
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        if successCount >= targetCount then break end
+        notify("雪糕", "未出鸭或已拖回，继续", 2)
+        task.wait(0.08)
+    end
+    if duckStopFlag then notify("雪糕", "已停止", 2)
+    elseif successCount >= targetCount then notify("雪糕", string.format("成功获取 %d 只鸭子", successCount), 3)
+    else notify("雪糕", "任务结束，未达到目标", 3) end
+    safeTeleport(startPos)
+    duckAutoRunning = false
+    duckStopFlag = false
+end
+
+SectionDuck:Textbox("目标获取数量", "TargetDuckCount", "1", function(v)
+    local num = tonumber(v)
+    if num and num > 0 then targetDuckCount = math.floor(num)
+    else targetDuckCount = 1 end
+end)
+SectionDuck:Button("开始获取普通鸭", function()
+    task.spawn(function() autoGetGiftDuckDirect(targetDuckCount) end)
+end)
+SectionDuck:Button("停止任务", function()
+    if duckAutoRunning then duckStopFlag = true end
+    if voidSaplingRunning then duckStopFlag = true end
+    if not duckAutoRunning and not voidSaplingRunning then notify("雪糕", "当前没有运行中的任务", 2)
+    else notify("雪糕", "正在停止任务...", 2) end
+end)
+
+SectionEVIL:Button("翻译此服务器恶魔鸭提示", function() translateEvilNotes() end)
+
+-- 玩家透视
+SectionESP:Toggle("礼物鸭透视", "Toggle_DuckOutline", false, function(state)
+    if state then enableDuckOutline() else disableDuckOutline() end
+end)
+SectionESP:Toggle("虚空树苗箱透视", "Toggle_VoidCrateOutline", false, function(state)
+    if state then enableVoidCrateOutline() else disableVoidCrateOutline() end
+end)
+SectionESP:Toggle("头像+距离", 'Toggleflag', false, function(state)
+    if state then enableEsp() else disableEsp() end
+end)
+
+-- ==================== 环境 Tab ====================
+Sectionhuanjin:Toggle("终日白天", 'Toggleflag', false, function(state)
+    bai.awaysday = state
+    if state then
+        while task.wait() do
+            if bai.awaysday == true then game:GetService('Lighting').TimeOfDay = ('14:00:00') end
+        end
+    end
+end)
+Sectionhuanjin:Toggle("终日黑夜", 'Toggleflag', false, function(state)
+    bai.awaysdnight = state
+    if state then
+        while task.wait() do
+            if bai.awaysdnight == true then game:GetService('Lighting').TimeOfDay = ('2:00:00') end
+        end
+    end
+end)
+Sectionhuanjin:Toggle("去除雾", 'Toggleflag', false, function(state)
+    bai.nofog = state
+    if state then
+        while task.wait() do
+            if bai.nofog == true then game:GetService('Lighting').FogEnd = 1000000 end
+        end
+    end
+end)
+Sectionhuanjin:Toggle("消除阴影", 'Toggleflag', false, function(state)
+    game.Lighting.GlobalShadows = not state
+end)
+Sectionhuanjin:Toggle("水上行走", 'Toggleflag', false, function(state)
+    for _, v in pairs(workspace.Water:GetChildren()) do if v:IsA("BasePart") then v.CanCollide = state end end
+    for _, v in pairs(workspace.Bridge.VerticalLiftBridge.WaterModel:GetChildren()) do if v:IsA("BasePart") then v.CanCollide = state end end
+end)
+Sectionhuanjin:Toggle("删除水（透明）", 'Toggleflag', false, function(state)
+    for _, v in pairs(workspace.Water:GetChildren()) do if v.Name == "Water" then v.Transparency = state and 1 or 0 end end
+end)
+Sectionhuanjin:Toggle("删除岩浆（透明）", 'Toggleflag', false, function(state)
+    for _, v in pairs(workspace.Region_Volcano:GetDescendants()) do
+        if v.Name == "Lava" then for _, part in pairs(v:GetChildren()) do if part:IsA("Part") then part.Transparency = state and 1 or 0 end end end
+    end
+end)
+Sectionhuanjin:Button("删除灵视神殿石头及门", function()
+    pcall(function() workspace.Region_Mountainside.BoulderRegen.Boulder:Destroy() end)
+    pcall(function() workspace.Region_Mountainside.Door.Door:Destroy() end)
+    notify("雪糕", "已删除石头与门", 3)
+end)
+
+-- ==================== 魔鬼功能 ====================
+local dropdown_devil = Sectionmogui:Dropdown("选择玩家名称", 'Dropdown', bai.dropdown, function(v) bai.playernamedied = v end)
+Sectionmogui:Button("刷新列表", function()
+    shuaxinlb(true); dropdown_devil:SetOptions(bai.dropdown)
+end)
+Sectionmogui:Button("传送到玩家旁边", function()
+    local target = game.Players:FindFirstChild(bai.playernamedied)
+    if target and target.Character then safeTeleport(target.Character.HumanoidRootPart.CFrame + Vector3.new(0,3,0)) end
+end)
+Sectionmogui:Button("传送到玩家基地", function()
+    for _, v in pairs(workspace.Properties:GetChildren()) do
+        if v.Owner.Value == game.Players[bai.playernamedied] then safeTeleport(v.OriginSquare.CFrame + Vector3.new(0,10,0)); break end
+    end
+end)
+Sectionmogui:Button("汽车传送到玩家旁边", function()
+    local target = game.Players:FindFirstChild(bai.playernamedied)
+    if target and target.Character then carTeleport(target.Character.HumanoidRootPart.CFrame + Vector3.new(0,3,0)) end
+end)
+Sectionmogui:Button("汽车传送到玩家基地", function()
+    for _, v in pairs(workspace.Properties:GetChildren()) do
+        if v.Owner.Value == game.Players[bai.playernamedied] then carTeleport(v.OriginSquare.CFrame + Vector3.new(0,10,0)) end
+    end
+end)
+Sectionmogui:Toggle("查看玩家", 'Toggleflag', false, function(state)
+    if state then
+        local target = game.Players:FindFirstChild(bai.playernamedied)
+        if target and target.Character then workspace.CurrentCamera.CameraSubject = target.Character.Humanoid end
+    else workspace.CurrentCamera.CameraSubject = lp.Character.Humanoid end
+end)
+Sectionmogui:Toggle("查看玩家基地", 'Toggleflag', false, function(state)
+    local see = nil
+    for _, v in pairs(workspace.Properties:GetChildren()) do
+        if v.Owner.Value == game.Players[bai.playernamedied] then see = v.OriginSquare end
+    end
+    if state then
+        if see then workspace.CurrentCamera.CameraSubject = see
+        else notify("雪糕", "没有找到基地", 3) end
+    else workspace.CurrentCamera.CameraSubject = lp.Character.Humanoid end
+end)
+
+Section4:Dropdown("传送到树", 'Dropdown',
+    {"普通树", "沼泽黄金", "樱花", "蓝木", "冰木", "火山木", "橡木", "巧克力木", "白桦木",
+     "黄金木", "雪地松", "僵尸木", "大巧克力树", "椰子树", "幽灵木", "南瓜木", "大理石木",
+     "天堂木", "虚拟木", "玻璃木", "糖果树", "积木树", "发光红色糖果木", "彩虹树", "雷电木",
+     "煤炭木", "岩浆树", "紫木", "下水道木", "辐射木", "地狱木", "沙滩木", "白洋木",
+     "发光彩虹木", "狗木", "幻影木", "红颜树", "石头木", "玻璃冰木", "砖头木", "卡通树",
+     "曲奇树", "生命树", "虚空木", "裂纹木", "幽灵食尸者", "生锈木", "金子木", "星空木",
+     "火焰木", "蓝色火焰木", "彩色火焰木", "星星木", "雪木", "死木"}, function(b)
+        local map = {
+            ['普通树']="Generic", ['沼泽黄金']="GoldSwampy", ['樱花']="Cherry", ['蓝木']="CaveCrawler",
+            ['冰木']="Frost", ['火山木']="Volcano", ['橡木']="Oak", ['巧克力木']="Walnut", ['白桦木']="Birch",
+            ['黄金木']="SnowGlow", ['雪地松']="Pine", ['僵尸木']="GreenSwampy", ['大巧克力树']="Koa",
+            ['椰子树']="Palm", ['幽灵木']="Spooky", ['南瓜木']="SpookyNeon", ['大理石木']="Marble",
+            ['天堂木']="Sky", ['虚拟木']="Virtual", ['玻璃木']="Taco", ['糖果树']="CandycaneGreen",
+            ['积木树']="CandycaneRed", ['发光红色糖果木']="CandyNeon", ['彩虹树']="Rainbow", ['雷电木']="Electric",
+            ['煤炭木']="GenericDead", ['岩浆树']="Skittles", ['紫木']="Cavern", ['下水道木']="MuckySewer",
+            ['辐射木']="Radioactive", ['地狱木']="Hell", ['沙滩木']="Sand", ['白洋木']="Aspen",
+            ['发光彩虹木']="NeonRainbow", ['狗木']="Dog", ['幻影木']="LoneCave", ['红颜树']="Shine",
+            ['石头木']="Magma", ['玻璃冰木']="Ice", ['砖头木']="Blah", ['卡通树']="CobbleStone",
+            ['曲奇树']="Cookie", ['生命树']="GreatOak", ['虚空木']="Void", ['裂纹木']="Celestial",
+            ['幽灵食尸者']="SpookyGhoul", ['生锈木']="SewageTree", ['金子木']="Gold", ['星空木']="Spirit",
+            ['火焰木']="Flame", ['蓝色火焰木']="BlueFlame", ['彩色火焰木']="RainbowFlame", ['星星木']="Star",
+            ['雪木']="Snow", ['死木']="GenericDead",
+        }
+        bai.tptree = map[b]
+        for i, v in pairs(game.Workspace:GetChildren()) do
+            if v.Name == "TreeRegion" then
+                for j, k in ipairs(v:GetChildren()) do
+                    if k:FindFirstChild("TreeClass") and k.TreeClass.Value == bai.tptree then
+                        game.Players.LocalPlayer.Character:MoveTo(k.WoodSection.Position)
+                        break
+                    end
+                end
+            end
+        end
+    end)
+
+local paintToolInstance = nil
+local selectedPaintMaterial = nil
+
+function createPaintTool()
+    if paintToolInstance and paintToolInstance.Parent then
+        paintToolInstance:Destroy(); paintToolInstance = nil
+    end
+    local tool = Instance.new("Tool")
+    tool.RequiresHandle = false
+    tool.Name = "涂装工具"
+    tool.Activated:Connect(function()
+        local target = mouse.Target
+        if not target then notify("雪糕", "未点击任何物体", 2); return end
+        local model = target:FindFirstAncestorOfClass("Model")
+        if not model then notify("雪糕", "请点击一个模型", 2); return end
+        if not selectedPaintMaterial or selectedPaintMaterial == "" then notify("雪糕", "请先选择材质", 2); return end
+        local placeStructure = game:GetService("ReplicatedStorage"):FindFirstChild("PlaceStructure")
+        if not placeStructure then notify("雪糕", "PlaceStructure 不存在", 3); return end
+        local paintToolRemote = placeStructure:FindFirstChild("PaintTool")
+        if not paintToolRemote then notify("雪糕", "PaintTool 远程事件不存在", 3); return end
+        pcall(function() paintToolRemote:FireServer(model, selectedPaintMaterial) end)
+        notify("雪糕", "已发送涂装请求: " .. selectedPaintMaterial, 2)
+    end)
+    tool.Parent = lp.Backpack
+    paintToolInstance = tool
+    notify("雪糕", "涂已添加到背包，点击任意模型即可填充", 3)
+end
+
+Sectionqita:Dropdown("选择材质", "PaintMaterialDropdown", {
+    "RainbowFlame","BlueFlame","Flame","Ash","Aspen","Birch","Blah","Brick","BrickAlternative","BrickDark","Bush",
+    "Candy","CandyAlternative","CandyNeon","CandycaneGreen","CandycaneRed",
+    "Cartoony","CartoonyRainbow","CaveCrawler","Cavern","CavernCrawler","Celestial",
+    "Cherry","CobbleStone","Cookie","Copper","Diamond","Dog","Dry","DryNeon",
+    "Electric","Ember","Fir","Frost","Generic","GenericDead","GenericFall",
+    "GenericGold","GenericPrime","GenericSpecial","Glass","GlowShroom","Gold",
+    "GoldSwampy","Grass1","GreatOak","GreenSwampy","GrottoCrawler","Hell","Ice",
+    "Koa","LoneCave","Magma","Maple","Marble","MuckySewer","NeonRainbow","Oak",
+    "Palm","Pine","PotBush","Potato","REEE","Radioactive","Rainbow","Random",
+    "Ruby","Sand","Scale","SewageTree","Shine","Sign","Silver","Skittles","Sky",
+    "Snow","SnowGlow","Spirit","Spooky","SpookyGhoul","SpookyNeon","Star","Stone",
+    "Taco","Thread","TunnelCrawler","Virtual","Void","Volcano","Waffer","Walnut"
+}, function(v) selectedPaintMaterial = v end)
+
+Sectionqita:Button("获取填充工具", function() createPaintTool() end)
