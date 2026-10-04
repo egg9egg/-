@@ -1,13 +1,11 @@
 -- ============================================================
---  五分区 UI 补丁（卡密 + 猫图片 + 兼容原 LWUI 接口）
---  将本段代码插入到“主脚本.txt”最开头，并删除原 UI 加载两行
+--  五分区 UI 补丁（修复功能分区空白）
+--  插入到“主脚本.txt”最开头，并删除原 UI 加载两行
 -- ============================================================
 
 local Players            = game:GetService("Players")
 local UserInputService   = game:GetService("UserInputService")
 local TweenService       = game:GetService("TweenService")
-local RunService         = game:GetService("RunService")
-local ReplicatedStorage  = game:GetService("ReplicatedStorage")
 
 local lp = Players.LocalPlayer
 local PlayerGui = lp:WaitForChild("PlayerGui")
@@ -17,7 +15,6 @@ local KEYS = { ["誓言NB"] = true }
 local GAME_TITLE = "木材大亨2"
 local VERSION = "V1.0.0"
 
--- 主题
 local Theme = {
     Accent  = Color3.fromRGB(88, 220, 130),
     Bg      = Color3.fromRGB(28, 28, 30),
@@ -52,217 +49,31 @@ local function stroke(parent, color, thickness, transparency)
 end
 
 -- 清理旧 GUI
-for _, name in ipairs({ "OathPanel", "OathKeyUI", "main" }) do
+for _, name in ipairs({ "OathPanel", "OathKeyUI", "main", "OathHiddenContainer" }) do
     local old = PlayerGui:FindFirstChild(name)
     if old then old:Destroy() end
 end
 
 -- ============================================================
---  卡密验证 UI（含猫图片）
+--  ★ 关键：先创建隐藏容器承载原脚本所有 UI
 -- ============================================================
-local function showKeyUI()
-    local KeyTheme = {
-        Accent = Color3.fromRGB(88, 220, 130),
-        Card   = Color3.fromRGB(28, 29, 34),
-        Input  = Color3.fromRGB(22, 23, 27),
-        Text   = Color3.fromRGB(232, 234, 238),
-        Sub    = Color3.fromRGB(130, 133, 142),
-        Stroke = Color3.fromRGB(48, 50, 56),
-        Red    = Color3.fromRGB(240, 90, 80),
-    }
-
-    local keyGui = new("ScreenGui", {
-        Name = "OathKeyUI",
-        ResetOnSpawn = false,
-        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        IgnoreGuiInset = true,
-        DisplayOrder = 200,
-    }, PlayerGui)
-
-    local Backdrop = new("Frame", {
-        Size = UDim2.fromScale(1, 1),
-        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
-        BackgroundTransparency = 0.35,
-        BorderSizePixel = 0,
-    }, keyGui)
-
-    local Card = new("Frame", {
-        Size = UDim2.fromOffset(360, 400),
-        Position = UDim2.fromScale(0.5, 0.5),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundColor3 = KeyTheme.Card,
-        BorderSizePixel = 0,
-        ClipsDescendants = true,
-    }, Backdrop)
-    corner(Card, 22)
-    stroke(Card, KeyTheme.Stroke, 1)
-
-    -- 猫图片（底部）
-    local CatImage = new("ImageLabel", {
-        Size = UDim2.new(1, 0, 0, 180),
-        Position = UDim2.new(0, 0, 1, -180),
-        BackgroundTransparency = 1,
-        Image = "rbxthumb://type=Asset&id=75524296710231&w=420&h=420",
-        ScaleType = Enum.ScaleType.Crop,
-        ImageTransparency = 0,
-        ZIndex = 1,
-    }, Card)
-    local fade = new("Frame", {
-        Size = UDim2.new(1, 0, 0, 40),
-        Position = UDim2.new(0, 0, 0, 0),
-        BackgroundColor3 = KeyTheme.Card,
-        BorderSizePixel = 0,
-        ZIndex = 2,
-    }, CatImage)
-    new("UIGradient", {
-        Rotation = 90,
-        Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0),
-            NumberSequenceKeypoint.new(1, 1),
-        }),
-    }, fade)
-
-    local accent = new("Frame", {
-        Size = UDim2.new(0, 60, 0, 3),
-        Position = UDim2.new(0.5, 0, 0, 12),
-        AnchorPoint = Vector2.new(0.5, 0),
-        BackgroundColor3 = KeyTheme.Accent,
-        BorderSizePixel = 0,
-        ZIndex = 3,
-    }, Card)
-    corner(accent, 2)
-
-    local Title = new("TextLabel", {
-        Size = UDim2.new(1, -40, 0, 56),
-        Position = UDim2.new(0, 20, 0, 24),
-        BackgroundTransparency = 1,
-        Text = "Oath",
-        Font = Enum.Font.SourceSansItalic,
-        TextSize = 46,
-        TextColor3 = KeyTheme.Accent,
-        TextXAlignment = Enum.TextXAlignment.Center,
-        ZIndex = 3,
-    }, Card)
-
-    local Subtitle = new("TextLabel", {
-        Size = UDim2.new(1, -40, 0, 20),
-        Position = UDim2.new(0, 20, 0, 80),
-        BackgroundTransparency = 1,
-        Text = "Enter your key to continue",
-        Font = Enum.Font.Gotham,
-        TextSize = 12,
-        TextColor3 = KeyTheme.Sub,
-        TextXAlignment = Enum.TextXAlignment.Center,
-        ZIndex = 3,
-    }, Card)
-
-    local InputHolder = new("Frame", {
-        Size = UDim2.new(1, -60, 0, 42),
-        Position = UDim2.new(0.5, 0, 0, 118),
-        AnchorPoint = Vector2.new(0.5, 0),
-        BackgroundColor3 = KeyTheme.Input,
-        BorderSizePixel = 0,
-        ZIndex = 3,
-    }, Card)
-    corner(InputHolder, 12)
-    local InputStroke = stroke(InputHolder, KeyTheme.Stroke, 1)
-
-    local InputBox = new("TextBox", {
-        Size = UDim2.new(1, -24, 1, 0),
-        Position = UDim2.new(0, 12, 0, 0),
-        BackgroundTransparency = 1,
-        Text = "",
-        PlaceholderText = "请输入卡密...",
-        PlaceholderColor3 = KeyTheme.Sub,
-        Font = Enum.Font.GothamMedium,
-        TextSize = 14,
-        TextColor3 = KeyTheme.Text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        ClearTextOnFocus = false,
-        ZIndex = 3,
-    }, InputHolder)
-
-    local ConfirmBtn = new("TextButton", {
-        Size = UDim2.new(1, -60, 0, 42),
-        Position = UDim2.new(0.5, 0, 0, 176),
-        AnchorPoint = Vector2.new(0.5, 0),
-        BackgroundColor3 = KeyTheme.Accent,
-        BorderSizePixel = 0,
-        Text = "验 证",
-        Font = Enum.Font.GothamBold,
-        TextSize = 14,
-        TextColor3 = Color3.fromRGB(12, 24, 16),
-        AutoButtonColor = false,
-        ZIndex = 3,
-    }, Card)
-    corner(ConfirmBtn, 12)
-
-    local TipLabel = new("TextLabel", {
-        Size = UDim2.new(1, -40, 0, 16),
-        Position = UDim2.new(0, 20, 0, 224),
-        BackgroundTransparency = 1,
-        Text = "",
-        Font = Enum.Font.Gotham,
-        TextSize = 11,
-        TextColor3 = KeyTheme.Red,
-        TextXAlignment = Enum.TextXAlignment.Center,
-        ZIndex = 3,
-    }, Card)
-
-    InputBox.Focused:Connect(function()
-        TweenService:Create(InputStroke, TweenInfo.new(0.15), { Color = KeyTheme.Accent }):Play()
-    end)
-    InputBox.FocusLost:Connect(function()
-        TweenService:Create(InputStroke, TweenInfo.new(0.15), { Color = KeyTheme.Stroke }):Play()
-    end)
-
-    local verifying = false
-    local function verify()
-        if verifying then return end
-        verifying = true
-        if KEYS[InputBox.Text] then
-            TipLabel.TextColor3 = KeyTheme.Accent
-            TipLabel.Text = "验证成功，正在加载..."
-            local ok, err = pcall(function()
-                if _G.buildMainPanel then _G.buildMainPanel() end
-            end)
-            if ok then
-                TweenService:Create(Card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
-                    Size = UDim2.fromOffset(280, 320), BackgroundTransparency = 1,
-                }):Play()
-                TweenService:Create(Title, TweenInfo.new(0.25), { TextTransparency = 1 }):Play()
-                TweenService:Create(Subtitle, TweenInfo.new(0.25), { TextTransparency = 1 }):Play()
-                TweenService:Create(InputHolder, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
-                TweenService:Create(ConfirmBtn, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
-                TweenService:Create(Backdrop, TweenInfo.new(0.35), { BackgroundTransparency = 1 }):Play()
-                task.wait(0.35)
-                keyGui:Destroy()
-            else
-                TipLabel.TextColor3 = KeyTheme.Red
-                TipLabel.Text = "主脚本加载失败"
-                warn("[Oath] " .. tostring(err))
-                verifying = false
-            end
-        else
-            TipLabel.TextColor3 = KeyTheme.Red
-            TipLabel.Text = "卡密错误，请重试"
-            InputBox.Text = ""
-            verifying = false
-        end
-    end
-
-    ConfirmBtn.MouseButton1Click:Connect(verify)
-    InputBox.FocusLost:Connect(function(enterPressed) if enterPressed then verify() end end)
-    task.wait(0.3)
-    pcall(function() InputBox:CaptureFocus() end)
-end
+local hiddenGui = new("ScreenGui", {
+    Name = "OathHiddenContainer",
+    ResetOnSpawn = false,
+    Enabled = false,             -- 隐藏，仅作为容器
+    Parent = PlayerGui,
+})
+local functionContainer = new("Frame", {
+    Size = UDim2.new(1, 0, 0, 0),
+    AutomaticSize = Enum.AutomaticSize.Y,
+    BackgroundTransparency = 1,
+    Parent = hiddenGui,
+})
+new("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }, functionContainer)
 
 -- ============================================================
---  兼容层：模拟原 LWUI 接口（Tab / section / Button 等）
+--  控件工厂函数
 -- ============================================================
-local mainGui, mainFrame, functionContainer
-
--- 控件创建函数
 local function makeActionButton(parent, text, order, callback)
     local btn = new("TextButton", {
         Size = UDim2.new(1, 0, 0, 34),
@@ -571,7 +382,7 @@ local function makeLabel(parent, text, order)
     }, parent)
 end
 
--- Section 对象
+-- Section
 local SectionObject = {}
 SectionObject.__index = SectionObject
 function SectionObject.new(container, title)
@@ -619,7 +430,7 @@ function SectionObject:Textbox(text, id, placeholder, callback)
     return makeTextbox(self.frame, text, placeholder, self.orderCounter, callback)
 end
 
--- Tab 对象
+-- Tab
 local TabObject = {}
 TabObject.__index = TabObject
 function TabObject.new(name)
@@ -684,11 +495,211 @@ function TabObject:section(title, collapsed)
     return sec
 end
 
--- win 对象（供原脚本 UI 代码使用）
-local win = {}
+-- ★ 全局 win（原脚本后续会用到）
+win = {}
 win.__index = win
 function win:Tab(name, icon)
     return TabObject.new(name)
+end
+
+-- ============================================================
+--  卡密 UI
+-- ============================================================
+local function showKeyUI()
+    local KeyTheme = {
+        Accent = Color3.fromRGB(88, 220, 130),
+        Card   = Color3.fromRGB(28, 29, 34),
+        Input  = Color3.fromRGB(22, 23, 27),
+        Text   = Color3.fromRGB(232, 234, 238),
+        Sub    = Color3.fromRGB(130, 133, 142),
+        Stroke = Color3.fromRGB(48, 50, 56),
+        Red    = Color3.fromRGB(240, 90, 80),
+    }
+
+    local keyGui = new("ScreenGui", {
+        Name = "OathKeyUI",
+        ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+        IgnoreGuiInset = true,
+        DisplayOrder = 200,
+    }, PlayerGui)
+
+    local Backdrop = new("Frame", {
+        Size = UDim2.fromScale(1, 1),
+        BackgroundColor3 = Color3.fromRGB(0, 0, 0),
+        BackgroundTransparency = 0.35,
+        BorderSizePixel = 0,
+    }, keyGui)
+
+    local Card = new("Frame", {
+        Size = UDim2.fromOffset(360, 400),
+        Position = UDim2.fromScale(0.5, 0.5),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BackgroundColor3 = KeyTheme.Card,
+        BorderSizePixel = 0,
+        ClipsDescendants = true,
+    }, Backdrop)
+    corner(Card, 22)
+    stroke(Card, KeyTheme.Stroke, 1)
+
+    -- 猫图片
+    local CatImage = new("ImageLabel", {
+        Size = UDim2.new(1, 0, 0, 180),
+        Position = UDim2.new(0, 0, 1, -180),
+        BackgroundTransparency = 1,
+        Image = "rbxthumb://type=Asset&id=75524296710231&w=420&h=420",
+        ScaleType = Enum.ScaleType.Crop,
+        ImageTransparency = 0,
+        ZIndex = 1,
+    }, Card)
+    local fade = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 40),
+        Position = UDim2.new(0, 0, 0, 0),
+        BackgroundColor3 = KeyTheme.Card,
+        BorderSizePixel = 0,
+        ZIndex = 2,
+    }, CatImage)
+    new("UIGradient", {
+        Rotation = 90,
+        Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(1, 1),
+        }),
+    }, fade)
+
+    local accent = new("Frame", {
+        Size = UDim2.new(0, 60, 0, 3),
+        Position = UDim2.new(0.5, 0, 0, 12),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = KeyTheme.Accent,
+        BorderSizePixel = 0,
+        ZIndex = 3,
+    }, Card)
+    corner(accent, 2)
+
+    local Title = new("TextLabel", {
+        Size = UDim2.new(1, -40, 0, 56),
+        Position = UDim2.new(0, 20, 0, 24),
+        BackgroundTransparency = 1,
+        Text = "Oath",
+        Font = Enum.Font.SourceSansItalic,
+        TextSize = 46,
+        TextColor3 = KeyTheme.Accent,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        ZIndex = 3,
+    }, Card)
+
+    local Subtitle = new("TextLabel", {
+        Size = UDim2.new(1, -40, 0, 20),
+        Position = UDim2.new(0, 20, 0, 80),
+        BackgroundTransparency = 1,
+        Text = "Enter your key to continue",
+        Font = Enum.Font.Gotham,
+        TextSize = 12,
+        TextColor3 = KeyTheme.Sub,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        ZIndex = 3,
+    }, Card)
+
+    local InputHolder = new("Frame", {
+        Size = UDim2.new(1, -60, 0, 42),
+        Position = UDim2.new(0.5, 0, 0, 118),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = KeyTheme.Input,
+        BorderSizePixel = 0,
+        ZIndex = 3,
+    }, Card)
+    corner(InputHolder, 12)
+    local InputStroke = stroke(InputHolder, KeyTheme.Stroke, 1)
+
+    local InputBox = new("TextBox", {
+        Size = UDim2.new(1, -24, 1, 0),
+        Position = UDim2.new(0, 12, 0, 0),
+        BackgroundTransparency = 1,
+        Text = "",
+        PlaceholderText = "请输入卡密...",
+        PlaceholderColor3 = KeyTheme.Sub,
+        Font = Enum.Font.GothamMedium,
+        TextSize = 14,
+        TextColor3 = KeyTheme.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ClearTextOnFocus = false,
+        ZIndex = 3,
+    }, InputHolder)
+
+    local ConfirmBtn = new("TextButton", {
+        Size = UDim2.new(1, -60, 0, 42),
+        Position = UDim2.new(0.5, 0, 0, 176),
+        AnchorPoint = Vector2.new(0.5, 0),
+        BackgroundColor3 = KeyTheme.Accent,
+        BorderSizePixel = 0,
+        Text = "验 证",
+        Font = Enum.Font.GothamBold,
+        TextSize = 14,
+        TextColor3 = Color3.fromRGB(12, 24, 16),
+        AutoButtonColor = false,
+        ZIndex = 3,
+    }, Card)
+    corner(ConfirmBtn, 12)
+
+    local TipLabel = new("TextLabel", {
+        Size = UDim2.new(1, -40, 0, 16),
+        Position = UDim2.new(0, 20, 0, 224),
+        BackgroundTransparency = 1,
+        Text = "",
+        Font = Enum.Font.Gotham,
+        TextSize = 11,
+        TextColor3 = KeyTheme.Red,
+        TextXAlignment = Enum.TextXAlignment.Center,
+        ZIndex = 3,
+    }, Card)
+
+    InputBox.Focused:Connect(function()
+        TweenService:Create(InputStroke, TweenInfo.new(0.15), { Color = KeyTheme.Accent }):Play()
+    end)
+    InputBox.FocusLost:Connect(function()
+        TweenService:Create(InputStroke, TweenInfo.new(0.15), { Color = KeyTheme.Stroke }):Play()
+    end)
+
+    local verifying = false
+    local function verify()
+        if verifying then return end
+        verifying = true
+        if KEYS[InputBox.Text] then
+            TipLabel.TextColor3 = KeyTheme.Accent
+            TipLabel.Text = "验证成功，正在加载..."
+            local ok, err = pcall(function()
+                if _G.buildMainPanel then _G.buildMainPanel() end
+            end)
+            if ok then
+                TweenService:Create(Card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.In), {
+                    Size = UDim2.fromOffset(280, 320), BackgroundTransparency = 1,
+                }):Play()
+                TweenService:Create(Title, TweenInfo.new(0.25), { TextTransparency = 1 }):Play()
+                TweenService:Create(Subtitle, TweenInfo.new(0.25), { TextTransparency = 1 }):Play()
+                TweenService:Create(InputHolder, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
+                TweenService:Create(ConfirmBtn, TweenInfo.new(0.2), { BackgroundTransparency = 1 }):Play()
+                TweenService:Create(Backdrop, TweenInfo.new(0.35), { BackgroundTransparency = 1 }):Play()
+                task.wait(0.35)
+                keyGui:Destroy()
+            else
+                TipLabel.TextColor3 = KeyTheme.Red
+                TipLabel.Text = "主脚本加载失败"
+                warn("[Oath] " .. tostring(err))
+                verifying = false
+            end
+        else
+            TipLabel.TextColor3 = KeyTheme.Red
+            TipLabel.Text = "卡密错误，请重试"
+            InputBox.Text = ""
+            verifying = false
+        end
+    end
+
+    ConfirmBtn.MouseButton1Click:Connect(verify)
+    InputBox.FocusLost:Connect(function(enterPressed) if enterPressed then verify() end end)
+    task.wait(0.3)
+    pcall(function() InputBox:CaptureFocus() end)
 end
 
 -- ============================================================
@@ -704,7 +715,6 @@ _G.buildMainPanel = function()
         IgnoreGuiInset = true,
         DisplayOrder = 100,
     }, PlayerGui)
-    mainGui = gui
 
     local Main = new("Frame", {
         Size = UDim2.fromOffset(620, 400),
@@ -714,7 +724,6 @@ _G.buildMainPanel = function()
         BorderSizePixel = 0,
         ClipsDescendants = true,
     }, gui)
-    mainFrame = Main
     corner(Main, 16)
     stroke(Main, Theme.Stroke, 1)
 
@@ -766,8 +775,6 @@ _G.buildMainPanel = function()
         }, page)
         pages[i] = page
     end
-
-    functionContainer = pages[2]  -- 功能分区
 
     local holder = new("Frame", {
         Position = UDim2.new(0, 0, 0, 56),
@@ -832,6 +839,17 @@ _G.buildMainPanel = function()
         TextColor3 = Theme.Sub,
     }, infoCard)
 
+    -- ============================================================
+    --  ★ 把隐藏容器里的所有 UI 转移到功能分区
+    -- ============================================================
+    for _, child in ipairs(functionContainer:GetChildren()) do
+        if child:IsA("GuiObject") then
+            child.Parent = pages[2]
+        end
+    end
+    -- 销毁隐藏容器
+    hiddenGui:Destroy()
+
     for i = 3, 5 do
         new("TextLabel", {
             Size = UDim2.new(1, 0, 0, 30),
@@ -846,7 +864,7 @@ _G.buildMainPanel = function()
     UserInputService.InputBegan:Connect(function(input, processed)
         if processed then return end
         if input.KeyCode == Enum.KeyCode.RightShift then
-            mainGui.Enabled = not mainGui.Enabled
+            gui.Enabled = not gui.Enabled
         end
     end)
 
@@ -868,7 +886,7 @@ _G.buildMainPanel = function()
         end
     end)
 
-    print("[Oath] 主面板创建完成")
+    print("[Oath] 主面板创建完成，功能分区元素已转移")
 end
 
 -- 启动卡密验证
