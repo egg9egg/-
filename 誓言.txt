@@ -1,5 +1,5 @@
 --[[
-    誓言面板 v5
+    誓言面板 v6
     卡密：誓言NB
 ]]
 local Players = game:GetService("Players")
@@ -165,6 +165,7 @@ local function getTreeClassFromModel(treeModel)
     return "Generic"
 end
 
+-- ==================== 带来树 ====================
 local function bringTreeRemote(treeClass)
     local weaponName, weaponConfig, damage = selectBestWeapon(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
@@ -231,19 +232,32 @@ local function bringTreeRemote(treeClass)
     local oldCam = workspace.CurrentCamera.CameraSubject
     local restored = false
     local function restoreCamera() if not restored then restored=true; workspace.CurrentCamera.CameraSubject = oldCam end end
-    local timeoutId = task.spawn(function() task.wait(3); restoreCamera(); notify("誓言", "拖拽超时", 3) end)
+    local timeoutId = task.spawn(function() task.wait(6); restoreCamera(); notify("誓言", "拖拽超时", 3) end)
     local stopFollow = false
     local followConn = RS.Heartbeat:Connect(function()
         if not stopFollow and fallenLog and fallenLog.PrimaryPart and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
             lp.Character.HumanoidRootPart.CFrame = fallenLog.PrimaryPart.CFrame
         end
     end)
-    for i = 1, dragAttempts do
-        pcall(function()
-            rep.Interaction.ClientIsDragging:FireServer(fallenLog, DRAG_SECRET)
-            fallenLog:SetPrimaryPartCFrame(playerOriginalCF)
-        end)
-        task.wait(dragInterval)
+    -- ★ 多轮重试拖拽：3 轮，每轮检查是否成功到达，没到就再来一轮
+    local maxRounds = 3
+    for round = 1, maxRounds do
+        for i = 1, dragAttempts do
+            pcall(function()
+                rep.Interaction.ClientIsDragging:FireServer(fallenLog, DRAG_SECRET)
+                fallenLog:SetPrimaryPartCFrame(playerOriginalCF)
+            end)
+            task.wait(dragInterval)
+        end
+        task.wait(0.15)
+        -- 检查是否已接近目标位置
+        local prim = fallenLog.PrimaryPart or fallenLog:FindFirstChild("WoodSection") or fallenLog:FindFirstChild("Main")
+        if prim then
+            local dist = (prim.Position - playerOriginalCF.Position).Magnitude
+            if dist < 15 then break end
+        else
+            break
+        end
     end
     stopFollow = true
     if followConn then followConn:Disconnect() end
@@ -255,6 +269,7 @@ local function bringTreeRemote(treeClass)
     return true
 end
 
+-- ==================== 一键加工 ====================
 local selectedTree, selectedSawmill, sawPos = nil, nil, nil
 local isDecomposeActive = false
 local decomposeConn = nil
@@ -627,7 +642,6 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
--- 全局拖动监听
 do
     local dragging, actualDragging = false, false
     local dragStart, startPos = nil, nil
@@ -738,19 +752,28 @@ local function makeBox(text, placeholder, order, cb)
     box.FocusLost:Connect(function() if cb then pcall(cb, box.Text) end end)
 end
 
--- ==================== 加号下拉框（修复：加号固定顶部） ====================
+-- ==================== 加号下拉框（加号固定不动） ====================
 local function makeDropdownWithPlus(text, options, default, order, cb)
     local HEADER_H = 32
     local SEARCH_H = 26
     local ITEM_H = 24
     local MAX_LIST_H = 180
 
+    -- 外层容器：仅用于占位下推，高度变化时下面的控件会跟着动
     local container = new("Frame",{
         Size=UDim2.new(1, 0, 0, HEADER_H),
-        BackgroundColor3=T.RowBg, BorderSizePixel=0,
-        LayoutOrder=order, ClipsDescendants=false,
+        BackgroundTransparency=1,
+        LayoutOrder=order,
+        ClipsDescendants=false,
     }, fc)
-    crn(container, 6); strk(container, Color3.fromRGB(48,48,52), 1, 0.3)
+
+    -- ★ 头部（固定不动）：文字 + 数值 + 加号
+    local header = new("Frame",{
+        Size=UDim2.new(1, 0, 0, HEADER_H),
+        Position=UDim2.new(0, 0, 0, 0),
+        BackgroundColor3=T.RowBg, BorderSizePixel=0,
+    }, container)
+    crn(header, 6); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
 
     local cur = default or options[1]
 
@@ -760,7 +783,7 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
         BackgroundTransparency=1, Text=text,
         Font=Enum.Font.GothamMedium, TextSize=12,
         TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left,
-    }, container)
+    }, header)
 
     local valueLbl = new("TextLabel",{
         Position=UDim2.new(0.4, 0, 0, 0),
@@ -769,19 +792,20 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
         Font=Enum.Font.Gotham, TextSize=11,
         TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right,
         TextTruncate=Enum.TextTruncate.AtEnd,
-    }, container)
+    }, header)
 
-    -- ★ 关键修复：位置用绝对偏移，固定顶部
+    -- 加号按钮：挂在 header 里，header 高度固定，加号永远不动
     local plusBtn = new("TextButton",{
         Size=UDim2.fromOffset(22, 22),
-        Position=UDim2.new(1, -28, 0, 5),   -- y 用 0,5 而不是 0.5,-11
+        Position=UDim2.new(1, -28, 0.5, -11),  -- 相对于 header（高度 32），居中
         BackgroundColor3=Color3.fromRGB(48, 48, 52),
         BorderSizePixel=0, Text="+",
         Font=Enum.Font.GothamBold, TextSize=16,
         TextColor3=T.Text, AutoButtonColor=false,
-    }, container)
+    }, header)
     crn(plusBtn, 4)
 
+    -- 列表：挂在 container 里，位置在 header 下方
     local listFrame = new("Frame",{
         Position=UDim2.new(0, 0, 0, HEADER_H),
         Size=UDim2.new(1, 0, 0, 0),
