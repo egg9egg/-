@@ -1132,42 +1132,52 @@ local function makeBox(text, placeholder, order, default, cb, parent)
     return box
 end
 
+-- ★ 修复版 makeToggle：右边小球用 AnchorPoint 定位，14x14，加描边，肯定可见 ★
 local function makeToggle(text, order, defaultState, callback, parent)
     parent = parent or fc
     local state = defaultState
     local btn = new("TextButton", {
         Size = UDim2.new(1, 0, 0, 40),
         BackgroundColor3 = T.RowBg, BorderSizePixel = 0,
-        Text = "   " .. text .. (state and "  [已开启]" or "  [已关闭]"),
-        Font = Enum.Font.GothamMedium, TextSize = 14, TextColor3 = T.Text,
-        TextXAlignment = Enum.TextXAlignment.Left,
+        Text = "",
         AutoButtonColor = false, LayoutOrder = order
     }, parent)
     crn(btn, 8); strk(btn, Color3.fromRGB(48, 48, 52), 1, 0.3)
 
-    -- 右边那个小球指示器
-    local indicator = new("Frame", {
-        Size = UDim2.fromOffset(10, 10),
-        Position = UDim2.new(1, -22, 0.5, -5),
-        BackgroundColor3 = state and T.Accent or T.Sub,
-        BorderSizePixel = 0
+    -- 文本（左侧）
+    local txt = new("TextLabel", {
+        Size = UDim2.new(1, -60, 1, 0),
+        Position = UDim2.new(0, 14, 0, 0),
+        BackgroundTransparency = 1,
+        Text = text,
+        Font = Enum.Font.GothamMedium, TextSize = 14,
+        TextColor3 = T.Text, TextXAlignment = Enum.TextXAlignment.Left,
+        TextTruncate = Enum.TextTruncate.AtEnd
     }, btn)
-    crn(indicator, 5)
+
+    -- 小球指示器（右侧，用 AnchorPoint 定位确保可见）
+    local indicator = new("Frame", {
+        Size = UDim2.fromOffset(14, 14),
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -16, 0.5, 0),
+        BackgroundColor3 = state and T.Accent or T.Sub,
+        BorderSizePixel = 0,
+        ZIndex = 5
+    }, btn)
+    crn(indicator, 7)
 
     local indStroke = new("UIStroke", {
-        Color = state and Color3.fromRGB(180, 255, 210) or Color3.fromRGB(80, 80, 90),
-        Thickness = 1.5, Transparency = 0.3
+        Color = state and Color3.fromRGB(180, 255, 210) or Color3.fromRGB(90, 90, 100),
+        Thickness = 1.5, Transparency = 0.2
     }, indicator)
 
     btn.MouseButton1Click:Connect(function()
         state = not state
-        btn.Text = "   " .. text .. (state and "  [已开启]" or "  [已关闭]")
         indicator.BackgroundColor3 = state and T.Accent or T.Sub
-        indStroke.Color = state and Color3.fromRGB(180, 255, 210) or Color3.fromRGB(80, 80, 90)
-        btn.BackgroundColor3 = T.White; btn.TextColor3 = Color3.fromRGB(20,20,20)
+        indStroke.Color = state and Color3.fromRGB(180, 255, 210) or Color3.fromRGB(90, 90, 100)
+        btn.BackgroundColor3 = T.White
         task.delay(0.15, function()
             TS:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = T.RowBg}):Play()
-            TS:Create(btn, TweenInfo.new(0.15), {TextColor3 = T.Text}):Play()
         end)
         if callback then pcall(callback, state) end
     end)
