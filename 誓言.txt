@@ -4,6 +4,7 @@
     ID_CONFIG 在顶部，自己改数字对应哪个列表
     ID分区在"信息"页里，点按钮展开对应列表
     列表标题不再显示 [ID x]
+    右上角按钮独立在上层，功能内容在下方
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -944,18 +945,39 @@ local OathGui = new("ScreenGui",{Name="OathPanel", ResetOnSpawn=false, ZIndexBeh
 local Main = new("Frame",{Size=UDim2.fromOffset(540,340), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Bg, BorderSizePixel=0, ClipsDescendants=true}, OathGui)
 crn(Main,16); strk(Main,T.Stroke,1)
 
+-- 左侧边栏
 local Sb = new("Frame",{Size=UDim2.new(0,130,1,0), BackgroundColor3=T.Sidebar, BorderSizePixel=0}, Main)
 crn(Sb,16)
 new("TextLabel",{Size=UDim2.new(0,110,0,20), Position=UDim2.new(0,14,0,6), BackgroundTransparency=1, Text=GAME_TITLE, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left}, Sb)
 
+-- ★ 顶部标题栏遮罩（只盖右半部分，不覆盖左 sidebar）★
+-- 黄/红按钮 ZIndex=10 叠在这个 ZIndex=5 的遮罩之上，形成"按钮在独立上层"的效果
+local topBar = new("Frame", {
+    Size = UDim2.new(1, -130, 0, 50),
+    Position = UDim2.new(0, 130, 0, 0),
+    BackgroundColor3 = T.Bg,
+    BorderSizePixel = 0,
+    ZIndex = 5
+}, Main)
+-- 遮罩底部分隔线
+new("Frame", {
+    Size = UDim2.new(1, 0, 0, 1),
+    Position = UDim2.new(0, 0, 1, -1),
+    BackgroundColor3 = T.Stroke,
+    BorderSizePixel = 0,
+    ZIndex = 6
+}, topBar)
+
+-- ★ 内容区从 y=50 开始，与顶部按钮区隔绝 ★
+local pc = new("Frame",{Position=UDim2.new(0,130,0,50), Size=UDim2.new(1,-130,1,-50), BackgroundTransparency=1, ZIndex=1}, Main)
+
 local tabs = {"信息","功能"}
 local tabBtns = {}
-local pc = new("Frame",{Position=UDim2.new(0,130,0,0), Size=UDim2.new(1,-130,1,0), BackgroundTransparency=1}, Main)
 local pages = {}
 for i, name in ipairs(tabs) do
     local p = new("ScrollingFrame",{Name=name, Size=UDim2.fromScale(1,1), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y, Visible=false}, pc)
     new("UIListLayout",{Padding=UDim.new(0,6), SortOrder=Enum.SortOrder.LayoutOrder}, p)
-    new("UIPadding",{PaddingTop=UDim.new(0,82), PaddingBottom=UDim.new(0,10), PaddingLeft=UDim.new(0,14), PaddingRight=UDim.new(0,14)}, p)
+    new("UIPadding",{PaddingTop=UDim.new(0,12), PaddingBottom=UDim.new(0,10), PaddingLeft=UDim.new(0,14), PaddingRight=UDim.new(0,14)}, p)
     pages[i] = p
 end
 
@@ -983,7 +1005,7 @@ crn(icOverlay,10)
 new("TextLabel",{Size=UDim2.new(1,-20,0,30), Position=UDim2.new(0,10,0,10), BackgroundTransparency=1, Text=GAME_TITLE.." · 誓言面板", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7}, ic)
 new("TextLabel",{Size=UDim2.new(1,-20,0,20), Position=UDim2.new(0,10,0,40), BackgroundTransparency=1, Text="作者：是我太傻   QQ：3767465890   群：1109682737", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7}, ic)
 
--- 窗口控制
+-- 窗口控制（黄/红按钮，ZIndex=10 在 topBar 之上，所以看起来"独立在上层"）
 local btnHolder = new("Frame",{Size=UDim2.fromOffset(50, 18), Position=UDim2.new(1, -14, 0, 14), AnchorPoint=Vector2.new(1, 0), BackgroundTransparency=1, ZIndex=10}, Main)
 local function makeWinDot(color, x, cb)
     local btn = new("TextButton",{Size=UDim2.fromOffset(16, 16), Position=UDim2.new(0, x, 0, 0), BackgroundColor3=color, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=10}, btnHolder)
@@ -1132,7 +1154,7 @@ local function makeBox(text, placeholder, order, default, cb, parent)
     return box
 end
 
--- 修复版 makeToggle：右边小球用 AnchorPoint 定位，14x14，加描边
+-- 开关（右边带 14x14 小球指示器）
 local function makeToggle(text, order, defaultState, callback, parent)
     parent = parent or fc
     local state = defaultState
@@ -1182,7 +1204,7 @@ local function makeToggle(text, order, defaultState, callback, parent)
     return btn
 end
 
--- 下拉框工厂，每个实例的 expand 都是 local，绝不互相冲突
+-- 下拉框（每个实例的 expand 都是 local，绝不互相冲突）
 local function makeDropdown(text, order, options, default, onSelect)
     local HEADER_H, ITEM_H = 40, 30
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
@@ -1237,7 +1259,6 @@ local function makeDropdown(text, order, options, default, onSelect)
 end
 
 -- ==================== 功能页列表创建 ====================
--- openers[id] = 展开该 ID 对应列表的函数
 local openers = {}
 
 sectionHeader("带来树", 1)
@@ -1374,12 +1395,10 @@ do
     new("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingTop = UDim.new(0, 6) }, mapLabel)
 end
 
--- 每个 ID 一个"展开"按钮，点它展开对应列表
 for i, def in ipairs(idButtonDefs) do
     makeBtn("展开 ID "..def.id.." - "..def.name, 10 + i, function()
         local fn = openers[def.id]
         if fn then
-            -- 先切到"功能"页，再展开
             for j, p in ipairs(pages) do p.Visible = (j == 2); tabBtns[j].label.TextColor3 = (j == 2) and T.Text or T.Sub end
             pcall(fn, true)
             notify("誓言", "已展开 ID "..def.id.."："..def.name, 2)
@@ -1431,5 +1450,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 完整版 已加载")
+print("[誓言面板] 顶部隔离版 已加载")
 showKeyUI()
