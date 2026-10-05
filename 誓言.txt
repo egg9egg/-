@@ -1132,6 +1132,48 @@ local function makeBox(text, placeholder, order, default, cb, parent)
     return box
 end
 
+local function makeToggle(text, order, defaultState, callback, parent)
+    parent = parent or fc
+    local state = defaultState
+    local btn = new("TextButton", {
+        Size = UDim2.new(1, 0, 0, 40),
+        BackgroundColor3 = T.RowBg, BorderSizePixel = 0,
+        Text = "   " .. text .. (state and "  [已开启]" or "  [已关闭]"),
+        Font = Enum.Font.GothamMedium, TextSize = 14, TextColor3 = T.Text,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        AutoButtonColor = false, LayoutOrder = order
+    }, parent)
+    crn(btn, 8); strk(btn, Color3.fromRGB(48, 48, 52), 1, 0.3)
+
+    -- 右边那个小球指示器
+    local indicator = new("Frame", {
+        Size = UDim2.fromOffset(10, 10),
+        Position = UDim2.new(1, -22, 0.5, -5),
+        BackgroundColor3 = state and T.Accent or T.Sub,
+        BorderSizePixel = 0
+    }, btn)
+    crn(indicator, 5)
+
+    local indStroke = new("UIStroke", {
+        Color = state and Color3.fromRGB(180, 255, 210) or Color3.fromRGB(80, 80, 90),
+        Thickness = 1.5, Transparency = 0.3
+    }, indicator)
+
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        btn.Text = "   " .. text .. (state and "  [已开启]" or "  [已关闭]")
+        indicator.BackgroundColor3 = state and T.Accent or T.Sub
+        indStroke.Color = state and Color3.fromRGB(180, 255, 210) or Color3.fromRGB(80, 80, 90)
+        btn.BackgroundColor3 = T.White; btn.TextColor3 = Color3.fromRGB(20,20,20)
+        task.delay(0.15, function()
+            TS:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = T.RowBg}):Play()
+            TS:Create(btn, TweenInfo.new(0.15), {TextColor3 = T.Text}):Play()
+        end)
+        if callback then pcall(callback, state) end
+    end)
+    return btn
+end
+
 -- ★ 关键：下拉框工厂，每个实例的 expand 都是 local，绝不互相冲突 ★
 local function makeDropdown(text, order, options, default, onSelect)
     local HEADER_H, ITEM_H = 40, 30
@@ -1263,9 +1305,10 @@ makeBtn("传送所有选中", 14, function()
     task.spawn(teleportSelectedItems)
 end)
 makeBtn("清空所有选中", 15, clearSelection)
-makeBtn("选择模式开关", 16, function()
-    selectingMode = not selectingMode
-    if selectingMode then
+
+makeToggle("选择模式开关", 16, false, function(state)
+    selectingMode = state
+    if state then
         if selectionConn then selectionConn:Disconnect() end
         selectionConn = mouse.Button1Down:Connect(function()
             if not selectingMode then return end
@@ -1280,9 +1323,10 @@ makeBtn("选择模式开关", 16, function()
         notify("誓言", "选择模式已关闭", 3)
     end
 end)
-makeBtn("同名选择开关", 17, function()
-    sameNameEnabled = not sameNameEnabled
-    if sameNameEnabled then
+
+makeToggle("同名选择开关", 17, false, function(state)
+    sameNameEnabled = state
+    if state then
         if sameNameConn then sameNameConn:Disconnect() end
         sameNameConn = mouse.Button1Down:Connect(function()
             if not sameNameEnabled then return end
@@ -1379,5 +1423,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] ID分区在信息页版 已加载")
+print("[誓言面板] 完整版 已加载")
 showKeyUI()
