@@ -1,5 +1,5 @@
 --[[
-    誓言面板 - 旧/新版本 + 源码.lua 一键加工
+    誓言面板 - 旧/新版本 + 源码.lua 一键加工（UI 放大按钮版）
     卡密：誓言NB
     旧版本 = 主脚本.txt（require 解析斧头 + 拖拽用新版 dragToPosition）
     新版本 = 源码.lua（decompile 反编译解析斧头）
@@ -439,7 +439,7 @@ local function selectBestWeaponNew(treeClass)
     return bw, bc, bd
 end
 
--- ==================== 砍树旧版本（拖拽用新版 dragToPosition） ====================
+-- ==================== 砍树旧版本 ====================
 local function bringTreeOld(treeClass)
     local weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3) return false end
@@ -486,7 +486,6 @@ local function bringTreeOld(treeClass)
     if not fallenLog.PrimaryPart then fallenLog.PrimaryPart = primary end
     local playerOriginalCF = lp.Character and lp.Character.HumanoidRootPart.CFrame
     if not playerOriginalCF then notify("誓言", "无法获取玩家位置", 3) return false end
-
     pcall(rep.Interaction.ClientInteracted.FireServer, rep.Interaction, primary, 'Click'); task.wait(0.01)
     lockPlayerAt(primary.CFrame + Vector3.new(0,3,0))
     task.wait(0.15)
@@ -601,7 +600,7 @@ local function runBringTree(treeClass)
     else return bringTreeOld(treeClass) end
 end
 
--- ==================== 一键加工（完全采用源码.lua 的 decomposeAndProcess） ====================
+-- ==================== 一键加工 ====================
 local isSelectingSawmill = false
 local sawmillSelectConn = nil
 local function selectSawmill()
@@ -641,7 +640,6 @@ local function selectSawmill()
     end)
 end
 
--- 根据方案选武器
 local function selectBestWeaponByPlan(treeClass)
     if selectedPlan == 2 then
         return selectBestWeaponNew(treeClass)
@@ -650,7 +648,6 @@ local function selectBestWeaponByPlan(treeClass)
     end
 end
 
--- 源码.lua 里的 decomposeAndProcess（原样搬运，只把 selectBestWeapon 改成按方案选）
 local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
     if not sawmillPos then
         notify("誓言", "锯木机位置无效，请重新选择锯木机", 3)
@@ -791,7 +788,6 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         return
     end
 
-    -- 源码.lua 的锯木机落点计算
     local pos = sawmillPos.p + sawmillPos:VectorToWorldSpace(Vector3.new(0.7, 0, 0))
     local targetPos = CFrame.new(pos) * (sawmillPos - sawmillPos.p) * CFrame.Angles(math.rad(-90), math.rad(90), 0)
 
@@ -823,7 +819,6 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
     notify("誓言", "所有木头和树根已拖拽完成", 3)
 end
 
--- 点击树触发分解
 local isDecomposeActive = false
 local decomposeConn = nil
 local function startDecomposeSelection()
@@ -849,32 +844,32 @@ local function startDecomposeSelection()
     end)
 end
 
--- ==================== UI 主面板 ====================
+-- ==================== UI 主面板（整体缩小） ====================
 local OathGui = new("ScreenGui",{Name="OathPanel", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, Enabled=false}, PG)
-local Main = new("Frame",{Size=UDim2.fromOffset(620,400), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Bg, BorderSizePixel=0, ClipsDescendants=true}, OathGui)
+local Main = new("Frame",{Size=UDim2.fromOffset(540,340), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Bg, BorderSizePixel=0, ClipsDescendants=true}, OathGui)
 crn(Main,16); strk(Main,T.Stroke,1)
 
-local Sb = new("Frame",{Size=UDim2.new(0,150,1,0), BackgroundColor3=T.Sidebar, BorderSizePixel=0}, Main)
+local Sb = new("Frame",{Size=UDim2.new(0,130,1,0), BackgroundColor3=T.Sidebar, BorderSizePixel=0}, Main)
 crn(Sb,16)
-new("TextLabel",{Size=UDim2.new(0,130,0,20), Position=UDim2.new(0,14,0,6), BackgroundTransparency=1, Text=GAME_TITLE, Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left}, Sb)
+new("TextLabel",{Size=UDim2.new(0,110,0,20), Position=UDim2.new(0,14,0,6), BackgroundTransparency=1, Text=GAME_TITLE, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left}, Sb)
 
 local tabs = {"信息","功能"}
 local tabBtns = {}
-local pc = new("Frame",{Position=UDim2.new(0,150,0,0), Size=UDim2.new(1,-150,1,0), BackgroundTransparency=1}, Main)
+local pc = new("Frame",{Position=UDim2.new(0,130,0,0), Size=UDim2.new(1,-130,1,0), BackgroundTransparency=1}, Main)
 local pages = {}
 for i, name in ipairs(tabs) do
     local p = new("ScrollingFrame",{Name=name, Size=UDim2.fromScale(1,1), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y, Visible=false}, pc)
-    new("UIListLayout",{Padding=UDim.new(0,4), SortOrder=Enum.SortOrder.LayoutOrder}, p)
+    new("UIListLayout",{Padding=UDim.new(0,6), SortOrder=Enum.SortOrder.LayoutOrder}, p)
     new("UIPadding",{PaddingTop=UDim.new(0,48), PaddingBottom=UDim.new(0,10), PaddingLeft=UDim.new(0,14), PaddingRight=UDim.new(0,14)}, p)
     pages[i] = p
 end
 
 local h = new("Frame",{Position=UDim2.new(0,0,0,56), Size=UDim2.new(1,0,1,-64), BackgroundTransparency=1}, Sb)
-new("UIListLayout",{Padding=UDim.new(0,4), HorizontalAlignment=Enum.HorizontalAlignment.Center}, h)
+new("UIListLayout",{Padding=UDim.new(0,6), HorizontalAlignment=Enum.HorizontalAlignment.Center}, h)
 for i, name in ipairs(tabs) do
-    local b = new("TextButton",{Size=UDim2.new(1,0,0,32), BackgroundTransparency=1, Text="", AutoButtonColor=false, LayoutOrder=i}, h)
+    local b = new("TextButton",{Size=UDim2.new(1,0,0,40), BackgroundTransparency=1, Text="", AutoButtonColor=false, LayoutOrder=i}, h)
     crn(b,16)
-    local l = new("TextLabel",{Position=UDim2.new(0,14,0,0), Size=UDim2.new(1,-14,1,0), BackgroundTransparency=1, Text=name, Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left}, b)
+    local l = new("TextLabel",{Position=UDim2.new(0,14,0,0), Size=UDim2.new(1,-14,1,0), BackgroundTransparency=1, Text=name, Font=Enum.Font.GothamMedium, TextSize=14, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left}, b)
     tabBtns[i] = {button=b, label=l}
     b.MouseButton1Click:Connect(function()
         for j, p in ipairs(pages) do p.Visible = (j == i); tabBtns[j].label.TextColor3 = (j == i) and T.Text or T.Sub end
@@ -884,7 +879,7 @@ pages[1].Visible = true; tabBtns[1].label.TextColor3 = T.Text
 
 -- 信息卡
 local info = pages[1]
-local ic = new("Frame",{Size=UDim2.new(1,0,0,100), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true}, info)
+local ic = new("Frame",{Size=UDim2.new(1,0,0,90), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true}, info)
 crn(ic,10)
 local icBg = new("ImageLabel",{Size=UDim2.fromScale(1,1), BackgroundTransparency=1, Image="rbxassetid://99744630992987", ScaleType=Enum.ScaleType.Crop, ZIndex=1}, ic)
 crn(icBg,10)
@@ -924,7 +919,7 @@ local function minimize()
     TS:Create(Main, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size=UDim2.fromOffset(220, 140), BackgroundTransparency=1}):Play()
     task.wait(0.22)
     Main.Visible = false
-    Main.Size = UDim2.fromOffset(620, 400)
+    Main.Size = UDim2.fromOffset(540, 340)
     Main.BackgroundTransparency = 0
     Island.Visible = true
     Island.Size = UDim2.fromOffset(36, 36)
@@ -943,7 +938,7 @@ local function restore()
     Main.Visible = true
     Main.Size = UDim2.fromOffset(280, 180)
     Main.BackgroundTransparency = 1
-    TS:Create(Main, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size=UDim2.fromOffset(620, 400)}):Play()
+    TS:Create(Main, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size=UDim2.fromOffset(540, 340)}):Play()
     TS:Create(Main, TweenInfo.new(0.28), {BackgroundTransparency=0}):Play()
     task.wait(0.35)
     animating = false
@@ -954,7 +949,7 @@ local function closeUI()
     TS:Create(Main, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Size=UDim2.fromOffset(180, 120), BackgroundTransparency=1}):Play()
     task.wait(0.18)
     Main.Visible = false
-    Main.Size = UDim2.fromOffset(620, 400)
+    Main.Size = UDim2.fromOffset(540, 340)
     Main.BackgroundTransparency = 0
     OathGui.Enabled = false
     animating = false
@@ -963,18 +958,18 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
--- ==================== 功能页 UI ====================
+-- ==================== 功能页 UI（按钮放大） ====================
 local fc = pages[2]
 
 local function sectionHeader(title, order)
-    local hh = new("Frame",{Size=UDim2.new(1,0,0,26), BackgroundColor3=T.Sidebar, BorderSizePixel=0, LayoutOrder=order}, fc)
+    local hh = new("Frame",{Size=UDim2.new(1,0,0,32), BackgroundColor3=T.Sidebar, BorderSizePixel=0, LayoutOrder=order}, fc)
     crn(hh,6)
-    new("Frame",{Size=UDim2.fromOffset(3,14), Position=UDim2.new(0,8,0.5,-7), BackgroundColor3=T.Accent, BorderSizePixel=0}, hh)
-    new("TextLabel",{Size=UDim2.new(1,-30,1,0), Position=UDim2.new(0,20,0,0), BackgroundTransparency=1, Text=title, Font=Enum.Font.GothamBold, TextSize=13, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left}, hh)
+    new("Frame",{Size=UDim2.fromOffset(3,16), Position=UDim2.new(0,8,0.5,-8), BackgroundColor3=T.Accent, BorderSizePixel=0}, hh)
+    new("TextLabel",{Size=UDim2.new(1,-30,1,0), Position=UDim2.new(0,20,0,0), BackgroundTransparency=1, Text=title, Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left}, hh)
 end
 local function makeBtn(text, order, cb)
-    local btn = new("TextButton",{Size=UDim2.new(1,0,0,32), BackgroundColor3=T.RowBg, BorderSizePixel=0, Text="   "..text, Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, AutoButtonColor=false, LayoutOrder=order}, fc)
-    crn(btn,6); strk(btn,Color3.fromRGB(48,48,52),1,0.3)
+    local btn = new("TextButton",{Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0, Text="   "..text, Font=Enum.Font.GothamMedium, TextSize=14, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, AutoButtonColor=false, LayoutOrder=order}, fc)
+    crn(btn,8); strk(btn,Color3.fromRGB(48,48,52),1,0.3)
     btn.MouseButton1Click:Connect(function()
         btn.BackgroundColor3 = T.White; btn.TextColor3 = Color3.fromRGB(20,20,20)
         task.delay(0.15, function() TS:Create(btn,TweenInfo.new(0.15),{BackgroundColor3=T.RowBg}):Play(); TS:Create(btn,TweenInfo.new(0.15),{TextColor3=T.Text}):Play() end)
@@ -983,31 +978,31 @@ local function makeBtn(text, order, cb)
     return btn
 end
 local function makeBox(text, placeholder, order, cb)
-    local row = new("Frame",{Size=UDim2.new(1,0,0,32), BackgroundColor3=T.RowBg, BorderSizePixel=0, LayoutOrder=order}, fc)
-    crn(row,6); strk(row,Color3.fromRGB(48,48,52),1,0.3)
-    new("TextLabel",{Position=UDim2.new(0,12,0,0), Size=UDim2.new(0.4,0,1,0), BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=12, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left}, row)
-    local box = new("TextBox",{Position=UDim2.new(0.4,0,0,4), Size=UDim2.new(0.6,-12,0,24), BackgroundColor3=Color3.fromRGB(24,25,29), BorderSizePixel=0, Text="", PlaceholderText=placeholder or "", PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Text, ClearTextOnFocus=false}, row)
-    crn(box,4)
+    local row = new("Frame",{Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0, LayoutOrder=order}, fc)
+    crn(row,8); strk(row,Color3.fromRGB(48,48,52),1,0.3)
+    new("TextLabel",{Position=UDim2.new(0,12,0,0), Size=UDim2.new(0.4,0,1,0), BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left}, row)
+    local box = new("TextBox",{Position=UDim2.new(0.4,0,0,5), Size=UDim2.new(0.6,-12,0,30), BackgroundColor3=Color3.fromRGB(24,25,29), BorderSizePixel=0, Text="", PlaceholderText=placeholder or "", PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=13, TextColor3=T.Text, ClearTextOnFocus=false}, row)
+    crn(box,6)
     box.FocusLost:Connect(function() if cb then pcall(cb, box.Text) end end)
 end
 
 -- ==================== 弹窗式树木选择器 ====================
 local function createTreePicker(parent, options, default, order, onSelect)
-    local HEADER_H = 32
+    local HEADER_H = 40
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, parent)
     local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
-    crn(header, 6); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
+    crn(header, 8); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
     local cur = default or options[1]
     new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.35, 0, 0, HEADER_H),
-        BackgroundTransparency=1, Text="选择树木种类", Font=Enum.Font.GothamMedium, TextSize=12,
+        BackgroundTransparency=1, Text="选择树木种类", Font=Enum.Font.GothamMedium, TextSize=13,
         TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
     local valueLbl = new("TextLabel",{Position=UDim2.new(0.4, 0, 0, 0), Size=UDim2.new(0.5, -12, 0, HEADER_H),
-        BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=11,
+        BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=12,
         TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
-    local plusBtn = new("TextButton",{Size=UDim2.fromOffset(22, 22), Position=UDim2.new(1, -28, 0.5, -11),
+    local plusBtn = new("TextButton",{Size=UDim2.fromOffset(28, 28), Position=UDim2.new(1, -34, 0.5, -14),
         BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+",
-        Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
-    crn(plusBtn, 4)
+        Font=Enum.Font.GothamBold, TextSize=18, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
+    crn(plusBtn, 6)
 
     local pickerGui = new("ScreenGui",{Name="OathTreePicker", ResetOnSpawn=false,
         ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, DisplayOrder=150, Enabled=false}, PG)
@@ -1018,35 +1013,35 @@ local function createTreePicker(parent, options, default, order, onSelect)
         ClipsDescendants=true, ZIndex=2}, pickerGui)
     crn(panel, 14); strk(panel, T.Stroke, 1)
 
-    local titleBar = new("Frame",{Size=UDim2.new(1,0,0,40), BackgroundColor3=T.Sidebar,
+    local titleBar = new("Frame",{Size=UDim2.new(1,0,0,44), BackgroundColor3=T.Sidebar,
         BorderSizePixel=0, ZIndex=3}, panel)
     new("TextLabel",{Size=UDim2.new(1,-60,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1,
-        Text="选择树木种类", Font=Enum.Font.GothamBold, TextSize=15, TextColor3=T.Accent,
+        Text="选择树木种类", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Accent,
         TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4}, titleBar)
-    local closeBtn = new("TextButton",{Size=UDim2.fromOffset(28, 28), Position=UDim2.new(1, -34, 0.5, -14),
-        BackgroundColor3=T.Red, BorderSizePixel=0, Text="×", Font=Enum.Font.GothamBold, TextSize=18,
+    local closeBtn = new("TextButton",{Size=UDim2.fromOffset(30, 30), Position=UDim2.new(1, -38, 0.5, -15),
+        BackgroundColor3=T.Red, BorderSizePixel=0, Text="×", Font=Enum.Font.GothamBold, TextSize=20,
         TextColor3=T.White, AutoButtonColor=false, ZIndex=4}, titleBar)
     crn(closeBtn, 6)
 
-    local searchWrap = new("Frame",{Size=UDim2.new(1,-24,0,34), Position=UDim2.new(0,12,0,52),
+    local searchWrap = new("Frame",{Size=UDim2.new(1,-24,0,38), Position=UDim2.new(0,12,0,56),
         BackgroundColor3=Color3.fromRGB(24,25,29), BorderSizePixel=0, ZIndex=3}, panel)
     crn(searchWrap, 6)
     local searchBox = new("TextBox",{Size=UDim2.new(1,-24,1,0), Position=UDim2.new(0,12,0,0),
         BackgroundTransparency=1, Text="", PlaceholderText="搜索树木名称...",
-        PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Text,
+        PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=13, TextColor3=T.Text,
         TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=4}, searchWrap)
 
-    local listWrap = new("Frame",{Size=UDim2.new(1,-24,1,-146), Position=UDim2.new(0,12,0,94),
+    local listWrap = new("Frame",{Size=UDim2.new(1,-24,1,-160), Position=UDim2.new(0,12,0,104),
         BackgroundColor3=Color3.fromRGB(24,25,29), BorderSizePixel=0, ClipsDescendants=true, ZIndex=3}, panel)
     crn(listWrap, 6)
     local listScroll = new("ScrollingFrame",{Size=UDim2.new(1,-8,1,-8), Position=UDim2.new(0,4,0,4),
         BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=4, ScrollBarImageColor3=T.Stroke,
         CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=4}, listWrap)
-    new("UIListLayout",{Padding=UDim.new(0,2), SortOrder=Enum.SortOrder.LayoutOrder}, listScroll)
+    new("UIListLayout",{Padding=UDim.new(0,3), SortOrder=Enum.SortOrder.LayoutOrder}, listScroll)
 
     new("TextLabel",{Size=UDim2.new(1,-24,0,20), Position=UDim2.new(0,12,1,-30),
         BackgroundTransparency=1, Text="点击任意选项即可选中并关闭", Font=Enum.Font.Gotham,
-        TextSize=11, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=4}, panel)
+        TextSize=12, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=4}, panel)
 
     local function buildList(filterText)
         for _, ch in ipairs(listScroll:GetChildren()) do
@@ -1060,16 +1055,16 @@ local function createTreePicker(parent, options, default, order, onSelect)
                 count = count + 1
                 local isCurrent = (txt == tostring(cur))
                 local b = new("TextButton",{
-                    Size=UDim2.new(1, 0, 0, 30),
+                    Size=UDim2.new(1, 0, 0, 34),
                     BackgroundColor3 = isCurrent and T.Accent or T.RowBg,
                     BackgroundTransparency = isCurrent and 0.55 or 0,
                     BorderSizePixel=0,
-                    Text="   "..txt, Font=Enum.Font.Gotham, TextSize=12,
+                    Text="   "..txt, Font=Enum.Font.Gotham, TextSize=13,
                     TextColor3 = isCurrent and T.Accent or T.Text,
                     TextXAlignment=Enum.TextXAlignment.Left,
                     LayoutOrder=i, AutoButtonColor=false, ZIndex=5
                 }, listScroll)
-                crn(b, 4)
+                crn(b, 5)
                 b.MouseEnter:Connect(function()
                     if not isCurrent then b.BackgroundColor3 = T.Hover end
                 end)
@@ -1111,17 +1106,17 @@ end
 
 -- ==================== 方案下拉框 ====================
 local function createPlanDropdown(parent, options, default, order, onSelect)
-    local HEADER_H, ITEM_H = 32, 24
+    local HEADER_H, ITEM_H = 40, 30
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, parent)
     local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
-    crn(header, 6); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
+    crn(header, 8); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
     local cur = default or options[1]
-    new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.4, 0, 0, HEADER_H), BackgroundTransparency=1, Text="选择砍树方案", Font=Enum.Font.GothamMedium, TextSize=12, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
-    local valueLbl = new("TextLabel",{Position=UDim2.new(0.45, 0, 0, 0), Size=UDim2.new(0.45, -12, 0, HEADER_H), BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
-    local plusBtn = new("TextButton",{Size=UDim2.fromOffset(22, 22), Position=UDim2.new(1, -28, 0.5, -11), BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
-    crn(plusBtn, 4)
+    new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.4, 0, 0, HEADER_H), BackgroundTransparency=1, Text="选择砍树方案", Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
+    local valueLbl = new("TextLabel",{Position=UDim2.new(0.45, 0, 0, 0), Size=UDim2.new(0.45, -12, 0, HEADER_H), BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
+    local plusBtn = new("TextButton",{Size=UDim2.fromOffset(28, 28), Position=UDim2.new(1, -34, 0.5, -14), BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+", Font=Enum.Font.GothamBold, TextSize=18, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
+    crn(plusBtn, 6)
     local listFrame = new("Frame",{Position=UDim2.new(0, 0, 0, HEADER_H), Size=UDim2.new(1, 0, 0, 0), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, Visible=false, ZIndex=10}, container)
-    crn(listFrame, 6)
+    crn(listFrame, 8)
     local scrollFrame = new("ScrollingFrame",{Position=UDim2.new(0, 4, 0, 4), Size=UDim2.new(1, -8, 0, 0), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0, 0, 0, 0), AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=11}, listFrame)
     new("UIListLayout",{ Padding=UDim.new(0, 2), SortOrder=Enum.SortOrder.LayoutOrder }, scrollFrame)
 
@@ -1129,7 +1124,7 @@ local function createPlanDropdown(parent, options, default, order, onSelect)
     local function buildItems()
         for _, ch in ipairs(scrollFrame:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
         for i, opt in ipairs(options) do
-            local b = new("TextButton",{Size=UDim2.new(1, 0, 0, ITEM_H - 2), BackgroundTransparency=1, Text="   "..tostring(opt), Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=i, AutoButtonColor=false, ZIndex=12}, scrollFrame)
+            local b = new("TextButton",{Size=UDim2.new(1, 0, 0, ITEM_H - 2), BackgroundTransparency=1, Text="   "..tostring(opt), Font=Enum.Font.Gotham, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=i, AutoButtonColor=false, ZIndex=12}, scrollFrame)
             b.MouseButton1Click:Connect(function()
                 cur = opt; valueLbl.Text = tostring(cur)
                 if onSelect then pcall(onSelect, cur) end
@@ -1144,9 +1139,9 @@ local function createPlanDropdown(parent, options, default, order, onSelect)
             container.ZIndex = 100
             plusBtn.Text = "−"; listFrame.Visible = true
             local cnt = buildItems()
-            local listH = 8 + math.min(cnt * ITEM_H, 100)
+            local listH = 8 + math.min(cnt * ITEM_H, 130)
             TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, listH) }):Play()
-            TS:Create(scrollFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, -8, 0, math.min(cnt * ITEM_H, 100)) }):Play()
+            TS:Create(scrollFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, -8, 0, math.min(cnt * ITEM_H, 130)) }):Play()
             TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
         else
             container.ZIndex = 1; plusBtn.Text = "+"
@@ -1206,7 +1201,7 @@ makeBtn("停止", 6, function() isBringRunning = false end)
 sectionHeader("一键加工", 7)
 makeBtn("选择锯木机", 8, selectSawmill)
 makeBtn("一键加工（分解 + 拖拽到锯木机）", 9, startDecomposeSelection)
-new("TextLabel",{Size=UDim2.new(1,0,0,18), BackgroundTransparency=1, Text="   先选锯木机 → 再点树", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=10}, fc)
+new("TextLabel",{Size=UDim2.new(1,0,0,20), BackgroundTransparency=1, Text="   先选锯木机 → 再点树", Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=10}, fc)
 
 -- ==================== 卡密 UI ====================
 local function showKeyUI()
@@ -1254,5 +1249,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 源码.lua 一键加工版 已加载")
+print("[誓言面板] UI 放大按钮版 已加载")
 showKeyUI()
