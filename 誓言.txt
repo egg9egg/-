@@ -1,5 +1,5 @@
 --[[
-    誓言面板 - ID分区版（选择树木种类带搜索功能）
+    誓言面板 - 选择树木种类带搜索框
     卡密：誓言NB
 ]]
 local Players = game:GetService("Players")
@@ -98,7 +98,7 @@ local function dragToPosition(model, targetCF, callback, waitFinish)
     local dragID = getNextDragID()
     local remote = rep.Interaction.ClientIsDragging
 
-    pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end)
+    pcall(function() rep.Interaction.ClientOwnership:FireServer(primary) end)
     pcall(function() remote:FireServer("Begin", model, dragID) end)
 
     local lastSet = DRAG_SET_START + DRAG_SET_COUNT - 1
@@ -440,7 +440,7 @@ local function isInDangerZone(pos)
         and pos.Z >= DANGER_MIN_Z and pos.Z <= DANGER_MAX_Z
 end
 
--- ==================== 砍树（旧版） ====================
+-- ==================== 砍树 ====================
 local function bringTreeOld(treeClass, progressText)
     local weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3) return false end
@@ -511,7 +511,6 @@ local function bringTreeOld(treeClass, progressText)
     return true
 end
 
--- ==================== 砍树（新版） ====================
 local function bringTreeNew(treeClass, progressText)
     local weaponName, weaponConfig, damage = selectBestWeaponNew(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
@@ -1201,10 +1200,11 @@ local function makeToggle(text, order, defaultState, callback, parent)
     return btn
 end
 
--- ★ 下拉框工厂：新增 searchable 参数，为 true 时列表顶部出现搜索框 ★
+-- ★ 下拉框：searchable=true 时在列表内部最上方插入搜索框（位于"请选择树木"上方）★
 local function makeDropdown(text, order, options, default, onSelect, searchable)
     local HEADER_H, ITEM_H = 40, 30
-    local SEARCH_BAR_H = searchable and 34 or 0
+    local SEARCH_H = 34  -- 搜索框占的高度
+
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
     local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
     crn(header, 8); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
@@ -1214,38 +1214,52 @@ local function makeDropdown(text, order, options, default, onSelect, searchable)
     local plusBtn = new("TextButton",{Size=UDim2.fromOffset(28, 28), Position=UDim2.new(1, -34, 0.5, -14), BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+", Font=Enum.Font.GothamBold, TextSize=18, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
     crn(plusBtn, 6)
 
+    -- 展开面板（listFrame），里面从上到下：搜索框（可选）→ 选项滚动区
     local listFrame = new("Frame",{Position=UDim2.new(0, 0, 0, HEADER_H), Size=UDim2.new(1, 0, 0, 0), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, Visible=false, ZIndex=10}, container)
     crn(listFrame, 8)
 
-    -- 搜索框（仅 searchable=true 时创建）
+    -- 搜索框：直接放在 listFrame 里，最顶部；位于滚动区（选项）之上
     local searchBox = nil
     if searchable then
-        local sWrap = new("Frame", {
-            Size = UDim2.new(1, -8, 0, 28),
+        local searchBg = new("Frame", {
+            Size = UDim2.new(1, -8, 0, SEARCH_H - 6),
             Position = UDim2.new(0, 4, 0, 4),
             BackgroundColor3 = Color3.fromRGB(24, 25, 29),
             BorderSizePixel = 0,
-            ZIndex = 12
+            ZIndex = 15
         }, listFrame)
-        crn(sWrap, 6)
+        crn(searchBg, 6)
+        local searchIcon = new("TextLabel", {
+            Size = UDim2.fromOffset(20, 22),
+            Position = UDim2.new(0, 6, 0, 0),
+            BackgroundTransparency = 1,
+            Text = "🔍",
+            Font = Enum.Font.Gotham,
+            TextSize = 13,
+            TextColor3 = T.Sub,
+            TextXAlignment = Enum.TextXAlignment.Center,
+            ZIndex = 16
+        }, searchBg)
         searchBox = new("TextBox", {
-            Size = UDim2.new(1, -16, 1, 0),
-            Position = UDim2.new(0, 8, 0, 0),
+            Size = UDim2.new(1, -34, 1, 0),
+            Position = UDim2.new(0, 28, 0, 0),
             BackgroundTransparency = 1,
             Text = "",
-            PlaceholderText = "🔍 搜索...",
+            PlaceholderText = "搜索树木名称...",
             PlaceholderColor3 = T.Sub,
             Font = Enum.Font.Gotham,
             TextSize = 12,
             TextColor3 = T.Text,
             TextXAlignment = Enum.TextXAlignment.Left,
             ClearTextOnFocus = false,
-            ZIndex = 13
-        }, sWrap)
+            ZIndex = 16
+        }, searchBg)
     end
 
+    -- 选项滚动区（位置随 searchable 下移）
+    local scrollOffsetY = searchable and SEARCH_H or 4
     local scrollFrame = new("ScrollingFrame",{
-        Position = UDim2.new(0, 4, 0, 4 + SEARCH_BAR_H),
+        Position = UDim2.new(0, 4, 0, scrollOffsetY),
         Size = UDim2.new(1, -8, 0, 0),
         BackgroundTransparency = 1,
         BorderSizePixel = 0,
@@ -1269,7 +1283,10 @@ local function makeDropdown(text, order, options, default, onSelect, searchable)
         local lowerFilter = currentFilter:lower()
         for _, opt in ipairs(options) do
             local optStr = tostring(opt)
-            if currentFilter == "" or optStr:lower():find(lowerFilter, 1, true) then
+            -- 搜索时"--- 请选择树木 ---"永远保留在第一位
+            local isPlaceholder = (optStr == "--- 请选择树木 ---")
+            local matched = (currentFilter == "") or isPlaceholder or optStr:lower():find(lowerFilter, 1, true)
+            if matched then
                 count = count + 1
                 local b = new("TextButton",{
                     Size=UDim2.new(1, 0, 0, ITEM_H - 2),
@@ -1296,12 +1313,12 @@ local function makeDropdown(text, order, options, default, onSelect, searchable)
 
     local function updateLayout()
         local cnt = buildItems()
-        local visibleH = math.min(cnt * ITEM_H, 130)
-        if cnt == 0 then visibleH = 30 end
-        local listH = 8 + SEARCH_BAR_H + visibleH
-        TS:Create(listFrame, TweenInfo.new(0.15), { Size = UDim2.new(1, 0, 0, listH) }):Play()
-        TS:Create(scrollFrame, TweenInfo.new(0.15), { Size = UDim2.new(1, -8, 0, visibleH) }):Play()
-        TS:Create(container, TweenInfo.new(0.15), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
+        local visibleListH = math.min(cnt * ITEM_H, 130)
+        if cnt == 0 then visibleListH = 30 end
+        local totalListH = 8 + (searchable and SEARCH_H or 0) + visibleListH
+        TS:Create(listFrame, TweenInfo.new(0.15), { Size = UDim2.new(1, 0, 0, totalListH) }):Play()
+        TS:Create(scrollFrame, TweenInfo.new(0.15), { Size = UDim2.new(1, -8, 0, visibleListH) }):Play()
+        TS:Create(container, TweenInfo.new(0.15), { Size = UDim2.new(1, 0, 0, HEADER_H + totalListH) }):Play()
     end
 
     expand = function(state)
@@ -1342,7 +1359,7 @@ local selectedTreeClass = nil
 do
     local treeOptions = { "--- 请选择树木 ---" }
     for _, n in ipairs(treeNames) do table.insert(treeOptions, n) end
-    -- ★ 最后一个参数 true = 开启搜索框
+    -- ★ 最后一个参数 true = 在列表展开后，正上方插入搜索框 ★
     local container, expand = makeDropdown("选择树木种类", 2, treeOptions, "--- 请选择树木 ---", function(v)
         if v == "--- 请选择树木 ---" then selectedTreeClass = nil
         else selectedTreeClass = treeMapping[v] end
@@ -1526,5 +1543,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 搜索功能版 已加载")
+print("[誓言面板] 搜索框在列表内版 已加载")
 showKeyUI()
