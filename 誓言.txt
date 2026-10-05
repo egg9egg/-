@@ -1,8 +1,8 @@
 --[[
-    誓言面板 vFinal - 双方案版（弹窗树木选择器）
+    誓言面板 - 双方案版（弹窗树木选择器）
     卡密：誓言NB
-    方案1 = 主脚本.txt（require 解析斧头）
-    方案2 = 源码.lua（decompile 反编译解析斧头）
+    旧版本 = 主脚本.txt（require 解析斧头 + 新版本拖拽方式）
+    新版本 = 源码.lua（decompile 反编译解析斧头）
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -292,8 +292,8 @@ local function getTreeClassFromModel(treeModel)
     return "Generic"
 end
 
--- 方案1：主脚本.txt（require）
-local function loadWeaponConfigPlan1(weaponName)
+-- 旧版本：主脚本.txt（require 解析斧头）
+local function loadWeaponConfigOld(weaponName)
     local module = rep:FindFirstChild("LoadedAssets") and rep.LoadedAssets:FindFirstChild(weaponName.."AxeClass")
     if not module then return nil end
     local success, axeClass = pcall(require, module)
@@ -306,12 +306,12 @@ local function loadWeaponConfigPlan1(weaponName)
     }
 end
 
-local function selectBestWeaponPlan1(treeClass)
+local function selectBestWeaponOld(treeClass)
     local toolFolder = lp:FindFirstChild("ToolFolder")
     if not toolFolder then return nil, nil, "未找到 ToolFolder" end
     local bw, bd, bc = nil, -1, nil
     for _, child in pairs(toolFolder:GetChildren()) do
-        local config = loadWeaponConfigPlan1(child.Name)
+        local config = loadWeaponConfigOld(child.Name)
         if config then
             local damage = (config.SpecialTrees[treeClass] and config.SpecialTrees[treeClass].Damage) or config.Damage
             if damage > bd then bw, bd, bc = child.Name, damage, config end
@@ -320,10 +320,10 @@ local function selectBestWeaponPlan1(treeClass)
     return bw, bc, bd
 end
 
--- 方案2：源码.lua（decompile）
-local axeConfigCache2 = {}
-local function loadWeaponConfigPlan2(weaponName)
-    if axeConfigCache2[weaponName] ~= nil then return axeConfigCache2[weaponName] end
+-- 新版本：源码.lua（decompile 反编译解析斧头）
+local axeConfigCacheNew = {}
+local function loadWeaponConfigNew(weaponName)
+    if axeConfigCacheNew[weaponName] ~= nil then return axeConfigCacheNew[weaponName] end
     if weaponName == "OlReliable" or weaponName == "OIReliable" then
         local override = nil
         local wsTool = workspace:FindFirstChild(lp.Name)
@@ -365,7 +365,7 @@ local function loadWeaponConfigPlan2(weaponName)
                 end
             end
             if cfg.Damage or cfg.SwingCooldown or next(cfg.SpecialTrees) then
-                axeConfigCache2[weaponName] = cfg
+                axeConfigCacheNew[weaponName] = cfg
                 return cfg
             end
         end
@@ -409,27 +409,27 @@ local function loadWeaponConfigPlan2(weaponName)
         return nil
     end
     local module = findAxeModule(weaponName)
-    if not module then axeConfigCache2[weaponName] = nil; return nil end
+    if not module then axeConfigCacheNew[weaponName] = nil; return nil end
     local src = decompileSafe(module)
-    if not src then axeConfigCache2[weaponName] = nil; return nil end
+    if not src then axeConfigCacheNew[weaponName] = nil; return nil end
     local cfg = {
         Damage = parseNum(src, "Damage"),
         SwingCooldown = parseNum(src, "SwingCooldown"),
         Range = parseNum(src, "Range"),
         SpecialTrees = parseSpecialTrees(src),
     }
-    if not cfg.Damage or not cfg.SwingCooldown then axeConfigCache2[weaponName] = nil; return nil end
+    if not cfg.Damage or not cfg.SwingCooldown then axeConfigCacheNew[weaponName] = nil; return nil end
     cfg.Range = cfg.Range or 10
-    axeConfigCache2[weaponName] = cfg
+    axeConfigCacheNew[weaponName] = cfg
     return cfg
 end
 
-local function selectBestWeaponPlan2(treeClass)
+local function selectBestWeaponNew(treeClass)
     local toolFolder = lp:FindFirstChild("ToolFolder")
     if not toolFolder then return nil, nil, "未找到 ToolFolder" end
     local bw, bd, bc = nil, -1, nil
     for _, child in pairs(toolFolder:GetChildren()) do
-        local config = loadWeaponConfigPlan2(child.Name)
+        local config = loadWeaponConfigNew(child.Name)
         if config then
             local d = (config.SpecialTrees[treeClass] and config.SpecialTrees[treeClass].Damage) or config.Damage
             if d > bd then bw, bd, bc = child.Name, d, config end
@@ -438,9 +438,9 @@ local function selectBestWeaponPlan2(treeClass)
     return bw, bc, bd
 end
 
--- ==================== 砍树方案1 ====================
-local function bringTreePlan1(treeClass)
-    local weaponName, weaponConfig, damage = selectBestWeaponPlan1(treeClass)
+-- ==================== 旧版本（拖拽方式用新版本的 dragToPosition） ====================
+local function bringTreeOld(treeClass)
+    local weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3) return false end
     local req = {LoveCave=10000000, Shine=80000000, Magma=5000000, Ice=8000000, Radioactive=10000000, Scale=40000000, Void=5000000, Flame=10000000, BlueFlame=3500000, RainbowFlame=3500000, Celestial=10000000}
     if req[treeClass] and damage < req[treeClass] then notify("誓言", string.format("伤害不足！需要至少 %.0f", req[treeClass]), 4) return false end
@@ -485,30 +485,24 @@ local function bringTreePlan1(treeClass)
     if not fallenLog.PrimaryPart then fallenLog.PrimaryPart = primary end
     local playerOriginalCF = lp.Character and lp.Character.HumanoidRootPart.CFrame
     if not playerOriginalCF then notify("誓言", "无法获取玩家位置", 3) return false end
+
+    -- ★ 用新版本的拖拽方式：lockPlayerAt + ClientRequestOwnership + dragToPosition
     pcall(rep.Interaction.ClientInteracted.FireServer, rep.Interaction, primary, 'Click'); task.wait(0.01)
-    safeTeleport(primary.CFrame); task.wait(0.1)
+    lockPlayerAt(primary.CFrame + Vector3.new(0,3,0))
+    task.wait(0.15)
     for _ = 1, 3 do pcall(rep.Interaction.ClientRequestOwnership.FireServer, rep.Interaction, primary); task.wait(0.01) end
-    local stopFollow = false
-    local followConn = RS.Heartbeat:Connect(function()
-        if not stopFollow and fallenLog and fallenLog.PrimaryPart and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
-            lp.Character.HumanoidRootPart.CFrame = fallenLog.PrimaryPart.CFrame
-        end
-    end)
-    for i = 1, 30 do
-        pcall(function() rep.Interaction.ClientIsDragging:FireServer(fallenLog, DRAG_SECRET); fallenLog:SetPrimaryPartCFrame(playerOriginalCF) end)
-        task.wait(0.01)
-    end
-    stopFollow = true
-    if followConn then followConn:Disconnect() end
-    pcall(rep.Interaction.ClientRequestOwnership.FireServer, rep.Interaction, primary); task.wait(0.01)
-    pcall(rep.Interaction.ClientInteracted.FireServer, rep.Interaction, primary, 'Click')
+    local done = false
+    dragToPosition(fallenLog, playerOriginalCF, function() done = true end, 10)
+    local t = 0
+    while not done and t < 6 do task.wait(0.05); t = t + 0.05 end
     safeTeleport(playerOriginalCF)
+    notify("誓言", "树已带来", 2)
     return true
 end
 
--- ==================== 砍树方案2 ====================
-local function bringTreePlan2(treeClass)
-    local weaponName, weaponConfig, damage = selectBestWeaponPlan2(treeClass)
+-- ==================== 新版本（源码.lua） ====================
+local function bringTreeNew(treeClass)
+    local weaponName, weaponConfig, damage = selectBestWeaponNew(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
     local req = {Flame=200000, BlueFlame=200000, Celestial=200000, Void=200000, Ice=200000, Magma=200000, RainbowFlame=200000, Radioactive=200000, Shine=200000, LoneCave=200000, Spirit=200000}
     if req[treeClass] and damage < req[treeClass] then notify("誓言", string.format("伤害不足！需要至少 %.0f", req[treeClass]), 4); return false end
@@ -603,8 +597,8 @@ end
 -- ==================== 分发 ====================
 local selectedPlan = 1
 local function runBringTree(treeClass)
-    if selectedPlan == 2 then return bringTreePlan2(treeClass)
-    else return bringTreePlan1(treeClass) end
+    if selectedPlan == 2 then return bringTreeNew(treeClass)
+    else return bringTreeOld(treeClass) end
 end
 
 -- ==================== 一键加工 ====================
@@ -670,9 +664,9 @@ local function startDecomposeSelection()
             local treeClass = getTreeClassFromModel(model)
             local weaponName, weaponConfig, damage
             if selectedPlan == 2 then
-                weaponName, weaponConfig, damage = selectBestWeaponPlan2(treeClass)
+                weaponName, weaponConfig, damage = selectBestWeaponNew(treeClass)
             else
-                weaponName, weaponConfig, damage = selectBestWeaponPlan1(treeClass)
+                weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
             end
             if not weaponName then notify("誓言", "自动选武器失败", 3); return end
             local cooldown = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].SwingCooldown) or weaponConfig.SwingCooldown
@@ -903,7 +897,7 @@ local function makeBox(text, placeholder, order, cb)
     box.FocusLost:Connect(function() if cb then pcall(cb, box.Text) end end)
 end
 
--- ==================== 全新树木选择器（弹窗式，完全独立源码） ====================
+-- ==================== 弹窗式树木选择器 ====================
 local function createTreePicker(parent, options, default, order, onSelect)
     local HEADER_H = 32
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, parent)
@@ -921,7 +915,6 @@ local function createTreePicker(parent, options, default, order, onSelect)
         Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
     crn(plusBtn, 4)
 
-    -- 独立 ScreenGui 弹窗
     local pickerGui = new("ScreenGui",{Name="OathTreePicker", ResetOnSpawn=false,
         ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, DisplayOrder=150, Enabled=false}, PG)
     local mask = new("TextButton",{Size=UDim2.fromScale(1,1), BackgroundColor3=Color3.fromRGB(0,0,0),
@@ -1022,7 +1015,7 @@ local function createTreePicker(parent, options, default, order, onSelect)
     return container, function() pickerGui.Enabled = false end
 end
 
--- ==================== 砍树方案下拉框（普通下拉） ====================
+-- ==================== 砍树方案下拉框 ====================
 local function createPlanDropdown(parent, options, default, order, onSelect)
     local HEADER_H, ITEM_H = 32, 24
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, parent)
@@ -1086,13 +1079,14 @@ createTreePicker(fc, treeNamesWithPlaceholder, "--- 请选择树木 ---", 2, fun
     end
 end)
 
-createPlanDropdown(fc, {"方案1（主脚本.txt）", "方案2（源码.lua）"}, "方案1（主脚本.txt）", 3, function(choice)
-    if choice == "方案2（源码.lua）" then
+-- ★ 方案名称改为“旧版本 / 新版本”
+createPlanDropdown(fc, {"旧版本（主脚本.txt）", "新版本（源码.lua）"}, "旧版本（主脚本.txt）", 3, function(choice)
+    if choice == "新版本（源码.lua）" then
         selectedPlan = 2
-        notify("誓言", "已切换：方案2（源码.lua）", 2)
+        notify("誓言", "已切换：新版本（源码.lua）", 2)
     else
         selectedPlan = 1
-        notify("誓言", "已切换：方案1（主脚本.txt）", 2)
+        notify("誓言", "已切换：旧版本（主脚本.txt）", 2)
     end
 end)
 
@@ -1167,5 +1161,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 弹窗选择器版已加载")
+print("[誓言面板] 旧版本 + 新版本 已加载")
 showKeyUI()
