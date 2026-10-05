@@ -1,8 +1,9 @@
 --[[
-    誓言面板 v11.5
+    誓言面板 v11.6
     卡密：誓言NB
     UI：v10.0 的自绘面板 + 卡密卡片
-    功能：砍树（带来树） + 选择锯木机 + 一键加工
+    功能：带来树 + 选择锯木机 + 一键加工
+    修复：下拉框互斥展开，展开时提升 ZIndex，防止被其他按钮遮挡
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -925,6 +926,9 @@ makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
 local dropdownRegistry = {}
+local currentExpandedDropdown = nil -- ★ 修复：记录当前展开的下拉框
+local dropdownCloseFuncs = {}       -- ★ 修复：记录各个下拉框的收起函数
+
 local function isPointerOverDropdown(mx, my)
     for frame in pairs(dropdownRegistry) do
         if frame and frame.Parent and frame.Visible then
@@ -1047,20 +1051,20 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
     local ITEM_H = 24
     local MAX_LIST_H = 180
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H),
-        BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false}, fc)
+        BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
     local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), Position=UDim2.new(0, 0, 0, 0),
-        BackgroundColor3=T.RowBg, BorderSizePixel=0}, container)
+        BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
     crn(header, 6); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
     local cur = default or options[1]
     new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.35, 0, 0, HEADER_H),
         BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=12,
-        TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left}, header)
+        TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
     local valueLbl = new("TextLabel",{Position=UDim2.new(0.4, 0, 0, 0), Size=UDim2.new(0.5, -12, 0, HEADER_H),
         BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=11,
-        TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd}, header)
+        TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
     local plusBtn = new("TextButton",{Size=UDim2.fromOffset(22, 22), Position=UDim2.new(1, -28, 0.5, -11),
         BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+",
-        Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, AutoButtonColor=false}, header)
+        Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
     crn(plusBtn, 4)
     local listFrame = new("Frame",{Position=UDim2.new(0, 0, 0, HEADER_H), Size=UDim2.new(1, 0, 0, 0),
         BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, Visible=false, ZIndex=10}, container)
@@ -1105,6 +1109,18 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
     function expand(state)
         expanded = state
         if state then
+            -- ★ 修复：如果已有其它 dropdown 展开，让它自动收起
+            if currentExpandedDropdown and currentExpandedDropdown ~= container then
+                local oldCloseFunc = dropdownCloseFuncs[currentExpandedDropdown]
+                if oldCloseFunc then
+                    oldCloseFunc()
+                else
+                    currentExpandedDropdown.ZIndex = 1
+                end
+            end
+            currentExpandedDropdown = container
+            container.ZIndex = 100  -- ★ 修复：展开时把 ZIndex 抬高，防止被其他按钮遮挡
+
             plusBtn.Text = "−"
             listFrame.Visible = true
             local cnt = buildItems(searchBox.Text)
@@ -1113,6 +1129,11 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
             TS:Create(scrollFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, -8, 0, math.min(cnt * ITEM_H, MAX_LIST_H)) }):Play()
             TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
         else
+            if currentExpandedDropdown == container then
+                currentExpandedDropdown = nil
+            end
+            container.ZIndex = 1  -- ★ 修复：收起时复位 ZIndex
+
             plusBtn.Text = "+"
             TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
             TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H) }):Play()
@@ -1129,6 +1150,12 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
             TS:Create(container, TweenInfo.new(0.15), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
         end
     end)
+
+    -- ★ 修复：注册当前下拉框的收起功能
+    dropdownCloseFuncs[container] = function()
+        if expanded then expand(false) end
+    end
+
     return container
 end
 
