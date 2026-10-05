@@ -1,11 +1,7 @@
 --[[
-    誓言面板 v11.3
+    誓言面板 v11.4
     卡密：誓言NB
-    UI：v10.0 的自绘面板 + 卡密卡片
-    功能：带来树 + 一键加工
-      · 砍树方案 "旧" = 主脚本.txt
-      · 砍树方案 "新" = 源码.lua
-    ★ 修复：把 pages 从 ScrollingFrame 改为普通 Frame，下拉框展开不再被裁剪
+    ★ 修复：dropdown container 默认 ZIndex=1，展开时才提升到 100，避免两个下拉框互相覆盖
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -92,7 +88,7 @@ end
 -- ==================== 全局状态 ====================
 local bai = { dragIDCounter=0, cachedSawmill=nil, cachedSawmillPos=nil }
 
--- ==================== 拖拽（源码.lua 协议） ====================
+-- ==================== 拖拽 ====================
 local function getNextDragID() bai.dragIDCounter = bai.dragIDCounter + 1; return bai.dragIDCounter end
 local DRAG_TOTAL = 60
 local DRAG_SET_START = 28
@@ -106,14 +102,11 @@ local function dragToPosition(model, targetCF, callback, waitFinish)
     local primary = model.PrimaryPart or model:FindFirstChild("WoodSection") or model:FindFirstChild("Main") or model:FindFirstChildWhichIsA("BasePart")
     if not primary then if callback then callback() end; return end
     if not model.PrimaryPart then model.PrimaryPart = primary end
-
     lockPlayerAt(primary.CFrame + Vector3.new(0, 3, 0))
     local dragID = getNextDragID()
     local remote = rep.Interaction.ClientIsDragging
-
     pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end)
     pcall(function() remote:FireServer("Begin", model, dragID) end)
-
     local lastSet = DRAG_SET_START + DRAG_SET_COUNT - 1
     for i = 1, lastSet do
         if not model.Parent or not model.PrimaryPart then
@@ -133,9 +126,7 @@ local function dragToPosition(model, targetCF, callback, waitFinish)
             if shouldSet then task.wait(DRAG_SET_INTERVAL) else task.wait(DRAG_REFRESH_INTERVAL) end
         end
     end
-
     task.wait(DRAG_AFTER_WAIT)
-
     local dragEnded = false
     task.spawn(function()
         for i = lastSet + 1, DRAG_TOTAL do
@@ -146,12 +137,10 @@ local function dragToPosition(model, targetCF, callback, waitFinish)
         pcall(function() remote:FireServer("End", model, dragID) end)
         dragEnded = true
     end)
-
     if waitFinish then
         local w = 0
         while w < 1.5 and not dragEnded do task.wait(0.05); w = w + 0.05 end
     end
-
     task.wait(0.4)
     local verify = 0
     while model.Parent and model.PrimaryPart and verify < 2 do
@@ -173,7 +162,6 @@ local function dragToPosition(model, targetCF, callback, waitFinish)
         pcall(function() remote:FireServer("End", model, retryID) end)
         task.wait(0.15)
     end
-
     unlockPlayer()
     if callback then callback() end
 end
@@ -849,17 +837,11 @@ new("TextLabel",{Size=UDim2.new(0,130,0,20), Position=UDim2.new(0,14,0,6), Backg
 local tabs = {"信息","功能"}
 local tabBtns = {}
 local pc = new("Frame",{Position=UDim2.new(0,150,0,0), Size=UDim2.new(1,-150,1,0), BackgroundTransparency=1}, Main)
-
--- ★ 修复：pages 从 ScrollingFrame 换成 Frame，避免展开列表被裁剪
 local pages = {}
 for i, name in ipairs(tabs) do
     local p = new("Frame",{
-        Name=name,
-        Size=UDim2.fromScale(1,1),
-        BackgroundTransparency=1,
-        BorderSizePixel=0,
-        ClipsDescendants=false,
-        Visible=false,
+        Name=name, Size=UDim2.fromScale(1,1), BackgroundTransparency=1,
+        BorderSizePixel=0, ClipsDescendants=false, Visible=false,
     }, pc)
     new("UIListLayout",{Padding=UDim.new(0,4), SortOrder=Enum.SortOrder.LayoutOrder}, p)
     new("UIPadding",{
@@ -889,7 +871,6 @@ end
 pages[1].Visible = true
 tabBtns[1].label.TextColor3 = T.Text
 
--- 信息卡
 local info = pages[1]
 local ic = new("Frame",{Size=UDim2.new(1,0,0,100), BackgroundColor3=T.Panel,
     BorderSizePixel=0, ClipsDescendants=true}, info)
@@ -1110,6 +1091,9 @@ local function makeBox(text, placeholder, order, cb)
     box.FocusLost:Connect(function() if cb then pcall(cb, box.Text) end end)
 end
 
+-- ★ 修复：container 默认 ZIndex=1，只有展开时提升到 100
+local currentExpandedDropdown = nil
+
 local function makeDropdownWithPlus(text, options, default, order, cb)
     local HEADER_H = 32
     local SEARCH_H = 26
@@ -1117,39 +1101,39 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
     local MAX_LIST_H = 180
 
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H),
-        BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=100}, fc)
+        BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
 
     local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), Position=UDim2.new(0, 0, 0, 0),
-        BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=101}, container)
+        BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
     crn(header, 6); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
     local cur = default or options[1]
     new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.35, 0, 0, HEADER_H),
         BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=12,
-        TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=102}, header)
+        TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
     local valueLbl = new("TextLabel",{Position=UDim2.new(0.4, 0, 0, 0), Size=UDim2.new(0.5, -12, 0, HEADER_H),
         BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=11,
-        TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=102}, header)
+        TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
     local plusBtn = new("TextButton",{Size=UDim2.fromOffset(22, 22), Position=UDim2.new(1, -28, 0.5, -11),
         BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+",
-        Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, AutoButtonColor=false, ZIndex=102}, header)
+        Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
     crn(plusBtn, 4)
 
     local listFrame = new("Frame",{Position=UDim2.new(0, 0, 0, HEADER_H), Size=UDim2.new(1, 0, 0, 0),
-        BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, Visible=false, ZIndex=200}, container)
+        BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, Visible=false, ZIndex=10}, container)
     crn(listFrame, 6)
     dropdownRegistry[listFrame] = true
 
     local searchBox = new("TextBox",{Position=UDim2.new(0, 4, 0, 4), Size=UDim2.new(1, -8, 0, SEARCH_H - 4),
         BackgroundColor3=Color3.fromRGB(24, 25, 29), BorderSizePixel=0, Text="",
         PlaceholderText="搜索...", PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=11,
-        TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=201}, listFrame)
+        TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=11}, listFrame)
     crn(searchBox, 4)
     new("UIPadding",{ PaddingLeft=UDim.new(0,6) }, searchBox)
 
     local scrollFrame = new("ScrollingFrame",{Position=UDim2.new(0, 4, 0, SEARCH_H + 4),
         Size=UDim2.new(1, -8, 0, 0), BackgroundTransparency=1, BorderSizePixel=0,
         ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0, 0, 0, 0),
-        AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=201}, listFrame)
+        AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=11}, listFrame)
     new("UIListLayout",{ Padding=UDim.new(0, 2), SortOrder=Enum.SortOrder.LayoutOrder }, scrollFrame)
 
     local expanded = false
@@ -1166,7 +1150,7 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
                 count = count + 1
                 local b = new("TextButton",{Size=UDim2.new(1, 0, 0, ITEM_H - 2), BackgroundTransparency=1,
                     Text="   "..txt, Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text,
-                    TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=i, AutoButtonColor=false, ZIndex=202}, scrollFrame)
+                    TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=i, AutoButtonColor=false, ZIndex=12}, scrollFrame)
                 b.MouseEnter:Connect(function() b.BackgroundTransparency = 0.1; b.BackgroundColor3 = T.Hover end)
                 b.MouseLeave:Connect(function() b.BackgroundTransparency = 1 end)
                 b.MouseButton1Click:Connect(function()
@@ -1182,6 +1166,13 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
     function expand(state)
         expanded = state
         if state then
+            -- ★ 若已有其它 dropdown 展开，把它的 container ZIndex 复位
+            if currentExpandedDropdown and currentExpandedDropdown ~= container then
+                currentExpandedDropdown.ZIndex = 1
+            end
+            currentExpandedDropdown = container
+            container.ZIndex = 100  -- ★ 只把当前展开的抬高
+
             plusBtn.Text = "−"
             listFrame.Visible = true
             local cnt = buildItems(searchBox.Text)
@@ -1190,6 +1181,11 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
             TS:Create(scrollFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, -8, 0, math.min(cnt * ITEM_H, MAX_LIST_H)) }):Play()
             TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
         else
+            if currentExpandedDropdown == container then
+                currentExpandedDropdown = nil
+            end
+            container.ZIndex = 1  -- ★ 收起时复位
+
             plusBtn.Text = "+"
             TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
             TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H) }):Play()
