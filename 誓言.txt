@@ -39,7 +39,7 @@ local function new(c,p,par) local i=Instance.new(c); for k,v in next,p do i[k]=v
 local function crn(p,r) return new("UICorner",{CornerRadius=UDim.new(0,r or 6)},p) end
 local function strk(p,c,t,tr) return new("UIStroke",{Color=c or T.Stroke,Thickness=t or 1,Transparency=tr or 0,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},p) end
 
-for _,n in ipairs({"OathPanel","OathKeyUI","OathTreePicker","OathPlayerPicker"}) do
+for _,n in ipairs({"OathPanel","OathKeyUI","OathTreePicker","OathPlayerPicker","OathFlyConfirm","OathConfirmBox"}) do
     local o = PG:FindFirstChild(n)
     if o then o:Destroy() end
 end
@@ -645,6 +645,9 @@ local function selectSawmill()
 end
 
 -- ==================== 一键加工 ====================
+local isProcessing = false
+local processingCancel = false
+
 local function selectBestWeaponByPlan(treeClass)
     if selectedPlan == 2 then return selectBestWeaponNew(treeClass)
     else return selectBestWeaponOld(treeClass) end
@@ -711,8 +714,9 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         return false
     end
     local startTime = tick()
-    while hasHighIDSections() and tick() - startTime < 10 do task.wait(0.01) end
+    while hasHighIDSections() and tick() - startTime < 10 and not processingCancel do task.wait(0.01) end
     for taskId in pairs(tasks) do task.cancel(taskId) end
+    if processingCancel then notify("誓言", "加工已停止", 3); return end
     if hasHighIDSections() then notify("誓言", "砍树超时", 3); return end
     local allLogs = {}
     for _, log in pairs(ws.LogModels:GetChildren()) do
@@ -732,6 +736,7 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         table.insert(allModels, treeModel)
     end
     for _, model in ipairs(allModels) do
+        if processingCancel then notify("誓言", "加工已停止", 3); return end
         if model and model.Parent then
             local primary = model.PrimaryPart or model:FindFirstChild("WoodSection") or model:FindFirstChild("Main") or model:FindFirstChildWhichIsA("BasePart")
             if primary then
@@ -765,9 +770,65 @@ local function startDecomposeSelection()
         isDecomposeActive = false
         notify("誓言", "已选中树，开始分解...", 3)
         task.spawn(function()
+            isProcessing = true
+            processingCancel = false
             decomposeAndProcess(model, bai.cachedSawmill, bai.cachedSawmillPos)
+            isProcessing = false
         end)
     end)
+end
+
+-- 停止加工：取消选择树状态或中断正在进行的加工任务
+local function stopProcessing()
+    if isDecomposeActive then
+        if decomposeConn then decomposeConn:Disconnect(); decomposeConn = nil end
+        isDecomposeActive = false
+        notify("誓言", "已取消加工选择", 2)
+        return
+    end
+    if isProcessing then
+        processingCancel = true
+        notify("誓言", "正在停止加工...", 2)
+    else
+        notify("誓言", "当前没有加工任务", 2)
+    end
+end
+
+-- ==================== 通用右下角确认弹窗（15 秒自动关闭） ====================
+local function showConfirmBox(title, desc, btn1Text, btn2Text, onBtn1, onBtn2)
+    local fg = new("ScreenGui",{Name="OathConfirmBox", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, DisplayOrder=310}, PG)
+    local card = new("Frame",{Size=UDim2.fromOffset(320,150), Position=UDim2.new(1,-20,1,-20), AnchorPoint=Vector2.new(1,1), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true}, fg)
+    crn(card,14); strk(card,T.Stroke,1)
+
+    new("TextLabel",{Size=UDim2.new(1,-40,0,26), Position=UDim2.new(0,20,0,14), BackgroundTransparency=1, Text=title, Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left}, card)
+    local tip = new("TextLabel",{Size=UDim2.new(1,-40,0,18), Position=UDim2.new(0,20,0,44), BackgroundTransparency=1, Text=desc, Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left}, card)
+
+    local btn1 = new("TextButton",{Size=UDim2.new(0,128,0,38), Position=UDim2.new(0,20,1,-46), BackgroundColor3=T.Red, BorderSizePixel=0, Text=btn1Text, Font=Enum.Font.GothamBold, TextSize=13, TextColor3=T.Text, AutoButtonColor=false}, card)
+    crn(btn1,10)
+    local btn2 = new("TextButton",{Size=UDim2.new(0,128,0,38), Position=UDim2.new(1,-148,1,-46), BackgroundColor3=T.Hover, BorderSizePixel=0, Text=btn2Text, Font=Enum.Font.GothamBold, TextSize=13, TextColor3=T.Text, AutoButtonColor=false}, card)
+    crn(btn2,10)
+
+    local closed = false
+    local function close()
+        if closed then return end
+        closed = true
+        fg:Destroy()
+    end
+    btn1.MouseButton1Click:Connect(function()
+        close()
+        if onBtn1 then onBtn1() end
+    end)
+    btn2.MouseButton1Click:Connect(function()
+        close()
+        if onBtn2 then onBtn2() end
+    end)
+
+    for i = 15, 1, -1 do
+        if closed then return end
+        tip.Text = desc .. "（" .. i .. " 秒后自动取消）"
+        task.wait(1)
+    end
+    if not closed then close(); if onBtn2 then onBtn2() end end
 end
 
 -- ==================== 传送 ====================
@@ -1318,19 +1379,29 @@ makeBtn("带来树", 5, function()
         if total > 1 and s > 0 then notify("誓言", "完成 "..s.."/"..total, 3) end
     end)
 end)
-makeBtn("停止带来树", 6, function() isBringRunning = false end)
+makeBtn("停止带来树", 6, function()
+    if not isBringRunning then notify("誓言", "带来树任务未运行", 2); return end
+    showConfirmBox("停止带来树", "确定要停止当前带来树任务吗？", "确认停止", "取消",
+        function() isBringRunning = false; notify("誓言", "已停止带来树", 2) end,
+        function() notify("誓言", "已取消", 2) end)
+end)
 
 sectionHeader("一键加工", 7)
 makeBtn("选择锯木机", 8, selectSawmill)
 makeBtn("一键加工", 9, startDecomposeSelection)
+makeBtn("停止加工", 10, function()
+    showConfirmBox("停止加工", "确定要停止当前加工任务吗？", "确认停止", "取消",
+        function() stopProcessing() end,
+        function() notify("誓言", "已取消", 2) end)
+end)
 
-sectionHeader("传送", 10)
+sectionHeader("传送", 11)
 
 do
     local playerOptions = {}
     for _, p in ipairs(game.Players:GetPlayers()) do table.insert(playerOptions, p.Name) end
     if #playerOptions == 0 then playerOptions = {lp.Name} end
-    local container, expand = makeDropdown("选择玩家", 11, playerOptions, lp.Name, function(v)
+    local container, expand = makeDropdown("选择玩家", 12, playerOptions, lp.Name, function(v)
         teleportTargetPlayer = v
         clearSelection()
         notify("誓言", "已选择玩家: "..v, 2)
@@ -1338,15 +1409,15 @@ do
     openers[ID_CONFIG.player] = expand
 end
 
-makeBtn("设置传送点", 12, setTeleportPoint)
-makeBtn("删除传送点", 13, clearTeleportPoint)
-makeBtn("传送所有选中", 14, function()
+makeBtn("设置传送点", 13, setTeleportPoint)
+makeBtn("删除传送点", 14, clearTeleportPoint)
+makeBtn("传送所有选中", 15, function()
     if not teleportTargetCF then notify("誓言", "请先设置传送点", 3); return end
     task.spawn(teleportSelectedItems)
 end)
-makeBtn("清空所有选中", 15, clearSelection)
+makeBtn("清空所有选中", 16, clearSelection)
 
-makeToggle("选择模式开关", 16, false, function(state)
+makeToggle("选择模式开关", 17, false, function(state)
     selectingMode = state
     if state then
         if selectionConn then selectionConn:Disconnect() end
@@ -1364,7 +1435,7 @@ makeToggle("选择模式开关", 16, false, function(state)
     end
 end)
 
-makeToggle("同名选择开关", 17, false, function(state)
+makeToggle("同名选择开关", 18, false, function(state)
     sameNameEnabled = state
     if state then
         if sameNameConn then sameNameConn:Disconnect() end
