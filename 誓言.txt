@@ -39,7 +39,7 @@ local function new(c,p,par) local i=Instance.new(c); for k,v in next,p do i[k]=v
 local function crn(p,r) return new("UICorner",{CornerRadius=UDim.new(0,r or 6)},p) end
 local function strk(p,c,t,tr) return new("UIStroke",{Color=c or T.Stroke,Thickness=t or 1,Transparency=tr or 0,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},p) end
 
-for _,n in ipairs({"OathPanel","OathKeyUI","OathTreePicker","OathPlayerPicker","OathFlyConfirm","OathConfirmBox"}) do
+for _,n in ipairs({"OathPanel","OathKeyUI","OathTreePicker","OathPlayerPicker","OathFlyConfirm"}) do
     local o = PG:FindFirstChild(n)
     if o then o:Destroy() end
 end
@@ -778,57 +778,27 @@ local function startDecomposeSelection()
     end)
 end
 
+-- Roblox 经典系统通知（停止类操作提示）
+local function nativeNotify(text)
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", { Title = "誓言面板", Text = text, Duration = 3 })
+    end)
+end
+
 -- 停止加工：取消选择树状态或中断正在进行的加工任务
 local function stopProcessing()
     if isDecomposeActive then
         if decomposeConn then decomposeConn:Disconnect(); decomposeConn = nil end
         isDecomposeActive = false
-        notify("誓言", "已取消加工选择", 2)
+        nativeNotify("已取消加工选择")
         return
     end
     if isProcessing then
         processingCancel = true
-        notify("誓言", "正在停止加工...", 2)
+        nativeNotify("正在停止加工...")
     else
-        notify("誓言", "当前没有加工任务", 2)
+        nativeNotify("当前没有加工任务")
     end
-end
-
--- ==================== 通用右下角确认弹窗（15 秒自动关闭） ====================
-local function showConfirmBox(title, desc, btn1Text, btn2Text, onBtn1, onBtn2)
-    local fg = new("ScreenGui",{Name="OathConfirmBox", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, DisplayOrder=310}, PG)
-    local card = new("Frame",{Size=UDim2.fromOffset(320,150), Position=UDim2.new(1,-20,1,-20), AnchorPoint=Vector2.new(1,1), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true}, fg)
-    crn(card,14); strk(card,T.Stroke,1)
-
-    new("TextLabel",{Size=UDim2.new(1,-40,0,26), Position=UDim2.new(0,20,0,14), BackgroundTransparency=1, Text=title, Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left}, card)
-    local tip = new("TextLabel",{Size=UDim2.new(1,-40,0,18), Position=UDim2.new(0,20,0,44), BackgroundTransparency=1, Text=desc, Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left}, card)
-
-    local btn1 = new("TextButton",{Size=UDim2.new(0,128,0,38), Position=UDim2.new(0,20,1,-46), BackgroundColor3=T.Red, BorderSizePixel=0, Text=btn1Text, Font=Enum.Font.GothamBold, TextSize=13, TextColor3=T.Text, AutoButtonColor=false}, card)
-    crn(btn1,10)
-    local btn2 = new("TextButton",{Size=UDim2.new(0,128,0,38), Position=UDim2.new(1,-148,1,-46), BackgroundColor3=T.Hover, BorderSizePixel=0, Text=btn2Text, Font=Enum.Font.GothamBold, TextSize=13, TextColor3=T.Text, AutoButtonColor=false}, card)
-    crn(btn2,10)
-
-    local closed = false
-    local function close()
-        if closed then return end
-        closed = true
-        fg:Destroy()
-    end
-    btn1.MouseButton1Click:Connect(function()
-        close()
-        if onBtn1 then onBtn1() end
-    end)
-    btn2.MouseButton1Click:Connect(function()
-        close()
-        if onBtn2 then onBtn2() end
-    end)
-
-    for i = 15, 1, -1 do
-        if closed then return end
-        tip.Text = desc .. "（" .. i .. " 秒后自动取消）"
-        task.wait(1)
-    end
-    if not closed then close(); if onBtn2 then onBtn2() end end
 end
 
 -- ==================== 传送 ====================
@@ -1380,20 +1350,15 @@ makeBtn("带来树", 5, function()
     end)
 end)
 makeBtn("停止带来树", 6, function()
-    if not isBringRunning then notify("誓言", "带来树任务未运行", 2); return end
-    showConfirmBox("停止带来树", "确定要停止当前带来树任务吗？", "确认停止", "取消",
-        function() isBringRunning = false; notify("誓言", "已停止带来树", 2) end,
-        function() notify("誓言", "已取消", 2) end)
+    if not isBringRunning then nativeNotify("带来树任务未运行"); return end
+    isBringRunning = false
+    nativeNotify("已停止带来树")
 end)
 
 sectionHeader("一键加工", 7)
 makeBtn("选择锯木机", 8, selectSawmill)
 makeBtn("一键加工", 9, startDecomposeSelection)
-makeBtn("停止加工", 10, function()
-    showConfirmBox("停止加工", "确定要停止当前加工任务吗？", "确认停止", "取消",
-        function() stopProcessing() end,
-        function() notify("誓言", "已取消", 2) end)
-end)
+makeBtn("停止加工", 10, stopProcessing)
 
 sectionHeader("传送", 11)
 
