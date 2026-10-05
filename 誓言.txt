@@ -1,11 +1,11 @@
 --[[
-    誓言面板 v11.2
+    誓言面板 v11.3
     卡密：誓言NB
     UI：v10.0 的自绘面板 + 卡密卡片
     功能：带来树 + 一键加工
-      · 砍树方案 "旧" = 主脚本.txt 的砍树逻辑
-      · 砍树方案 "新" = 源码.lua 的砍树逻辑
-    ★ 修复：下拉框展开不再被下方元素遮挡
+      · 砍树方案 "旧" = 主脚本.txt
+      · 砍树方案 "新" = 源码.lua
+    ★ 修复：把 pages 从 ScrollingFrame 改为普通 Frame，下拉框展开不再被裁剪
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -178,7 +178,7 @@ local function dragToPosition(model, targetCF, callback, waitFinish)
     if callback then callback() end
 end
 
--- ==================== 树木列表（动态读取） ====================
+-- ==================== 树木列表 ====================
 local TREE_CN = {
 Generic="普通树",GenericDead="枯木",GenericFall="落叶树",GenericGold="金树",GenericPrime="原始树",
 GenericSpecial="特殊树",GoldSwampy="沼泽黄金",GreenSwampy="沼泽青",Cherry="樱花树",
@@ -307,7 +307,7 @@ local function getTreeClassFromModel(treeModel)
     return "Generic"
 end
 
--- ==================== 方案 旧：主脚本.txt ====================
+-- ==================== 方案 旧 ====================
 local function loadWeaponConfig(weaponName)
     local module = rep:FindFirstChild("LoadedAssets") and rep.LoadedAssets:FindFirstChild(weaponName.."AxeClass")
     if not module then return nil end
@@ -402,7 +402,7 @@ local function bringTreeRemotePlan1(treeClass)
     return true
 end
 
--- ==================== 方案 新：源码.lua ====================
+-- ==================== 方案 新 ====================
 local axeConfigCache2 = {}
 local function loadWeaponConfig2(weaponName)
     if axeConfigCache2[weaponName] ~= nil then return axeConfigCache2[weaponName] end
@@ -849,14 +849,23 @@ new("TextLabel",{Size=UDim2.new(0,130,0,20), Position=UDim2.new(0,14,0,6), Backg
 local tabs = {"信息","功能"}
 local tabBtns = {}
 local pc = new("Frame",{Position=UDim2.new(0,150,0,0), Size=UDim2.new(1,-150,1,0), BackgroundTransparency=1}, Main)
+
+-- ★ 修复：pages 从 ScrollingFrame 换成 Frame，避免展开列表被裁剪
 local pages = {}
 for i, name in ipairs(tabs) do
-    local p = new("ScrollingFrame",{Name=name, Size=UDim2.fromScale(1,1), BackgroundTransparency=1,
-        BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke,
-        CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y, Visible=false}, pc)
+    local p = new("Frame",{
+        Name=name,
+        Size=UDim2.fromScale(1,1),
+        BackgroundTransparency=1,
+        BorderSizePixel=0,
+        ClipsDescendants=false,
+        Visible=false,
+    }, pc)
     new("UIListLayout",{Padding=UDim.new(0,4), SortOrder=Enum.SortOrder.LayoutOrder}, p)
-    new("UIPadding",{PaddingTop=UDim.new(0,48), PaddingBottom=UDim.new(0,10),
-        PaddingLeft=UDim.new(0,14), PaddingRight=UDim.new(0,14)}, p)
+    new("UIPadding",{
+        PaddingTop=UDim.new(0,48), PaddingBottom=UDim.new(0,10),
+        PaddingLeft=UDim.new(0,14), PaddingRight=UDim.new(0,14)
+    }, p)
     pages[i] = p
 end
 
@@ -1107,7 +1116,6 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
     local ITEM_H = 24
     local MAX_LIST_H = 180
 
-    -- ★ 容器 ZIndex 提到 100，展开时覆盖下方所有元素
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H),
         BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=100}, fc)
 
