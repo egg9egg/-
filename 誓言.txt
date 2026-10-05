@@ -1,10 +1,6 @@
 --[[
-    誓言面板 - ID分区版
+    誓言面板 - ID分区版（选择树木种类带搜索功能）
     卡密：誓言NB
-    ID_CONFIG 在顶部，自己改数字对应哪个列表
-    ID分区在"信息"页里，点按钮展开对应列表
-    列表标题不再显示 [ID x]
-    顶部横条深色，与左侧边栏连接；右上角圆润
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -20,13 +16,10 @@ local mouse = lp:GetMouse()
 local KEYS = { ["誓言NB"] = true }
 local GAME_TITLE = "木材大亨2"
 
--- ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
--- ★  ID 配置表：改这里的数字，决定哪个列表对应哪个 ID  ★
--- ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 local ID_CONFIG = {
-    tree   = 1,   -- 选择树木种类
-    plan   = 2,   -- 选择砍树方案
-    player = 3,   -- 选择玩家（传送）
+    tree   = 1,
+    plan   = 2,
+    player = 3,
 }
 
 local T = {
@@ -295,7 +288,6 @@ local function getTreeClassFromModel(treeModel)
     return "Generic"
 end
 
--- 旧版本（require）
 local function loadWeaponConfigOld(weaponName)
     local module = rep:FindFirstChild("LoadedAssets") and rep.LoadedAssets:FindFirstChild(weaponName.."AxeClass")
     if not module then return nil end
@@ -322,7 +314,6 @@ local function selectBestWeaponOld(treeClass)
     return bw, bc, bd
 end
 
--- 新版本（decompile）
 local axeConfigCacheNew = {}
 local function loadWeaponConfigNew(weaponName)
     if axeConfigCacheNew[weaponName] ~= nil then return axeConfigCacheNew[weaponName] end
@@ -948,7 +939,6 @@ local OathGui = new("ScreenGui",{Name="OathPanel", ResetOnSpawn=false, ZIndexBeh
 local Main = new("Frame",{Size=UDim2.fromOffset(540,340), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Bg, BorderSizePixel=0, ClipsDescendants=true}, OathGui)
 crn(Main,16); strk(Main,T.Stroke,1)
 
--- 左侧边栏（深色，右上角遮方以便与顶栏连接）
 local Sb = new("Frame",{Size=UDim2.new(0,130,1,0), BackgroundColor3=T.Sidebar, BorderSizePixel=0, ZIndex=2}, Main)
 crn(Sb,16)
 new("Frame", {
@@ -960,7 +950,6 @@ new("Frame", {
 }, Sb)
 new("TextLabel",{Size=UDim2.new(0,110,0,20), Position=UDim2.new(0,14,0,6), BackgroundTransparency=1, Text=GAME_TITLE, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4}, Sb)
 
--- 顶部横条：与侧栏同色；右上角圆润；其余三角遮方
 local topBar = new("Frame", {
     Size = UDim2.new(1, -130, 0, 50),
     Position = UDim2.new(0, 130, 0, 0),
@@ -969,29 +958,9 @@ local topBar = new("Frame", {
     ZIndex = 5
 }, Main)
 crn(topBar, 16)
-new("Frame", {
-    Size = UDim2.fromOffset(20, 20),
-    Position = UDim2.fromOffset(0, 0),
-    BackgroundColor3 = T.Sidebar,
-    BorderSizePixel = 0,
-    ZIndex = 6
-}, topBar)
-new("Frame", {
-    Size = UDim2.fromOffset(20, 20),
-    Position = UDim2.new(0, 0, 1, -20),
-    BackgroundColor3 = T.Sidebar,
-    BorderSizePixel = 0,
-    ZIndex = 6
-}, topBar)
-new("Frame", {
-    Size = UDim2.fromOffset(20, 20),
-    Position = UDim2.new(1, -20, 1, -20),
-    BackgroundColor3 = T.Sidebar,
-    BorderSizePixel = 0,
-    ZIndex = 6
-}, topBar)
-
--- 底部分割线（深黑色）
+new("Frame", {Size = UDim2.fromOffset(20, 20), BackgroundColor3 = T.Sidebar, BorderSizePixel = 0, ZIndex = 6}, topBar)
+new("Frame", {Size = UDim2.fromOffset(20, 20), Position = UDim2.new(0, 0, 1, -20), BackgroundColor3 = T.Sidebar, BorderSizePixel = 0, ZIndex = 6}, topBar)
+new("Frame", {Size = UDim2.fromOffset(20, 20), Position = UDim2.new(1, -20, 1, -20), BackgroundColor3 = T.Sidebar, BorderSizePixel = 0, ZIndex = 6}, topBar)
 new("Frame", {
     Size = UDim2.new(1, 0, 0, 2),
     Position = UDim2.new(0, 0, 1, -2),
@@ -1000,7 +969,6 @@ new("Frame", {
     ZIndex = 7
 }, topBar)
 
--- 内容区从 y=50 开始
 local pc = new("Frame",{Position=UDim2.new(0,130,0,50), Size=UDim2.new(1,-130,1,-50), BackgroundTransparency=1, ZIndex=1}, Main)
 
 local tabs = {"信息","功能"}
@@ -1026,7 +994,6 @@ for i, name in ipairs(tabs) do
 end
 pages[1].Visible = true; tabBtns[1].label.TextColor3 = T.Text
 
--- 信息页
 local info = pages[1]
 local ic = new("Frame",{Size=UDim2.new(1,0,0,90), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, LayoutOrder=0}, info)
 crn(ic,10)
@@ -1037,7 +1004,6 @@ crn(icOverlay,10)
 new("TextLabel",{Size=UDim2.new(1,-20,0,30), Position=UDim2.new(0,10,0,10), BackgroundTransparency=1, Text=GAME_TITLE.." · 誓言面板", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7}, ic)
 new("TextLabel",{Size=UDim2.new(1,-20,0,20), Position=UDim2.new(0,10,0,40), BackgroundTransparency=1, Text="作者：是我太傻   QQ：3767465890   群：1109682737", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7}, ic)
 
--- 窗口控制
 local btnHolder = new("Frame",{Size=UDim2.fromOffset(50, 18), Position=UDim2.new(1, -14, 0, 14), AnchorPoint=Vector2.new(1, 0), BackgroundTransparency=1, ZIndex=10}, Main)
 local function makeWinDot(color, x, cb)
     local btn = new("TextButton",{Size=UDim2.fromOffset(16, 16), Position=UDim2.new(0, x, 0, 0), BackgroundColor3=color, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=10}, btnHolder)
@@ -1186,7 +1152,6 @@ local function makeBox(text, placeholder, order, default, cb, parent)
     return box
 end
 
--- 修复版 makeToggle：右边小球用 AnchorPoint 定位，14x14，加描边
 local function makeToggle(text, order, defaultState, callback, parent)
     parent = parent or fc
     local state = defaultState
@@ -1198,7 +1163,7 @@ local function makeToggle(text, order, defaultState, callback, parent)
     }, parent)
     crn(btn, 8); strk(btn, Color3.fromRGB(48, 48, 52), 1, 0.3)
 
-    local txt = new("TextLabel", {
+    new("TextLabel", {
         Size = UDim2.new(1, -60, 1, 0),
         Position = UDim2.new(0, 14, 0, 0),
         BackgroundTransparency = 1,
@@ -1236,9 +1201,10 @@ local function makeToggle(text, order, defaultState, callback, parent)
     return btn
 end
 
--- 下拉框工厂，每个实例的 expand 都是 local
-local function makeDropdown(text, order, options, default, onSelect)
+-- ★ 下拉框工厂：新增 searchable 参数，为 true 时列表顶部出现搜索框 ★
+local function makeDropdown(text, order, options, default, onSelect, searchable)
     local HEADER_H, ITEM_H = 40, 30
+    local SEARCH_BAR_H = searchable and 34 or 0
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
     local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
     crn(header, 8); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
@@ -1247,25 +1213,95 @@ local function makeDropdown(text, order, options, default, onSelect)
     local valueLbl = new("TextLabel",{Position=UDim2.new(0.5, 0, 0, 0), Size=UDim2.new(0.4, -12, 0, HEADER_H), BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
     local plusBtn = new("TextButton",{Size=UDim2.fromOffset(28, 28), Position=UDim2.new(1, -34, 0.5, -14), BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+", Font=Enum.Font.GothamBold, TextSize=18, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
     crn(plusBtn, 6)
+
     local listFrame = new("Frame",{Position=UDim2.new(0, 0, 0, HEADER_H), Size=UDim2.new(1, 0, 0, 0), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, Visible=false, ZIndex=10}, container)
     crn(listFrame, 8)
-    local scrollFrame = new("ScrollingFrame",{Position=UDim2.new(0, 4, 0, 4), Size=UDim2.new(1, -8, 0, 0), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0, 0, 0, 0), AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=11}, listFrame)
+
+    -- 搜索框（仅 searchable=true 时创建）
+    local searchBox = nil
+    if searchable then
+        local sWrap = new("Frame", {
+            Size = UDim2.new(1, -8, 0, 28),
+            Position = UDim2.new(0, 4, 0, 4),
+            BackgroundColor3 = Color3.fromRGB(24, 25, 29),
+            BorderSizePixel = 0,
+            ZIndex = 12
+        }, listFrame)
+        crn(sWrap, 6)
+        searchBox = new("TextBox", {
+            Size = UDim2.new(1, -16, 1, 0),
+            Position = UDim2.new(0, 8, 0, 0),
+            BackgroundTransparency = 1,
+            Text = "",
+            PlaceholderText = "🔍 搜索...",
+            PlaceholderColor3 = T.Sub,
+            Font = Enum.Font.Gotham,
+            TextSize = 12,
+            TextColor3 = T.Text,
+            TextXAlignment = Enum.TextXAlignment.Left,
+            ClearTextOnFocus = false,
+            ZIndex = 13
+        }, sWrap)
+    end
+
+    local scrollFrame = new("ScrollingFrame",{
+        Position = UDim2.new(0, 4, 0, 4 + SEARCH_BAR_H),
+        Size = UDim2.new(1, -8, 0, 0),
+        BackgroundTransparency = 1,
+        BorderSizePixel = 0,
+        ScrollBarThickness = 3,
+        ScrollBarImageColor3 = T.Stroke,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        AutomaticCanvasSize = Enum.AutomaticSize.Y,
+        ZIndex = 11
+    }, listFrame)
     new("UIListLayout",{ Padding=UDim.new(0, 2), SortOrder=Enum.SortOrder.LayoutOrder }, scrollFrame)
 
     local expanded = false
     local expand
+    local currentFilter = ""
 
     local function buildItems()
-        for _, ch in ipairs(scrollFrame:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
-        for i, opt in ipairs(options) do
-            local b = new("TextButton",{Size=UDim2.new(1, 0, 0, ITEM_H - 2), BackgroundTransparency=1, Text="   "..tostring(opt), Font=Enum.Font.Gotham, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=i, AutoButtonColor=false, ZIndex=12}, scrollFrame)
-            b.MouseButton1Click:Connect(function()
-                cur = opt; valueLbl.Text = tostring(cur)
-                if onSelect then pcall(onSelect, cur) end
-                expand(false)
-            end)
+        for _, ch in ipairs(scrollFrame:GetChildren()) do
+            if ch:IsA("TextButton") then ch:Destroy() end
         end
-        return #options
+        local count = 0
+        local lowerFilter = currentFilter:lower()
+        for _, opt in ipairs(options) do
+            local optStr = tostring(opt)
+            if currentFilter == "" or optStr:lower():find(lowerFilter, 1, true) then
+                count = count + 1
+                local b = new("TextButton",{
+                    Size=UDim2.new(1, 0, 0, ITEM_H - 2),
+                    BackgroundTransparency=1,
+                    Text="   "..optStr,
+                    Font=Enum.Font.Gotham,
+                    TextSize=13,
+                    TextColor3=T.Text,
+                    TextXAlignment=Enum.TextXAlignment.Left,
+                    LayoutOrder=count,
+                    AutoButtonColor=false,
+                    ZIndex=12
+                }, scrollFrame)
+                b.MouseButton1Click:Connect(function()
+                    cur = opt
+                    valueLbl.Text = tostring(cur)
+                    if onSelect then pcall(onSelect, cur) end
+                    expand(false)
+                end)
+            end
+        end
+        return count
+    end
+
+    local function updateLayout()
+        local cnt = buildItems()
+        local visibleH = math.min(cnt * ITEM_H, 130)
+        if cnt == 0 then visibleH = 30 end
+        local listH = 8 + SEARCH_BAR_H + visibleH
+        TS:Create(listFrame, TweenInfo.new(0.15), { Size = UDim2.new(1, 0, 0, listH) }):Play()
+        TS:Create(scrollFrame, TweenInfo.new(0.15), { Size = UDim2.new(1, -8, 0, visibleH) }):Play()
+        TS:Create(container, TweenInfo.new(0.15), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
     end
 
     expand = function(state)
@@ -1273,17 +1309,24 @@ local function makeDropdown(text, order, options, default, onSelect)
         if state then
             container.ZIndex = 100
             plusBtn.Text = "−"; listFrame.Visible = true
-            local cnt = buildItems()
-            local listH = 8 + math.min(cnt * ITEM_H, 130)
-            TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, listH) }):Play()
-            TS:Create(scrollFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, -8, 0, math.min(cnt * ITEM_H, 130)) }):Play()
-            TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
+            if searchBox then
+                searchBox.Text = ""
+                currentFilter = ""
+            end
+            updateLayout()
         else
             container.ZIndex = 1; plusBtn.Text = "+"
             TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
             TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H) }):Play()
             task.delay(0.2, function() listFrame.Visible = false end)
         end
+    end
+
+    if searchBox then
+        searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+            currentFilter = searchBox.Text or ""
+            if expanded then updateLayout() end
+        end)
     end
 
     plusBtn.MouseButton1Click:Connect(function() expand(not expanded) end)
@@ -1299,10 +1342,11 @@ local selectedTreeClass = nil
 do
     local treeOptions = { "--- 请选择树木 ---" }
     for _, n in ipairs(treeNames) do table.insert(treeOptions, n) end
+    -- ★ 最后一个参数 true = 开启搜索框
     local container, expand = makeDropdown("选择树木种类", 2, treeOptions, "--- 请选择树木 ---", function(v)
         if v == "--- 请选择树木 ---" then selectedTreeClass = nil
         else selectedTreeClass = treeMapping[v] end
-    end)
+    end, true)
     openers[ID_CONFIG.tree] = expand
 end
 
@@ -1482,5 +1526,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 圆角顶栏版 已加载")
+print("[誓言面板] 搜索功能版 已加载")
 showKeyUI()
