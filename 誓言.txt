@@ -1,1740 +1,845 @@
-local SRC_MAIN2 = [====[
-_G.qsMain=_G.qsMain or {}
-local gs=_G.qsMain.gs
-local lp=_G.qsMain.lp
-local ws=_G.qsMain.ws
-local rep=_G.qsMain.rep
-local mouse=_G.qsMain.mouse
-local defaultDragAttempts=_G.qsMain.defaultDragAttempts
-local defaultDragInterval=_G.qsMain.defaultDragInterval
-local CONFIG_FILE=_G.qsMain.CONFIG_FILE
-local loadDragConfig=_G.qsMain.loadDragConfig
-local duckCycleIndex=_G.qsMain.duckCycleIndex
-local bai=_G.qsMain.bai
-local voidSaplingRunning=_G.qsMain.voidSaplingRunning
-local shuaxinlb=_G.qsMain.shuaxinlb
-local uprightCFrame=_G.qsMain.uprightCFrame
-local safeTeleport=_G.qsMain.safeTeleport
-local unlockPlayer=_G.qsMain.unlockPlayer
-local lockPlayerAt=_G.qsMain.lockPlayerAt
-local carTeleport=_G.qsMain.carTeleport
-local tp=_G.qsMain.tp
-local droptool=_G.qsMain.droptool
-local saveDragConfig=_G.qsMain.saveDragConfig
-local treeMapping=_G.qsMain.treeMapping
-local treeNames=_G.qsMain.treeNames
-local getNextDragID=_G.qsMain.getNextDragID
-local DRAG_TOTAL=_G.qsMain.DRAG_TOTAL
-local DRAG_SET_START=_G.qsMain.DRAG_SET_START
-local DRAG_SET_COUNT=_G.qsMain.DRAG_SET_COUNT
-local DRAG_SET_INTERVAL=_G.qsMain.DRAG_SET_INTERVAL
-local DRAG_REFRESH_INTERVAL=_G.qsMain.DRAG_REFRESH_INTERVAL
-local DRAG_AFTER_WAIT=_G.qsMain.DRAG_AFTER_WAIT
-local dragToPosition=_G.qsMain.dragToPosition
-local findUncutTree=_G.qsMain.findUncutTree
-local axeConfigCache=_G.qsMain.axeConfigCache
-local loadWeaponConfig=_G.qsMain.loadWeaponConfig
-local selectBestWeapon=_G.qsMain.selectBestWeapon
-local bringTreeRemote=_G.qsMain.bringTreeRemote
-local safeTeleportNoWait=_G.qsMain.safeTeleportNoWait
-local getBestAxeData=_G.qsMain.getBestAxeData
-local getTreeClassFromModel=_G.qsMain.getTreeClassFromModel
-local forceDragUntilProcessed=_G.qsMain.forceDragUntilProcessed
-local decomposeAndProcess=_G.qsMain.decomposeAndProcess
-local startDecomposeSelection=_G.qsMain.startDecomposeSelection
-local deleteLavaObjectsOnce=_G.qsMain.deleteLavaObjectsOnce
-local startAutoDelete=_G.qsMain.startAutoDelete
-local stopAutoDelete=_G.qsMain.stopAutoDelete
-local executeSequenceAndReturn=_G.qsMain.executeSequenceAndReturn
-local bringDuck=_G.qsMain.bringDuck
-local bringDuckc=_G.qsMain.bringDuckc
-local translateEvilNotes=_G.qsMain.translateEvilNotes
-local evilNoteItemMap=_G.qsMain.evilNoteItemMap
-local getEvilMaterialNames=_G.qsMain.getEvilMaterialNames
-local craftRevengeSword=_G.qsMain.craftRevengeSword
-local craftLunarDuck=_G.qsMain.craftLunarDuck
-local refreshPrivateServer=_G.qsMain.refreshPrivateServer
-local setDragEnhance=_G.qsMain.setDragEnhance
-local applyNoClip=_G.qsMain.applyNoClip
-local addHighlightToModel=_G.qsMain.addHighlightToModel
-local removeHighlightFromModel=_G.qsMain.removeHighlightFromModel
-local addDuckOutline=_G.qsMain.addDuckOutline
-local removeDuckOutline=_G.qsMain.removeDuckOutline
-local syncDuckHighlights=_G.qsMain.syncDuckHighlights
-local enableDuckOutline=_G.qsMain.enableDuckOutline
-local disableDuckOutline=_G.qsMain.disableDuckOutline
-local isVoidCrate=_G.qsMain.isVoidCrate
-local addVoidCrateHighlight=_G.qsMain.addVoidCrateHighlight
-local removeVoidCrateHighlight=_G.qsMain.removeVoidCrateHighlight
-local syncVoidCrateHighlights=_G.qsMain.syncVoidCrateHighlights
-local enableVoidCrateOutline=_G.qsMain.enableVoidCrateOutline
-local disableVoidCrateOutline=_G.qsMain.disableVoidCrateOutline
-local function createEspFrame(p)
-if espFrames[p]or not espGui then return end
-local f=Instance.new("Frame");f.Size=UDim2.new(0,50,0,70);f.BackgroundTransparency=1;f.Parent=espGui
-local img=Instance.new("ImageLabel");img.Size=UDim2.new(1,0,0,50);img.BackgroundTransparency=1;img.ScaleType=Enum.ScaleType.Fit;img.Parent=f
-local txt=Instance.new("TextLabel");txt.Size=UDim2.new(1,0,0,20);txt.Position=UDim2.new(0,0,0,50);txt.BackgroundTransparency=1;txt.TextColor3=Color3.new(1,1,1);txt.TextScaled=true;txt.Font=Enum.Font.GothamBold;txt.Text="?";txt.Parent=f
-espFrames[p]={frame=f,image=img,text=txt}
-task.spawn(function()
-local suc,thumb=pcall(function()return game:GetService("Players"):GetUserThumbnailAsync(p.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size150x150)end)
-if not suc then task.wait(1);suc,thumb=pcall(function()return game:GetService("Players"):GetUserThumbnailAsync(p.UserId,Enum.ThumbnailType.HeadShot,Enum.ThumbnailSize.Size150x150)end)end
-if suc and espFrames[p]then espFrames[p].image.Image=thumb end
-end)
-end
-
-local function removeEspFrame(p)
-if espFrames[p]then espFrames[p].frame:Destroy();espFrames[p]=nil end
-end
-
-local function updateEsp()
-if not espEnabled then return end
-local cam=workspace.CurrentCamera
-local localPos=lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-if not localPos then return end
-for p,data in pairs(espFrames)do
-local hrp=p.Character and p.Character:FindFirstChild("HumanoidRootPart")
-if hrp then
-local pos,onScreen=cam:WorldToScreenPoint(hrp.Position)
-if onScreen then
-data.frame.Visible=true;data.frame.Position=UDim2.new(0,pos.X-25,0,pos.Y-70)
-local dist=(hrp.Position-localPos.Position).Magnitude;data.text.Text=string.format("%.1f",dist)
-else data.frame.Visible=false end
-else data.frame.Visible=false end
-end
-end
-
-local function enableEsp()
-if espEnabled then return end
-espEnabled=true
-local success,guiParent=pcall(function()return game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")end)
-if not success or not guiParent then guiParent=game:GetService("CoreGui")end
-espGui=Instance.new("ScreenGui");espGui.Name="ESP_GUI_雪糕";espGui.ResetOnSpawn=false;espGui.Parent=guiParent
-task.spawn(function()while espEnabled do task.wait(5);if espGui and not espGui.Parent then espGui.Parent=guiParent end end end)
-espFrames={}
-for _,p in pairs(game.Players:GetPlayers())do if p~=lp then createEspFrame(p)end end
-espRenderConn=game:GetService("RunService").RenderStepped:Connect(updateEsp)
-espPlayerAddedConn=game.Players.PlayerAdded:Connect(function(p)if p~=lp then createEspFrame(p)end end)
-espPlayerRemovingConn=game.Players.PlayerRemoving:Connect(removeEspFrame)
-notify("雪糕","ESP已开启",2)
-end
-
-local function disableEsp()
-if not espEnabled then return end
-espEnabled=false
-if espRenderConn then espRenderConn:Disconnect()end
-if espPlayerAddedConn then espPlayerAddedConn:Disconnect()end
-if espPlayerRemovingConn then espPlayerRemovingConn:Disconnect()end
-if espGui then espGui:Destroy()end
-espGui=nil;espFrames=nil
-notify("雪糕","ESP已关闭",2)
-end
-
-local bailib=loadstring(game:HttpGet"http://qinscript.lol/333/透明UI.lua")()
-local win=bailib:new("木材大亨2",'')
-_G.qSnowMainWin=win
-_G.qSnowLP=lp
-_G.qSnowSafeTeleport=safeTeleport
-_G.qSnowDragToPosition=dragToPosition
-
-local Tab1=win:Tab("玩家","2700297399")
-local Tab=win:Tab("主要","2700297399")
-local Tab2=win:Tab("环境","2700297399")
-local Tab4=win:Tab("针对","2700297399")
-
-local Section3=Tab1:section("玩家",true)
-local Section4=Tab1:section("普通传送",false)
-local Section6=Tab1:section("汽车传送",false)
-
-local Sectionbringtree=Tab:section("带来树",false)
-local Section5=Tab:section("木头",false)
-local SectionDuck=Tab:section("鸭子",false)
-local Sectiontuozhuai=Tab:section("拖拽",false)
-local SectionEVIL=Tab:section("恶魔鸭合成",false)
-local SectionESP=Tab:section("玩家透视",false)
-local Section1=Tab:section("基地",false)
-local Section=Tab:section("斧头",false)
-local Sectionshuaxin=Tab:section("刷新私服",false)
-local Sectionyanjiang=Tab:section("岩浆",false)
-local Sectionqita=Tab:section("其他功能",false)
-local Sectionzhengli=Tab:section("物品整理",false)
-
-local Sectionhuanjin=Tab2:section("环境",false)
-
-local Sectionmogui=Tab4:section("了",true)
-
-Section5:Button("选择锯木机",function()
-notify("雪糕","请点击锯木机任意部件",3)
-local conn
-conn=mouse.Button1Down:Connect(function()
-local target=mouse.Target
-if not target then
-notify("雪糕","未选中任何物体",2)
-return
-end
-
-local model=target:FindFirstAncestorOfClass("Model")
-if not model then
-notify("雪糕","请点击一个模型",2)
-return
-end
-
-local function isSawmill(root)
-
-local attr=root:GetAttribute("ItemName")
-if attr and type(attr)=="string"and attr:lower():find("saw")then
-return true
-end
-
-for _,child in pairs(root:GetDescendants())do
-if child.Name=="ItemName"then
-local val=child.Value
-if val and type(val)=="string"and val:lower():find("saw")then
-return true
-end
-end
-end
-
-if root.Name and root.Name:lower():find("saw")then
-return true
-end
-
-local typeVal=root:FindFirstChild("Type")
-if typeVal and typeVal.Value=="Sawmill"then
-return true
-end
-return false
-end
-
-if not isSawmill(model)then
-notify("雪糕","这不是锯木机（未检测到锯木机标识）",3)
-return
-end
-
-local function findPart(root)
-for _,child in pairs(root:GetDescendants())do
-if child.Name=="Conveyor"and child:IsA("BasePart")then
-return child,"Conveyor"
-end
-end
-for _,child in pairs(root:GetDescendants())do
-if child.Name=="Main"and child:IsA("BasePart")then
-return child,"Main"
-end
-end
-return nil,nil
-end
-
-local part,partType=findPart(model)
-if not part then
-notify("雪糕","找不到 Conveyor 或 Main 部件",3)
-return
-end
-
-bai.cachedSawmill=model
-bai.cachedSawmillPos=part.CFrame
-conn:Disconnect()
-notify("雪糕","✅ 已记忆锯木机位置（"..partType.."）",3)
-end)
-end)
-
- currentSortTool=nil
- sortStartHeight=1
- sortGap=0
-
-local function getSortItemType(model)
-
-if model:FindFirstChild("BlueprintWoodClass")then
-return nil
-end
-
-if model:FindFirstChild("ButtonRemote_SpawnButton")then
-return nil
-end
-
-if model:FindFirstChild("PurchasedBoxItemName")then
-local itemName=model.PurchasedBoxItemName.Value
-if itemName==nil or itemName==""or itemName==" "then
-return nil
-end
-end
-
-if model:FindFirstChild("BoxItemName")then
-local itemName=model.BoxItemName.Value
-if itemName==nil or itemName==""or itemName==" "then
-return nil
-end
-end
-
-if model:FindFirstChild("TreeClass")then
-return"TreeClass:"..model.TreeClass.Value
-end
-
-if model:FindFirstChild("Type")then
-return"Type:"..model.Type.Value
-end
-
-if model.Name and model.Name~=""then
-return"Name:"..model.Name
-end
-return nil
-end
-
-local function getModelSize(model)
-local primary=model.PrimaryPart or model:FindFirstChild("Main")or model:FindFirstChild("WoodSection")or model:FindFirstChildWhichIsA("BasePart")
-if primary then
-return primary.Size
-end
-return Vector3.new(2,2,2)
-end
-
-local function getModelBottom(model)
-local primary=model.PrimaryPart or model:FindFirstChild("Main")or model:FindFirstChild("WoodSection")or model:FindFirstChildWhichIsA("BasePart")
-if primary then
-return primary.Position.Y-primary.Size.Y/2
-end
-return 0
-end
-
-local function isSortable(model)
-
-if model:FindFirstChild("BlueprintWoodClass")then
-return false
-end
-
-if model:FindFirstChild("ButtonRemote_SpawnButton")then
-return false
-end
-
-if model:FindFirstChild("PurchasedBoxItemName")then
-local itemName=model.PurchasedBoxItemName.Value
-if itemName==nil or itemName==""or itemName==" "then
-return false
-end
-end
-
-if model:FindFirstChild("BoxItemName")then
-local itemName=model.BoxItemName.Value
-if itemName==nil or itemName==""or itemName==" "then
-return false
-end
-end
-
-if model:FindFirstChild("TreeClass")then
-return true
-end
-
-if model:FindFirstChild("Owner")then
-return true
-end
-return false
-end
-
-local function giveSortTool()
-if currentSortTool and currentSortTool.Parent then
-currentSortTool:Destroy()
-end
-
-currentSortTool=Instance.new("Tool")
-currentSortTool.RequiresHandle=false
-currentSortTool.Name="点击要整理的物品"
-
-currentSortTool.Activated:Connect(function()
-local target=mouse.Target
-if not target then return end
-
-local model=target:FindFirstAncestorOfClass("Model")
-if not model then
-notify("雪糕","请点击一个物品",2)
-return
-end
-
-local owner=model:FindFirstChild("Owner")
-if not owner or tostring(owner.Value)~=bai.zlwjia then
-notify("雪糕","不属于所选玩家: "..bai.zlwjia,2)
-return
-end
-
-if not isSortable(model)then
-notify("雪糕","该物品不可整理（只支持 Loose Item / Tool / Furniture / Gift / 木头 / 停车位）",2)
-return
-end
-
-local itemName=model.Name
-if not itemName or itemName==""then
-notify("雪糕","无法识别该物品名称",2)
-return
-end
-
-notify("雪糕","⏳ 正在整理同名物品: "..itemName,2)
-
-local items={}
-
-for _,v in pairs(workspace.PlayerModels:GetChildren())do
-if v:IsA("Model")and v:FindFirstChild("Owner")and tostring(v.Owner.Value)==bai.zlwjia then
-if v.Name==itemName and isSortable(v)then
-table.insert(items,v)
-end
-end
-end
-
-for _,log in pairs(workspace.LogModels:GetChildren())do
-if log:FindFirstChild("Owner")and tostring(log.Owner.Value)==bai.zlwjia then
-if log.Name==itemName and isSortable(log)then
-table.insert(items,log)
-end
-end
-end
-
-if#items==0 then
-notify("雪糕","没有找到同名且可整理的物品",3)
-return
-end
-
-local hrp=lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-if not hrp then
-notify("雪糕","无法获取玩家位置，请重生",3)
-return
-end
-
-local feetPos=hrp.Position-Vector3.new(0,3.5,0)
-local startPos=feetPos+Vector3.new(0,sortStartHeight,0)
-
-local maxSize=Vector3.new(0,0,0)
-for _,item in ipairs(items)do
-local sz=getModelSize(item)
-if sz.X>maxSize.X then maxSize=Vector3.new(sz.X,maxSize.Y,maxSize.Z)end
-if sz.Y>maxSize.Y then maxSize=Vector3.new(maxSize.X,sz.Y,maxSize.Z)end
-if sz.Z>maxSize.Z then maxSize=Vector3.new(maxSize.X,maxSize.Y,sz.Z)end
-end
-
-local xCount=bai.zix or 5
-local zCount=bai.zlz or 3
-local layerHeight=maxSize.Y*0.8
-
-local sortedCount=0
-local colInRow=0
-local rowInLayer=0
-local layerCount=0
-
-table.sort(items,function(a,b)
-local szA=getModelSize(a)
-local szB=getModelSize(b)
-return szA.X*szA.Z<szB.X*szB.Z
-end)
-
-for i,item in ipairs(items)do
-
-if not lp.Character or not lp.Character:FindFirstChild("HumanoidRootPart")then
-notify("雪糕","⚠️ 角色丢失，停止整理",2)
-break
-end
-
-local size=getModelSize(item)
-local itemWidth=size.X+sortGap
-local itemDepth=size.Z+sortGap
-
-local x=colInRow*itemWidth
-local z=rowInLayer*itemDepth
-local y=layerCount*layerHeight
-
-local targetPos=CFrame.new(
-startPos.X+x,
-startPos.Y+y,
-startPos.Z+z
-)
-
-colInRow=colInRow+1
-if colInRow>=xCount then
-colInRow=0
-rowInLayer=rowInLayer+1
-if rowInLayer>=zCount then
-rowInLayer=0
-layerCount=layerCount+1
-end
-end
-
-local primary=item.PrimaryPart or item:FindFirstChild("Main")or item:FindFirstChild("WoodSection")or item:FindFirstChildWhichIsA("BasePart")
-if primary then
-if not item.PrimaryPart then item.PrimaryPart=primary end
-
-safeTeleport(primary.CFrame+Vector3.new(0,2,0))
-task.wait(0.1)
-if dragToPosition(item,targetPos)then
-sortedCount=sortedCount+1
-end
-end
-end
-
-if lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")then
-safeTeleport(hrp.CFrame)
-end
-
-notify("雪糕",string.format("已整理 %d/%d 个同名物品",sortedCount,#items),3)
-end)
-
-currentSortTool.Parent=lp.Backpack
-notify("雪糕","整理工具已添加到背包，点击物品开始整理",3)
-end
-
-if Sectionzhengli then
-
-local sortPlayerDropdown=nil
-local function refreshSortPlayerList()
-local list={}
-for _,p in pairs(game.Players:GetPlayers())do
-table.insert(list,p.Name)
-end
-if sortPlayerDropdown then
-sortPlayerDropdown:SetOptions(list)
-
-local found=false
-for _,name in ipairs(list)do
-if name==bai.zlwjia then
-found=true
-break
-end
-end
-if not found then
-bai.zlwjia=list[1]or lp.Name
-sortPlayerDropdown:SetValue(bai.zlwjia)
-end
-end
-end
-
-sortPlayerDropdown=Sectionzhengli:Dropdown("选择玩家（整理目标）","SortPlayerDropdown",{lp.Name},function(v)
-bai.zlwjia=v
-notify("雪糕","已切换到玩家: "..v,2)
-end)
-refreshSortPlayerList()
-
-Sectionzhengli:Button("刷新玩家列表",function()
-refreshSortPlayerList()
-end)
-
-Sectionzhengli:Textbox("每行数量","SortCountX",tostring(bai.zix or 5),function(v)
-local num=tonumber(v)
-if num and num>0 then bai.zix=math.floor(num)else notify("雪糕","请输入正整数",2)end
-end)
-
-Sectionzhengli:Textbox("每列数量（Z轴方向）","SortCountZ",tostring(bai.zlz or 3),function(v)
-local num=tonumber(v)
-if num and num>0 then bai.zlz=math.floor(num)else notify("雪糕","请输入正整数",2)end
-end)
-
-Sectionzhengli:Textbox("物品间隙","SortGap",tostring(sortGap),function(v)
-local num=tonumber(v)
-if num and num>=0 then sortGap=num else notify("雪糕","请输入大于等于0的数字",2)end
-end)
-
-Sectionzhengli:Textbox("起始高度偏移（从脚底往上）","SortHeight",tostring(sortStartHeight),function(v)
-local num=tonumber(v)
-if num then sortStartHeight=num else notify("雪糕","请输入有效数字",2)end
-end)
-
-Sectionzhengli:Button("获取整理工具",function()
-giveSortTool()
-end)
-
-Sectionzhengli:Button("删除整理工具",function()
-if currentSortTool and currentSortTool.Parent then
-currentSortTool:Destroy()
-currentSortTool=nil
-notify("雪糕","🗑️ 整理工具已删除",2)
-else
-notify("雪糕","没有找到整理工具",2)
-end
-end)
-
-Sectionzhengli:Label("提示：1. 点击同类任意物品，自动排列所有同类物品")
-end
-
-Section5:Button("一键加工（分解可用 速度快）",function()
-startDecomposeSelection()
-end)
-
-SectionEVIL:Button("删除恶魔鸭墙",function()
-pcall(function()
-if workspace:FindFirstChild("Region_Main")and workspace.Region_Main:FindFirstChild("ExplodeMe")then
-workspace.Region_Main.ExplodeMe:Destroy()
-end
-end)
-notify("雪糕","已尝试删除恶魔鸭墙",3)
-end)
-
-local selectedMaterialKeys={nil,nil,nil}
-
-local dragTargets={
-[1]=CFrame.new(-223.74,61.00,940.42),
-[2]=CFrame.new(-232.924927,61.3797455,933.015076),
-[3]=CFrame.new(-241.81,61,925.51)
+--[[
+    誓言面板 - 精简版
+    功能：带来树 + 一键加工
+    卡密：誓言NB
+]]
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local TS = game:GetService("TweenService")
+local RS = game:GetService("RunService")
+
+local lp = Players.LocalPlayer
+local PG = lp:WaitForChild("PlayerGui")
+local ws = workspace
+local rep = game:GetService("ReplicatedStorage")
+local mouse = lp:GetMouse()
+local DRAG_SECRET = "Ifyouarereadingthisstophackingbrolegitalsokrnlisbadbtw432rewdWdwFe432432rwDWDAVWdawgdGWAYDFGYTUW"
+
+local KEYS = { ["誓言NB"] = true }
+local GAME_TITLE = "木材大亨2"
+
+local T = {
+    Accent=Color3.fromRGB(88,220,130), Bg=Color3.fromRGB(28,28,30), Sidebar=Color3.fromRGB(20,20,22),
+    Panel=Color3.fromRGB(40,40,44), RowBg=Color3.fromRGB(32,32,36), Hover=Color3.fromRGB(52,52,58),
+    White=Color3.fromRGB(255,255,255), Text=Color3.fromRGB(232,234,238), Sub=Color3.fromRGB(138,141,150),
+    Stroke=Color3.fromRGB(52,52,58), Red=Color3.fromRGB(240,90,80), Yellow=Color3.fromRGB(250,190,60),
 }
+local function new(c,p,par) local i=Instance.new(c); for k,v in next,p do i[k]=v end; if par then i.Parent=par end; return i end
+local function crn(p,r) return new("UICorner",{CornerRadius=UDim.new(0,r or 6)},p) end
+local function strk(p,c,t,tr) return new("UIStroke",{Color=c or T.Stroke,Thickness=t or 1,Transparency=tr or 0,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},p) end
 
-local openPositions={
-[1]=CFrame.new(-228.78,59.8,943.14),
-[2]=CFrame.new(-230.03,59.8,935.47),
-[3]=CFrame.new(-239.71,59.8,927.46)
+for _,n in ipairs({"OathPanel","OathKeyUI"}) do
+    local o = PG:FindFirstChild(n)
+    if o then o:Destroy() end
+end
+
+local function notify(title, desc, duration)
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title=tostring(title or "誓言"), Text=tostring(desc or ""), Duration=duration or 3,
+        })
+    end)
+end
+
+-- ==================== 基础工具 ====================
+local lockPlayerConn = nil
+local function uprightCFrame(hrp, cf)
+    local pos = cf.Position
+    local yRot = hrp and hrp.Orientation.Y or 0
+    return CFrame.new(pos) * CFrame.Angles(0, math.rad(yRot), 0)
+end
+local function unlockPlayer()
+    if lockPlayerConn then lockPlayerConn:Disconnect(); lockPlayerConn = nil end
+end
+local function lockPlayerAt(cf)
+    unlockPlayer()
+    local function hold()
+        local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = uprightCFrame(hrp, cf)
+            hrp.Velocity = Vector3.new(0,0,0)
+            hrp.RotVelocity = Vector3.new(0,0,0)
+        end
+    end
+    hold()
+    lockPlayerConn = RS.Heartbeat:Connect(hold)
+end
+local function safeTeleport(cf)
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.CFrame = uprightCFrame(hrp, cf)
+        task.wait(0.05)
+        if hrp.Position.Y < -100 then hrp.CFrame = uprightCFrame(hrp, cf) + Vector3.new(0,10,0) end
+    end
+end
+local function safeTeleportNoWait(cf)
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.CFrame = uprightCFrame(hrp, cf)
+        if hrp.Position.Y < -100 then hrp.CFrame = uprightCFrame(hrp, cf) + Vector3.new(0,10,0) end
+    end
+end
+
+local bai = { dragIDCounter=0, cachedSawmill=nil, cachedSawmillPos=nil }
+
+-- ==================== 拖拽 ====================
+local function getNextDragID() bai.dragIDCounter = bai.dragIDCounter + 1; return bai.dragIDCounter end
+local DRAG_TOTAL = 60
+local DRAG_SET_START = 28
+local DRAG_SET_COUNT = 2
+local DRAG_SET_INTERVAL = 0.01
+local DRAG_REFRESH_INTERVAL = 0.01
+local DRAG_AFTER_WAIT = 0.01
+
+local function dragToPosition(model, targetCF, callback, waitFinish)
+    if not model or not model.Parent then if callback then callback() end; return end
+    local primary = model.PrimaryPart or model:FindFirstChild("WoodSection") or model:FindFirstChild("Main") or model:FindFirstChildWhichIsA("BasePart")
+    if not primary then if callback then callback() end; return end
+    if not model.PrimaryPart then model.PrimaryPart = primary end
+
+    lockPlayerAt(primary.CFrame + Vector3.new(0, 3, 0))
+    local dragID = getNextDragID()
+    local remote = rep.Interaction.ClientIsDragging
+
+    pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end)
+    pcall(function() remote:FireServer("Begin", model, dragID) end)
+
+    local lastSet = DRAG_SET_START + DRAG_SET_COUNT - 1
+    for i = 1, lastSet do
+        if not model.Parent or not model.PrimaryPart then
+            pcall(function() remote:FireServer("End", model, dragID) end)
+            if callback then callback() end
+            return
+        end
+        local shouldSet = (i >= DRAG_SET_START)
+        pcall(function()
+            remote:FireServer("Refresh", model, dragID)
+            if shouldSet then
+                rep.Interaction.ClientRequestOwnership:FireServer(primary)
+                model:SetPrimaryPartCFrame(targetCF)
+            end
+        end)
+        if i < lastSet then
+            if shouldSet then task.wait(DRAG_SET_INTERVAL) else task.wait(DRAG_REFRESH_INTERVAL) end
+        end
+    end
+
+    task.wait(DRAG_AFTER_WAIT)
+
+    local dragEnded = false
+    task.spawn(function()
+        for i = lastSet + 1, DRAG_TOTAL do
+            if not model.Parent or not model.PrimaryPart then break end
+            pcall(function() remote:FireServer("Refresh", model, dragID) end)
+            if i < DRAG_TOTAL then task.wait(DRAG_REFRESH_INTERVAL) end
+        end
+        pcall(function() remote:FireServer("End", model, dragID) end)
+        dragEnded = true
+    end)
+
+    if waitFinish then
+        local w = 0
+        while w < 1.5 and not dragEnded do task.wait(0.05); w = w + 0.05 end
+    end
+
+    task.wait(0.4)
+    local verify = 0
+    while model.Parent and model.PrimaryPart and verify < 2 do
+        local dist = (model.PrimaryPart.Position - targetCF.Position).Magnitude
+        if dist <= 3 then break end
+        verify = verify + 1
+        lockPlayerAt(primary.CFrame + Vector3.new(0, 3, 0))
+        task.wait(0.15)
+        local retryID = getNextDragID()
+        pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end)
+        pcall(function() remote:FireServer("Begin", model, retryID) end)
+        for _ = 1, 10 do
+            if not model.Parent then break end
+            pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end)
+            pcall(function() remote:FireServer("Refresh", model, retryID) end)
+            pcall(function() model:SetPrimaryPartCFrame(targetCF) end)
+            task.wait(0.05)
+        end
+        pcall(function() remote:FireServer("End", model, retryID) end)
+        task.wait(0.15)
+    end
+
+    unlockPlayer()
+    if callback then callback() end
+end
+
+-- ==================== 树木列表 ====================
+local TREE_CN = {
+Generic="普通树",GenericDead="枯木",GenericFall="落叶树",GenericGold="金树",GenericPrime="原始树",
+GenericSpecial="特殊树",GoldSwampy="沼泽黄金",GreenSwampy="沼泽青",Cherry="樱花树",
+CaveCrawler="蓝木",Cavern="洞窟紫木",CavernCrawler="洞窟爬虫",GrottoCrawler="洞穴爬虫",
+TunnelCrawler="隧道爬虫",Frost="冰木",Volcano="火山木",Oak="橡木",Walnut="巧克力木",
+Birch="白桦木",Aspen="白洋木",Koa="大巧克力树",Palm="椰子树",Pine="雪地松",Fir="冷杉木",
+Maple="枫木",SnowGlow="黄金木",Snow="雪木",Ice="冰晶木",LoneCave="幻影木",
+Spooky="幽灵木",SpookyNeon="南瓜木",SpookyGhoul="幽灵食尸者",CandycaneGhoul="拐杖糖幽灵木",
+CandycaneHalloween="万圣节拐杖糖木",CandycaneNeonSpook="霓虹万圣节木",
+Hell="地狱木",Infernal="炼狱木",Radioactive="辐射木",Magma="岩浆树",Skittles="糖果岩浆树",
+Ember="余烬木",Celestial="裂纹木",Void="虚空木",Spirit="星空木",Star="星星木",Shine="红颜树",
+Sky="天堂木",Rainbow="彩虹木",NeonRainbow="霓虹彩虹木",Electric="雷电木",Glass="玻璃木",
+Taco="墨西哥木",Diamond="钻石木",Ruby="红宝石木",Copper="铜木",Silver="银木",Gold="金子木",
+Stone="石头木",Marble="大理石木",Brick="砖头木",BrickDark="深色砖木",BrickAlternative="异形砖木",
+CobbleStone="鹅卵石木",Cookie="曲奇木",Candy="糖果树",CandyNeon="霓虹糖果木",
+CandycaneGreen="绿拐杖糖木",CandycaneRed="红拐杖糖木",CandyAlternitive="异界糖果木",
+Cartoony="卡通木",CartoonyRainbow="彩虹卡通木",Dog="狗木",Lollipop="棒棒糖木",LollipopHead="棒棒糖头木",
+Bush="灌木木",PotBush="花盆灌木",Potato="土豆木",Grass1="草木",Lavender="薰衣草木",
+GlowShroom="发光蘑菇木",MuckySewer="下水道木",SewageTree="污水木",Blah="神秘木",Sign="告示牌木",
+Thread="线轴木",Random="随机木",REEE="尖叫木",Test="测试木",Bone="骨头木",Crystal="水晶木",
+Flame="火焰木",BlueFlame="蓝色火焰木",RainbowFlame="彩色火焰木",CrackedLava="裂隙岩浆木",
+Ethereal="以太木",GreatOak="生命古橡",AppleWood="苹果木",Dry="干枯木",DryNeon="霓虹干枯木",
+Sand="沙滩木",Virtual="虚拟木",Waffer="华夫木",PotBush2="花盆灌木2",
 }
-
-local function highlightModel(model)
-if not model or not model.Parent then return end
-local primary=model.PrimaryPart or model:FindFirstChild("Main")or model:FindFirstChildWhichIsA("BasePart")
-if not primary then return end
-local box=Instance.new("SelectionBox")
-box.Adornee=primary
-box.Color3=Color3.fromRGB(0,255,0)
-box.Transparency=0.5
-box.LineThickness=0.05
-box.Parent=primary
-task.delay(0.8,function()pcall(function()box:Destroy()end)end)
-end
-
-local function getItemKey(model)
-if not model then return nil end
-if model:FindFirstChild("PurchasedBoxItemName")then
-return"PurchasedBoxItemName:"..model.PurchasedBoxItemName.Value
-elseif model:FindFirstChild("ItemName")then
-return"ItemName:"..model.ItemName.Value
-elseif model:FindFirstChild("DraggableItem")then
-return"DraggableItem:"..tostring(model.DraggableItem.Parent)
-end
-return nil
-end
-
-local function findItemByKey(key,allowFuzzy)
-if not key then return nil end
-local prefix,value=key:match("^(.-):(.+)$")
-if not prefix or not value then return nil end
-
-for _,model in pairs(ws.PlayerModels:GetChildren())do
-if model:FindFirstChild("Owner")and model.Owner.Value==lp then
-if prefix=="PurchasedBoxItemName"and model:FindFirstChild("PurchasedBoxItemName")and model.PurchasedBoxItemName.Value==value then
-return model
-elseif prefix=="ItemName"and model:FindFirstChild("ItemName")and model.ItemName.Value==value then
-return model
-elseif prefix=="DraggableItem"and model:FindFirstChild("DraggableItem")and tostring(model.DraggableItem.Parent)==value then
-return model
-end
-end
-end
-
-if allowFuzzy then
-for _,model in pairs(ws.PlayerModels:GetChildren())do
-if model:FindFirstChild("Owner")and model.Owner.Value==lp then
-local modelValue=nil
-if model:FindFirstChild("PurchasedBoxItemName")then
-modelValue=model.PurchasedBoxItemName.Value
-elseif model:FindFirstChild("ItemName")then
-modelValue=model.ItemName.Value
-elseif model:FindFirstChild("DraggableItem")then
-modelValue=tostring(model.DraggableItem.Parent)
-end
-if modelValue==value then
-notify("雪糕","自动找到同类物品: "..model.Name,2)
-return model
-end
-end
-end
-end
-return nil
-end
-
-local function openItem(item)
-if not item then return false end
-local remoteButton=item:FindFirstChild("ButtonRemote_Main")
-if remoteButton then
-local ok=pcall(function()
-game:GetService("ReplicatedStorage").Interaction.RemoteProxy:FireServer(remoteButton)
-end)
-if ok then
-notify("雪糕","已发送按钮打开请求",2)
-return true
-end
-end
-if item:FindFirstChild("BoxItemName")or item:FindFirstChild("PurchasedBoxItemName")then
-local ok=pcall(function()
-rep.Interaction.ClientInteracted:FireServer(item,'Open box')
-end)
-if ok then
-notify("雪糕","已发送打开盒子请求",2)
-return true
-end
-end
-notify("雪糕","该物品无法通过已知方式打开",2)
-return false
-end
- evilTranslatedLabels={}
-
-local function waitItemReady(item,timeout)
-timeout=timeout or 3
-local waited=0
-while waited<timeout do
-if not item or not item.Parent then return false end
-if item:FindFirstChild("ButtonRemote_Main")or item:FindFirstChild("BoxItemName")or item:FindFirstChild("PurchasedBoxItemName")or item:FindFirstChild("ItemName")or item:FindFirstChild("DraggableItem")then
-return true
-end
-task.wait(0.2)
-waited=waited+0.2
-end
-return item and item.Parent and(item:FindFirstChild("ItemName")~=nil or item:FindFirstChild("PurchasedBoxItemName")~=nil)
-end
-
- evilCombineStopFlag=false
- evilAutoRunning=false
- evilCombineCount=1
-
--- ==================== 等待新恶魔鸭出现（默认5秒） ====================
-local function waitEvilDuckAppear(timeout, preSet)
-local deadline=os.clock()+(timeout or 5)
-while os.clock()<deadline do
-if evilCombineStopFlag then return false end
-for _,m in pairs(ws.PlayerModels:GetChildren())do
-if m:IsA("Model")and m.Name=="DuckEvil"and(not preSet or not preSet[m])then
-return true
-end
-end
-task.wait(0.2)
-end
-return false
-end
-
--- ==================== 等待新恶魔鸭的 Main.PointLight 消失（合成彻底完成） ====================
-local function waitEvilDuckLightGone(timeout)
-local deadline=os.clock()+(timeout or 35)
-while os.clock()<deadline do
-if evilCombineStopFlag then return false end
-local hasLight=false
-for _,m in pairs(ws.PlayerModels:GetChildren())do
-if m:IsA("Model")and m.Name=="DuckEvil"then
-local main=m:FindFirstChild("Main")
-if main and main:FindFirstChild("PointLight")then hasLight=true break end
-end
-end
-if not hasLight then return true end
-task.wait(0.2)
-end
-return false
-end
-
-local function startEvilDuckCombine(basePos)
-local items={}
-
-for i=1,3 do
-local key=selectedMaterialKeys[i]
-if not key then
-notify("雪糕",string.format("第 %d 个材料未选择",i),3)
-return
-end
-local item=findItemByKey(key,true)
-if not item then
-notify("雪糕",string.format("第 %d 个材料不存在且无同类物品，请重新选择",i),3)
-return
-end
-items[i]=item
-selectedMaterialKeys[i]=getItemKey(item)
-end
-
-local hrp=lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-local originalPos=basePos or(hrp and hrp.CFrame)
-if not originalPos then
-notify("雪糕","无法获取玩家位置",3)
-return false
-end
-
-local preDucks={}
-for _,m in pairs(ws.PlayerModels:GetChildren())do
-if m:IsA("Model")and m.Name=="DuckEvil"then preDucks[m]=true end
-end
-
--- 反复拖拽+打开，直到新恶魔鸭出现（5秒内没出现就重新拖拽一遍，最多4轮）
-local ok=false
-for attempt=1,4 do
-if evilCombineStopFlag then return false end
-if attempt>1 then
-notify("雪糕",string.format("5秒内未出现新恶魔鸭，重新拖拽（第 %d 轮）",attempt),3)
-end
-
--- 阶段1：先把 3 个材料全部拖到固定位置（拖完为止）
-for i=1,3 do
-local item=items[i]
-if not item or not item.Parent then
-local key=selectedMaterialKeys[i]
-if key then
-item=findItemByKey(key,true)
-end
-if not item then
-notify("雪糕",string.format("第 %d 个材料消失，合成中止",i),3)
-return false
-end
-items[i]=item
-end
-
-if not waitItemReady(item,3)then
-notify("雪糕",string.format("第 %d 个材料尚未就绪，拖拽/打开可能失败",i),2)
-end
-
-local primary=item.PrimaryPart or item:FindFirstChild("Main")or item:FindFirstChild("WoodSection")or item:FindFirstChildWhichIsA("BasePart")
-if not primary then
-notify("雪糕",string.format("第 %d 个材料无法定位部件",i),2)
-return false
-end
-if not item.PrimaryPart then item.PrimaryPart=primary end
-
--- 拖拽时也锁定人物（悬空防布娃娃/移动，不挤物品），拖完再解锁
-lockPlayerAt(primary.CFrame+Vector3.new(2,0,0))
-
--- 先请求物品所有权（游戏拖拽必须走这个，否则服务器不承认位置）
-pcall(function()rep.Interaction.ClientRequestOwnership:FireServer(primary)end)
-dragToPosition(item,dragTargets[i],nil,true)
-
-unlockPlayer()
-
-notify("雪糕",string.format("第 %d 个材料已拖到 %d 号位",i,i),2)
-end
-
--- 阶段2：全部拖完后，再一个一个传过去打开
-for i=1,3 do
-local item=items[i]
-if not item or not item.Parent then
-local key=selectedMaterialKeys[i]
-if key then
-item=findItemByKey(key,true)
-end
-if not item then
-notify("雪糕",string.format("第 %d 个材料消失，合成中止",i),3)
-return false
-end
-items[i]=item
-end
-
-local posIdx=i
--- 锁定到物品正上方悬空（+4 格，脚底不碰物品，避免物理挤飞物品）
-local dp2=item.PrimaryPart or item:FindFirstChild("Main")or item:FindFirstChild("WoodSection")or item:FindFirstChildWhichIsA("BasePart")
-if dp2 then
-if not item.PrimaryPart then item.PrimaryPart=dp2 end
-local lockCF=dp2.CFrame+Vector3.new(2,0,0)
-lockPlayerAt(lockCF)
-task.wait(0.5)
-openItem(item)
-task.wait(0.4)
-unlockPlayer()
-else
-safeTeleport(openPositions[posIdx])
-lockPlayerAt(openPositions[posIdx]+Vector3.new(2,0,0))
-task.wait(0.5)
-openItem(item)
-task.wait(0.4)
-unlockPlayer()
-end
-
-notify("雪糕",string.format("已打开第 %d 个材料（%d 号位）",i,posIdx),2)
-end
-
-safeTeleport(originalPos)
-task.wait(0.1)
-
--- 5秒内没出现新鸭子 → 跳出本轮，重新拖拽一遍
-if waitEvilDuckAppear(5, preDucks)then
-ok=waitEvilDuckLightGone(35)
-if ok then
--- 把新生成的恶魔鸭拖回用户原本位置
-local newDuck=nil
-for _,m in pairs(ws.PlayerModels:GetChildren())do
-if m:IsA("Model")and m.Name=="DuckEvil"and not preDucks[m]then
-newDuck=m
-break
-end
-end
-if newDuck then
-local dp=newDuck.PrimaryPart or newDuck:FindFirstChild("Main")or newDuck:FindFirstChildWhichIsA("BasePart")
-if dp then
-if not newDuck.PrimaryPart then newDuck.PrimaryPart=dp end
-safeTeleport(dp.CFrame+Vector3.new(0,0.5,0))
-dragToPosition(newDuck,originalPos,nil,true)
-notify("雪糕","新恶魔鸭已拖回原位置",3)
-end
-end
-break
-end
-end
-end
-
-if ok then
-notify("雪糕","恶魔鸭合成完成！",3)
-else
-notify("雪糕","恶魔鸭合成未完成（多次拖拽后新鸭仍未出现或 PointLight 未消失）",3)
-end
-return ok
-end
-
-local function selectMaterial(index)
-notify("雪糕",string.format("请点击第 %d 个属于自己的物品",index),4)
-local conn
-conn=mouse.Button1Up:Connect(function()
-conn:Disconnect()
-local target=mouse.Target
-if not target then notify("雪糕","未选中任何物品",2);return end
-local model=target:FindFirstAncestorWhichIsA("Model")
-if not model or not model:FindFirstChild("Owner")or model.Owner.Value~=lp then
-notify("雪糕","只能选择自己的物品",2)
-return
-end
-local key=getItemKey(model)
-if not key then
-notify("雪糕","无法识别该物品类型",2)
-return
-end
-selectedMaterialKeys[index]=key
-highlightModel(model)
-notify("雪糕",string.format("已选中第 %d 个材料: %s",index,model.Name),2)
-end)
-end
-
-SectionEVIL:Button("选择第1个材料",function()selectMaterial(1)end)
-SectionEVIL:Button("选择第2个材料",function()selectMaterial(2)end)
-SectionEVIL:Button("选择第3个材料",function()selectMaterial(3)end)
-
-SectionEVIL:Button("显示当前已选材料",function()
-local msg={}
-for i=1,3 do
-local key=selectedMaterialKeys[i]
-if key then
-local item=findItemByKey(key,false)
-if item then
-msg[i]=string.format("第%d个: %s",i,item.Name)
-else
-msg[i]=string.format("第%d个: [已消失，合成时会自动匹配同类]",i)
-end
-else
-msg[i]=string.format("第%d个: 未选择",i)
-end
-end
-notify("雪糕",table.concat(msg,"\n"),5)
-end)
-
-SectionEVIL:Button("开始合成恶魔鸭",function()
-for i=1,3 do
-if not selectedMaterialKeys[i]then
-notify("雪糕",string.format("第 %d 个材料未选择，请先选择",i),3)
-return
-end
-end
-startEvilDuckCombine()
-end)
-
-local function getMaterialBuyName(key)
-if not key then return nil end
-local _,value=key:match("^(.-):(.+)$")
-if not value or value==""then return nil end
-return value
-end
-
-SectionEVIL:Textbox("合成数量","EvilCombineCount","1",function(v)
-local num=tonumber(v)
-if num and num>0 then evilCombineCount=math.floor(num)end
-end)
-
-SectionEVIL:Button("自动合成恶魔鸭（自动买材料）",function()
-local names,iderr=getEvilMaterialNames()
-if not names then
-notify("雪糕","识别材料失败: "..tostring(iderr),3)
-return
-end
-for i=1,3 do
-local nm=names[i]
-if nm and nm.item then
-selectedMaterialKeys[i]="ItemName:"..nm.item
-notify("雪糕",string.format("已识别材料 %d: %s",i,nm.item),2)
-else
-if not selectedMaterialKeys[i]then
-notify("雪糕",string.format("第 %d 个材料识别失败（%s），请用\"选择第%d个材料\"手动点选",i,nm and nm.display or"未找到",i),3)
-return
-end
-notify("雪糕",string.format("材料 %d 识别失败，沿用已手动选择项",i),2)
-end
-end
-local count=evilCombineCount or 1
-if count<=0 then count=1 end
-if evilAutoRunning then
-notify("雪糕","自动合成已在运行中",3)
-return
-end
-if not _G.qSnowBuyBlueprintBox then
-notify("雪糕","自动购买模块未加载，无法买材料",4)
-return
-end
-evilAutoRunning=true
-evilCombineStopFlag=false
-if _G.qSnowResetBuyStopFlag then pcall(_G.qSnowResetBuyStopFlag)end
-task.spawn(function()
-local baseHrp=lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-local basePos=baseHrp and baseHrp.CFrame
-local successCount=0
-for c=1,count do
-if evilCombineStopFlag then break end
-notify("雪糕",string.format("=== 第 %d/%d 次合成 ===",c,count),2)
-for i=1,3 do
-if evilCombineStopFlag then break end
-local key=selectedMaterialKeys[i]
-if findItemByKey(key,false)then
-notify("雪糕",string.format("材料 %d 已有，跳过购买",i),2)
-else
-local buyName=getMaterialBuyName(key)
-if not buyName then
-notify("雪糕",string.format("第 %d 个材料名字无效",i),3)
-else
-local box,err
-for r=1,3 do
-if evilCombineStopFlag then break end
-box,err=_G.qSnowBuyBlueprintBox(buyName)
-if box then break end
-notify("雪糕",string.format("购买材料 %d 失败（第 %d 次重试）: %s",i,r,tostring(err or"未知")),3)
-task.wait(0.6)
-end
-if box then
-notify("雪糕",string.format("已购买材料 %d: %s",i,buyName),2)
-else
-notify("雪糕",string.format("材料 %d 购买失败，重试3次仍未成功",i),3)
-end
-end
-end
-task.wait(0.6)
-end
-if evilCombineStopFlag then break end
-local ok=startEvilDuckCombine(basePos)
-if evilCombineStopFlag then break end
-if ok then
-successCount=successCount+1
-notify("雪糕",string.format("第 %d 次合成完成（新恶魔鸭已生成，PointLight 已消失）",c),2)
-else
-notify("雪糕","合成未完成，重新把物品拖回合成位置",3)
-for i=1,3 do
-local key=selectedMaterialKeys[i]
-if key then
-local item=findItemByKey(key,true)
-if item then
-local p=item.PrimaryPart or item:FindFirstChild("Main")or item:FindFirstChild("WoodSection")or item:FindFirstChildWhichIsA("BasePart")
-if p then
-if not item.PrimaryPart then item.PrimaryPart=p end
-pcall(function()rep.Interaction.ClientRequestOwnership:FireServer(p)end)
-end
-dragToPosition(item,dragTargets[i])
-end
-end
-task.wait(0.3)
-end
-end
-if basePos then safeTeleport(basePos)end
-task.wait(1)
-end
-evilAutoRunning=false
-if basePos then safeTeleport(basePos)end
-notify("雪糕",string.format("恶魔鸭自动合成结束：成功 %d 次",successCount),4)
-end)
-end)
-
-SectionEVIL:Button("停止自动合成",function()
-evilCombineStopFlag=true
-notify("雪糕","已发送停止信号",3)
-end)
-
--- ==================== 自动合成核心（生成 EvilHeart） ====================
- evilHeathStopFlag=false
- evilHeathAutoRunning=false
- evilHeathCount=1
-
-local evilHeathMaterials={"HappyBall","Egg","Cocoa"}
-local evilHeathDragTargets={
-[1]=CFrame.new(-515.637939,-86.914101,-2013.382812),
-[2]=CFrame.new(-526.625244,-86.957069,-2017.517578),
-[3]=CFrame.new(-536.980713,-86.994179,-2021.368164)
+local TREE_FALLBACK = {
+["普通树"]="Generic",["沼泽黄金"]="GoldSwampy",["樱花"]="Cherry",["蓝木"]="CaveCrawler",
+["冰木"]="Frost",["火山木"]="Volcano",["橡木"]="Oak",["巧克力木"]="Walnut",["白桦木"]="Birch",
+["黄金木"]="SnowGlow",["雪地松"]="Pine",["僵尸木"]="GreenSwampy",["大巧克力树"]="Koa",
+["椰子树"]="Palm",["幽灵木"]="Spooky",["南瓜木"]="SpookyNeon",["大理石木"]="Marble",
+["天堂木"]="Sky",["虚拟木"]="Virtual",["玻璃木"]="Taco",["糖果树"]="CandycaneGreen",
+["积木树"]="CandycaneRed",["发光红色糖果木"]="CandyNeon",["彩虹树"]="Rainbow",["雷电木"]="Electric",
+["煤炭木"]="GenericDead",["岩浆树"]="Skittles",["紫木"]="Cavern",["下水道木"]="MuckySewer",
+["辐射木"]="Radioactive",["地狱木"]="Hell",["沙滩木"]="Sand",["白洋木"]="Aspen",
+["发光彩虹木"]="NeonRainbow",["狗木"]="Dog",["幻影木"]="LoneCave",["红颜树"]="Shine",
+["石头木"]="Magma",["玻璃冰木"]="Ice",["砖头木"]="Blah",["卡通树"]="CobbleStone",
+["曲奇树"]="Cookie",["生命树"]="GreatOak",["虚空木"]="Void",["裂纹木"]="Celestial",
+["幽灵食尸者"]="SpookyGhoul",["生锈木"]="SewageTree",["金子木"]="Gold",["星空木"]="Spirit",
+["火焰木"]="Flame",["蓝色火焰木"]="BlueFlame",["彩色火焰木"]="RainbowFlame",["星星木"]="Star",
+["雪木"]="Snow",["冷杉木"]="Fir",
 }
+local function readTreeClasses()
+    local list = {}
+    local amounts = ws:FindFirstChild("Stores") and ws.Stores:FindFirstChild("PlanterStore") and ws.Stores.PlanterStore:FindFirstChild("Planter Spawner") and ws.Stores.PlanterStore["Planter Spawner"]:FindFirstChild("Amounts")
+    if amounts then
+        for _, c in ipairs(amounts:GetChildren()) do
+            if c:IsA("NumberValue") or c:IsA("IntValue") or c:IsA("StringValue") then table.insert(list, tostring(c.Name)) end
+        end
+    end
+    if #list == 0 then
+        local W = rep:FindFirstChild("Woods")
+        if W then for _, c in ipairs(W:GetChildren()) do table.insert(list, tostring(c.Name)) end end
+    end
+    return list
+end
+local treeMapping = {}
+for _, cls in ipairs(readTreeClasses()) do treeMapping[TREE_CN[cls] or cls] = cls end
+if next(treeMapping) == nil then for cn, cls in pairs(TREE_FALLBACK) do treeMapping[cn] = cls end end
+treeMapping["普通树"] = treeMapping["普通树"] or "Generic"
+treeMapping["幻影木"] = treeMapping["幻影木"] or "LoneCave"
 
-local function waitEvilHeartAppear(timeout, preSet)
-local deadline=os.clock()+(timeout or 10)
-while os.clock()<deadline do
-if evilHeathStopFlag then return false end
-for _,m in pairs(ws.PlayerModels:GetChildren())do
-if m:IsA("Model")and m.Name=="EvilHeart"and(not preSet or not preSet[m])then
-return true
+local TREE_PRIORITY = {"火焰木","石头木","蓝色火焰木","彩色火焰木"}
+local function sortTreeNames(list)
+    local prio = {}
+    for i, n in ipairs(TREE_PRIORITY) do prio[n] = i end
+    table.sort(list, function(a, b)
+        local pa, pb = prio[a], prio[b]
+        if pa and pb then return pa < pb end
+        if pa then return true end
+        if pb then return false end
+        return a < b
+    end)
 end
-end
-task.wait(0.2)
-end
-return false
-end
+local treeNames = {}
+for name in pairs(treeMapping) do table.insert(treeNames, name) end
+sortTreeNames(treeNames)
 
-local function startEvilHeartCombine(basePos)
-local hrp=lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-local originalPos=basePos or(hrp and hrp.CFrame)
-if not originalPos then
-notify("雪糕","无法获取玩家位置",3)
-return false
-end
-local preHeaths={}
-for _,m in pairs(ws.PlayerModels:GetChildren())do
-if m:IsA("Model")and m.Name=="EvilHeart"then preHeaths[m]=true end
-end
-local ok=false
-for attempt=1,4 do
-if evilHeathStopFlag then return false end
-if attempt>1 then notify("雪糕",string.format("5秒内未出现新EvilHeart，重新拖拽（第 %d 轮）",attempt),3)end
-local items={}
-for i=1,3 do
-if evilHeathStopFlag then return false end
-local buyName=evilHeathMaterials[i]
-local key="ItemName:"..buyName
-local item=findItemByKey(key,false)
-if not item then
-if not _G.qSnowBuyBlueprintBox then
-notify("雪糕","自动购买模块未加载，无法购买材料 "..buyName,4)
-return false
-end
-local box,err
-for r=1,3 do
-if evilHeathStopFlag then return false end
-box,err=_G.qSnowBuyBlueprintBox(buyName)
-if box then break end
-notify("雪糕",string.format("购买材料 %s 失败（第 %d 次重试）: %s",buyName,r,tostring(err or"未知")),3)
-task.wait(0.6)
-end
-if not box then notify("雪糕",string.format("材料 %s 购买失败，重试3次仍未成功",buyName),3)end
-item=box or findItemByKey(key,true)
-end
-if not item then notify("雪糕",string.format("材料 %s 无法获取",buyName),3)return false end
-items[i]=item
-if not waitItemReady(item,3)then
-notify("雪糕",string.format("材料 %s 尚未就绪",buyName),2)
-end
-local primary=item.PrimaryPart or item:FindFirstChild("Main")or item:FindFirstChild("WoodSection")or item:FindFirstChildWhichIsA("BasePart")
-if primary then
-if not item.PrimaryPart then item.PrimaryPart=primary end
-lockPlayerAt(primary.CFrame+Vector3.new(2,0,0))
-dragToPosition(item,evilHeathDragTargets[i],nil,true)
-unlockPlayer()
-notify("雪糕",string.format("%s 已拖到 %d 号位",buyName,i),2)
-end
-end
-for i=1,3 do
-if evilHeathStopFlag then return false end
-local item=items[i]
-if not item or not item.Parent then
-local key="ItemName:"..evilHeathMaterials[i]
-item=findItemByKey(key,true)
-end
-if item and item.Parent then
-local p2=item.PrimaryPart or item:FindFirstChild("Main")or item:FindFirstChildWhichIsA("BasePart")
-if p2 then
-if not item.PrimaryPart then item.PrimaryPart=p2 end
-local lockCF=p2.CFrame+Vector3.new(2,0,0)
-lockPlayerAt(lockCF)
-task.wait(0.5)
-end
-local opened=openItem(item)
-task.wait(0.4)
-unlockPlayer()
-notify("雪糕",string.format("已打开 %s（%d 号位）",evilHeathMaterials[i],i),2)
-end
-end
-if waitEvilHeartAppear(10, preHeaths)then
-ok=true
-local newHeath=nil
-for _,m in pairs(ws.PlayerModels:GetChildren())do
-if m:IsA("Model")and m.Name=="EvilHeart"and not preHeaths[m]then
-newHeath=m
-break
-end
-end
-if newHeath then
-local dp=newHeath.PrimaryPart or newHeath:FindFirstChild("Main")or newHeath:FindFirstChildWhichIsA("BasePart")
-if dp then
-if not newHeath.PrimaryPart then newHeath.PrimaryPart=dp end
-safeTeleport(dp.CFrame+Vector3.new(0,0.5,0))
-dragToPosition(newHeath,originalPos,nil,true)
-notify("雪糕","新EvilHeart已拖回原位置",3)
-end
-end
-break
-end
-end
-if ok then
-notify("雪糕","EvilHeart 合成完成！",3)
-else
-notify("雪糕","EvilHeart 合成未完成（多次拖拽后仍未出现）",3)
-end
-safeTeleport(originalPos)
-return ok
+-- ==================== 找树与斧头解析 ====================
+local function findUncutTree(treeClass)
+    local playerPos = lp.Character and lp.Character.HumanoidRootPart.Position
+    if not playerPos then return nil end
+    local nearestDist, nearestWood, nearestTree = math.huge, nil, nil
+    for _, region in pairs(ws:GetChildren()) do
+        if region.Name == "TreeRegion" then
+            for _, tree in pairs(region:GetChildren()) do
+                if tree:IsA("Model") and tree:FindFirstChild("TreeClass") and tree.TreeClass.Value == treeClass then
+                    local woodSections = {}
+                    for _, child in pairs(tree:GetChildren()) do
+                        if child.Name == "WoodSection" and child:IsA("BasePart") then table.insert(woodSections, child) end
+                    end
+                    if #woodSections >= 2 then
+                        local dist = (woodSections[1].Position - playerPos).Magnitude
+                        if dist < nearestDist then nearestDist, nearestWood, nearestTree = dist, woodSections[1], tree end
+                    end
+                end
+            end
+        end
+    end
+    return nearestWood, nearestTree
 end
 
-SectionEVIL:Textbox("EvilHeart合成数量","EvilHeartCount","1",function(v)
-local num=tonumber(v)
-if num and num>0 then evilHeathCount=math.floor(num)end
+local function getTreeTopCFrame(treeModel)
+    local topY, topCF = -math.huge, nil
+    for _, child in pairs(treeModel:GetChildren()) do
+        if child:IsA("BasePart") then
+            local top = child.Position.Y + child.Size.Y / 2
+            if top > topY then topY = top; topCF = CFrame.new(child.Position.X, top + 2, child.Position.Z) end
+        end
+    end
+    if not topCF then topCF = treeModel:GetPivot() + Vector3.new(0, 2, 0) end
+    return topCF
+end
+
+local axeConfigCache = {}
+local function loadWeaponConfig(weaponName)
+    if axeConfigCache[weaponName] ~= nil then return axeConfigCache[weaponName] end
+    if weaponName == "OlReliable" or weaponName == "OIReliable" then
+        local override = nil
+        local wsTool = workspace:FindFirstChild(lp.Name)
+        if wsTool then wsTool = wsTool:FindFirstChild("Tool") end
+        if wsTool then
+            local tn = wsTool:FindFirstChild("ToolName")
+            if tn and (tostring(tn.Value)=="OlReliable" or tostring(tn.Value)=="OIReliable") then override = wsTool:FindFirstChild("AxeClassDamageOverride") end
+        end
+        if not override then
+            local bp = lp:FindFirstChild("Backpack")
+            if bp then
+                for _, tool in pairs(bp:GetChildren()) do
+                    if tool:IsA("Tool") then
+                        local tn = tool:FindFirstChild("ToolName")
+                        if tn and (tostring(tn.Value)=="OlReliable" or tostring(tn.Value)=="OIReliable") then override = tool:FindFirstChild("AxeClassDamageOverride") end
+                    end
+                end
+            end
+        end
+        if override then
+            local cfg = {Damage=nil, SwingCooldown=nil, Range=nil, SpecialTrees={}}
+            for k, v in pairs(override:GetAttributes()) do
+                if k == "Damage" then cfg.Damage = v elseif k == "SwingCooldown" then cfg.SwingCooldown = v elseif k == "Range" then cfg.Range = v else cfg.SpecialTrees[k] = {Damage = v} end
+            end
+            for _, c in pairs(override:GetChildren()) do
+                if c:IsA("NumberValue") or c:IsA("IntValue") then
+                    if c.Name == "Damage" then cfg.Damage = c.Value elseif c.Name == "SwingCooldown" then cfg.SwingCooldown = c.Value elseif c.Name == "Range" then cfg.Range = c.Value else cfg.SpecialTrees[c.Name] = {Damage = c.Value} end
+                end
+            end
+            if cfg.Damage or cfg.SwingCooldown or next(cfg.SpecialTrees) then axeConfigCache[weaponName] = cfg; return cfg end
+        end
+    end
+    local function decompileSafe(s)
+        if not s then return nil end
+        if type(decompile) == "function" then local ok, src = pcall(decompile, s); if ok and type(src) == "string" and #src > 0 then return src end end
+        if type(getscriptbytecode) == "function" then local ok, bc = pcall(getscriptbytecode, s); if ok and type(bc) == "string" then return bc end end
+        return nil
+    end
+    local function parseNum(src, key)
+        local v = src:match("[%w_%.]+%.?" .. key .. "%s*=%s*([%-]?[%d%.]+)")
+        if not v then v = src:match(key .. "%s*=%s*([%-]?[%d%.]+)") end
+        return tonumber(v)
+    end
+    local function parseSpecialTrees(src)
+        local out = {}
+        for tn, body in src:gmatch("SpecialTrees%.([%w_]+)%s*=%s*{(.-)}") do
+            local cfg = {}
+            cfg.Damage = tonumber(body:match("Damage%s*=%s*([%-]?[%d%.]+)"))
+            cfg.SwingCooldown = tonumber(body:match("SwingCooldown%s*=%s*([%-]?[%d%.]+)"))
+            if cfg.Damage then out[tn] = cfg end
+        end
+        return out
+    end
+    local function findAxeModule(name)
+        local want = name.."AxeClass"
+        local la = rep:FindFirstChild("LoadedAssets")
+        if la then local m = la:FindFirstChild(want); if m then return m end end
+        if type(getloadedmodules) == "function" then
+            for _, m in ipairs(getloadedmodules()) do if m:IsA("ModuleScript") and (m.Name == want or m:GetFullName():sub(-#want) == want) then return m end end
+        end
+        return nil
+    end
+    local module = findAxeModule(weaponName)
+    if not module then axeConfigCache[weaponName] = nil; return nil end
+    local src = decompileSafe(module)
+    if not src then axeConfigCache[weaponName] = nil; return nil end
+    local cfg = {Damage = parseNum(src, "Damage"), SwingCooldown = parseNum(src, "SwingCooldown"), Range = parseNum(src, "Range"), SpecialTrees = parseSpecialTrees(src)}
+    if not cfg.Damage or not cfg.SwingCooldown then axeConfigCache[weaponName] = nil; return nil end
+    cfg.Range = cfg.Range or 10
+    axeConfigCache[weaponName] = cfg
+    return cfg
+end
+
+local function selectBestWeapon(treeClass)
+    local toolFolder = lp:FindFirstChild("ToolFolder")
+    if not toolFolder then return nil, nil, "未找到 ToolFolder" end
+    local bw, bd, bc = nil, -1, nil
+    for _, child in pairs(toolFolder:GetChildren()) do
+        local config = loadWeaponConfig(child.Name)
+        if config then
+            local d = (config.SpecialTrees[treeClass] and config.SpecialTrees[treeClass].Damage) or config.Damage
+            if d > bd then bw, bd, bc = child.Name, d, config end
+        end
+    end
+    return bw, bc, bd
+end
+
+-- ==================== 砍树逻辑 ====================
+local selectedPlan = 1
+local function runBringTree(treeClass)
+    local weaponName, weaponConfig, damage = selectBestWeapon(treeClass)
+    if not weaponName then notify("誓言", "自动选武器失败", 3) return false end
+    local req = {Flame=200000, BlueFlame=200000, Celestial=200000, Void=200000, Ice=200000, Magma=200000, RainbowFlame=200000, Radioactive=200000, Shine=200000, LoneCave=200000, Spirit=200000}
+    if req[treeClass] and damage < req[treeClass] then notify("誓言", string.format("伤害不足！需要至少 %.0f", req[treeClass]), 4); return false end
+    local cooldown = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].SwingCooldown) or weaponConfig.SwingCooldown
+    local woodSec, tree = findUncutTree(treeClass)
+    if not woodSec then notify("誓言", "附近没有可砍的树", 3); return false end
+
+    local minX, maxX = -543, -27.8
+    local minY, maxY = -196.7, -148.2
+    local minZ, maxZ = -2961.7, -2668.7
+    local tp_ = woodSec.Position
+    if tp_.X >= minX and tp_.X <= maxX and tp_.Y >= minY and tp_.Y <= maxY and tp_.Z >= minZ and tp_.Z <= maxZ then
+        notify("誓言", "树在危险区域内，已删除", 5)
+        if tree and tree.Parent then tree:Destroy() end
+        return false
+    end
+
+    local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
+    if not tool then
+        local tf = lp:FindFirstChild("ToolFolder")
+        if tf then local wo = tf:FindFirstChild(weaponName); tool = wo and (wo:IsA("Tool") and wo or wo.Value) or nil end
+    end
+    if not tool then notify("誓言", "未找到工具: "..weaponName, 3); return false end
+    local cutEvent = tree:FindFirstChild("CutEvent")
+    if not cutEvent then notify("誓言", "无法获取CutEvent", 3); return false end
+    local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
+    local playerOriginalCF = lp.Character and lp.Character.HumanoidRootPart.CFrame
+    if not playerOriginalCF then notify("誓言", "无法获取玩家位置", 3); return false end
+
+    local tempPart = Instance.new("Part")
+    tempPart.Name = "TempMarker"; tempPart.Anchored = true; tempPart.CanCollide = true
+    tempPart.Shape = Enum.PartType.Block; tempPart.Size = Vector3.new(0.001,0.0001,0.0001)
+    tempPart.Color = Color3.fromRGB(255,0,0); tempPart.Material = Enum.Material.Neon
+    tempPart.CFrame = CFrame.new(woodSec.Position + Vector3.new(8, 2.5, 0)); tempPart.Parent = workspace
+    task.wait(0.02)
+
+    if selectedPlan == 1 then
+        workspace.CurrentCamera.CameraSubject = tree
+        local fallenLog, existingLogs = nil, {}
+        for _, log in pairs(ws.LogModels:GetChildren()) do existingLogs[log] = true end
+        local stopCutting, timeoutReached = false, false
+        local sendTask = task.spawn(function()
+            while not stopCutting do
+                pcall(remote.FireServer, remote, cutEvent, {height=0.3, faceVector=Vector3.new(-1,0,0), cooldown=cooldown, sectionId=1, hitPoints=damage, tool=tool, cuttingClass="Axe"})
+                task.wait(0.01)
+            end
+        end)
+        local timeoutTask = task.spawn(function() task.wait(5); if not stopCutting then timeoutReached=true; stopCutting=true end end)
+        while not fallenLog and not stopCutting do
+            for _, log in pairs(ws.LogModels:GetChildren()) do
+                if not existingLogs[log] and log:FindFirstChild("Owner") and log.Owner.Value==lp and log:FindFirstChild("TreeClass") and log.TreeClass.Value==treeClass then
+                    if (log:GetPivot().Position - woodSec.Position).Magnitude < 100 then fallenLog=log; break end
+                end
+            end
+            task.wait(0.01)
+        end
+        stopCutting = true; task.cancel(sendTask); task.cancel(timeoutTask)
+        workspace.CurrentCamera.CameraSubject = nil
+        if timeoutReached or not fallenLog then notify("誓言", "砍树超时", 3); if tempPart and tempPart.Parent then tempPart:Destroy() end; return false end
+        local primary = fallenLog.PrimaryPart or fallenLog:FindFirstChild("WoodSection") or fallenLog:FindFirstChild("Main") or fallenLog:FindFirstChildWhichIsA("BasePart")
+        if not fallenLog.PrimaryPart then fallenLog.PrimaryPart = primary end
+        pcall(rep.Interaction.ClientInteracted.FireServer, rep.Interaction, primary, 'Click'); task.wait(0.01)
+        safeTeleport(primary.CFrame); task.wait(0.1)
+        for _ = 1, 3 do pcall(rep.Interaction.ClientRequestOwnership.FireServer, rep.Interaction, primary); task.wait(0.01) end
+        local stopFollow = false
+        local followConn = RS.Heartbeat:Connect(function()
+            if not stopFollow and fallenLog and fallenLog.PrimaryPart and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart") then
+                lp.Character.HumanoidRootPart.CFrame = fallenLog.PrimaryPart.CFrame
+            end
+        end)
+        for i = 1, 30 do
+            pcall(function() rep.Interaction.ClientIsDragging:FireServer(fallenLog, DRAG_SECRET); fallenLog:SetPrimaryPartCFrame(playerOriginalCF) end)
+            task.wait(0.01)
+        end
+        stopFollow = true; if followConn then followConn:Disconnect() end
+        pcall(rep.Interaction.ClientRequestOwnership.FireServer, rep.Interaction, primary); task.wait(0.01)
+        pcall(rep.Interaction.ClientInteracted.FireServer, rep.Interaction, primary, 'Click')
+        safeTeleport(playerOriginalCF)
+    else
+        lockPlayerAt(getTreeTopCFrame(tree))
+        local fallenLog, existing = nil, {}
+        for _, log in pairs(ws.LogModels:GetChildren()) do existing[log] = true end
+        local stopCutting, timeoutReached = false, false
+        local sendTask = task.spawn(function()
+            while not stopCutting do
+                pcall(remote.FireServer, remote, cutEvent, {height=0.3, faceVector=Vector3.new(-1,0,0), cooldown=cooldown, sectionId=1, hitPoints=damage, tool=tool, cuttingClass="Axe"})
+                task.wait(0.0001)
+            end
+        end)
+        local timeoutTask = task.spawn(function() task.wait(15); if not stopCutting then timeoutReached = true; stopCutting = true end end)
+        while not fallenLog and not stopCutting do
+            for _, log in pairs(ws.LogModels:GetChildren()) do
+                if not existing[log] and log:FindFirstChild("Owner") and log.Owner.Value==lp and log:FindFirstChild("TreeClass") and log.TreeClass.Value==treeClass then
+                    if (log:GetPivot().Position - woodSec.Position).Magnitude < 100 then fallenLog = log; break end
+                end
+            end
+            task.wait(0.01)
+        end
+        stopCutting = true; task.cancel(sendTask); task.cancel(timeoutTask)
+        if timeoutReached or not fallenLog then notify("誓言", "砍树超时或木头未掉落", 3); if tempPart and tempPart.Parent then tempPart:Destroy() end; safeTeleport(playerOriginalCF); return false end
+        local primary = fallenLog.PrimaryPart or fallenLog:FindFirstChild("WoodSection") or fallenLog:FindFirstChild("Main") or fallenLog:FindFirstChildWhichIsA("BasePart")
+        if not fallenLog.PrimaryPart then fallenLog.PrimaryPart = primary end
+        lockPlayerAt(primary.CFrame + Vector3.new(0,3,0))
+        task.wait(0.15)
+        for _ = 1, 3 do pcall(rep.Interaction.ClientRequestOwnership.FireServer, rep.Interaction, primary); task.wait(0.01) end
+        local done = false
+        dragToPosition(fallenLog, playerOriginalCF, function() done = true end, 10)
+        local t = 0
+        while not done and t < 6 do task.wait(0.05); t = t + 0.05 end
+        safeTeleport(playerOriginalCF)
+    end
+    if tempPart and tempPart.Parent then tempPart:Destroy() end
+    notify("誓言", "树已带来", 2)
+    return true
+end
+
+-- ==================== 一键加工 ====================
+local isSelectingSawmill = false
+local sawmillSelectConn = nil
+local function selectSawmill()
+    if isSelectingSawmill then notify("誓言", "正在等待选择中...", 2); return end
+    isSelectingSawmill = true
+    notify("誓言", "请点击锯木机任意部件", 3)
+    if sawmillSelectConn then sawmillSelectConn:Disconnect() end
+    sawmillSelectConn = mouse.Button1Down:Connect(function()
+        local target = mouse.Target
+        if not target then notify("誓言", "未选中任何物体", 2); return end
+        local model = target:FindFirstAncestorOfClass("Model")
+        if not model then notify("誓言", "请点击一个模型", 2); return end
+        local function isSawmill(root)
+            local attr = root:GetAttribute("ItemName")
+            if attr and type(attr) == "string" and attr:lower():find("saw") then return true end
+            for _, child in pairs(root:GetDescendants()) do
+                if child.Name == "ItemName" then local val = child.Value; if val and type(val) == "string" and val:lower():find("saw") then return true end end
+            end
+            if root.Name and root.Name:lower():find("saw") then return true end
+            local typeVal = root:FindFirstChild("Type")
+            if typeVal and typeVal.Value == "Sawmill" then return true end
+            return false
+        end
+        if not isSawmill(model) then notify("誓言", "这不是锯木机", 3); return end
+        local function findPart(root)
+            for _, child in pairs(root:GetDescendants()) do if child.Name == "Conveyor" and child:IsA("BasePart") then return child, "Conveyor" end end
+            for _, child in pairs(root:GetDescendants()) do if child.Name == "Main" and child:IsA("BasePart") then return child, "Main" end end
+            return nil, nil
+        end
+        local part, partType = findPart(model)
+        if not part then notify("誓言", "找不到 Conveyor 或 Main 部件", 3); return end
+        bai.cachedSawmill = model
+        bai.cachedSawmillPos = part.CFrame
+        if sawmillSelectConn then sawmillSelectConn:Disconnect(); sawmillSelectConn = nil end
+        isSelectingSawmill = false
+        notify("誓言", "✅ 已记忆锯木机位置（" .. partType .. "）", 3)
+    end)
+end
+
+local isDecomposeActive = false
+local decomposeConn = nil
+local function startDecomposeSelection()
+    if isDecomposeActive then notify("誓言", "分解选择已激活", 2); return end
+    if not bai.cachedSawmill or not bai.cachedSawmill.Parent then notify("誓言", "请先使用 '选择锯木机' 按钮设置一个锯木机", 3); return end
+    if not bai.cachedSawmillPos then notify("誓言", "锯木机位置无效", 3); return end
+    isDecomposeActive = true
+    notify("誓言", "请点击一棵树", 3)
+    decomposeConn = mouse.Button1Down:Connect(function()
+        local target = mouse.Target
+        if not target then notify("誓言", "未选中任何物体", 2); return end
+        local model = target:FindFirstAncestorOfClass("Model")
+        if not model then notify("誓言", "请点击树干", 2); return end
+        local hasWood = false
+        for _, child in pairs(model:GetChildren()) do if child.Name == "WoodSection" then hasWood = true end end
+        if not (hasWood and model:FindFirstChild("CutEvent")) then notify("誓言", "这不是一棵树", 2); return end
+        if decomposeConn then decomposeConn:Disconnect(); decomposeConn = nil end
+        isDecomposeActive = false
+        notify("誓言", "已选中树，开始分解...", 3)
+        task.spawn(function()
+            local treeClass = treeMapping["普通树"]
+            local tc = model:FindFirstChild("TreeClass")
+            if tc then treeClass = tc.Value end
+            local weaponName, weaponConfig, damage = selectBestWeapon(treeClass)
+            if not weaponName then notify("誓言", "自动选武器失败", 3); return end
+            local cooldown = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].SwingCooldown) or weaponConfig.SwingCooldown
+            local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
+            if not tool then
+                local tf = lp:FindFirstChild("ToolFolder")
+                if tf then local wo = tf:FindFirstChild(weaponName); tool = wo and (wo:IsA("Tool") and wo or wo.Value) or nil end
+            end
+            if not tool then notify("誓言", "未找到工具: "..weaponName, 3); return end
+            local cutEvent = model:FindFirstChild("CutEvent")
+            if not cutEvent then notify("誓言", "无法获取CutEvent", 3); return end
+            local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
+
+            local sections = {}
+            local rootSection = nil
+            for _, child in pairs(model:GetChildren()) do
+                if child.Name == "WoodSection" and child:IsA("BasePart") and child:FindFirstChild("ID") then
+                    local id = child.ID.Value
+                    if id >= 2 then table.insert(sections, {id = id, part = child})
+                    elseif id == 1 then rootSection = child end
+                end
+            end
+            if #sections == 0 then notify("誓言", "该树没有可分解的部分（ID≥2）", 3); return end
+            table.sort(sections, function(a, b) return a.id > b.id end)
+
+            local initialLogs = {}
+            for _, log in pairs(ws.LogModels:GetChildren()) do initialLogs[log] = true end
+            local tasks = {}
+            notify("誓言", string.format("开始分解 %d 个部分", #sections), 2)
+
+            for _, sec in ipairs(sections) do
+                local part = sec.part
+                local sectionId = sec.id
+                local stopFlag = false
+                local taskId = task.spawn(function()
+                    while not stopFlag do
+                        pcall(remote.FireServer, remote, cutEvent, {height=0.11, faceVector=Vector3.new(-1,0,0), cooldown=cooldown, sectionId=sectionId, hitPoints=damage, tool=tool, cuttingClass="Axe"})
+                        task.wait(0.01)
+                        if not part or not part.Parent then break end
+                    end
+                end)
+                tasks[taskId] = true
+            end
+
+            local function hasHighIDSections()
+                for _, child in pairs(model:GetChildren()) do
+                    if child.Name == "WoodSection" and child:FindFirstChild("ID") and child.ID.Value >= 2 then return true end
+                end
+                return false
+            end
+
+            local startTime = tick()
+            while hasHighIDSections() and tick() - startTime < 120 do task.wait(0.01) end
+            for taskId in pairs(tasks) do task.cancel(taskId) end
+            if hasHighIDSections() then notify("誓言", "停止", 3); return end
+
+            local allLogs = {}
+            for _, log in pairs(ws.LogModels:GetChildren()) do
+                if not initialLogs[log] and log:FindFirstChild("Owner") and log.Owner.Value == lp then table.insert(allLogs, log) end
+            end
+            if #allLogs == 0 then notify("誓言", "未找到木头（可能掉落失败），停止", 3); return end
+
+            local targetPos = bai.cachedSawmillPos + Vector3.new(0.7, 0, 0)
+            for idx, log in ipairs(allLogs) do
+                if log and log.Parent then
+                    local primary = log.PrimaryPart or log:FindFirstChild("WoodSection") or log:FindFirstChild("Main") or log:FindFirstChildWhichIsA("BasePart")
+                    if primary then
+                        if not log.PrimaryPart then log.PrimaryPart = primary end
+                        safeTeleportNoWait(primary.CFrame + Vector3.new(0, 2, 0))
+                        for _ = 1, 3 do pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end); task.wait(0.01) end
+                        for i = 1, 30 do
+                            pcall(function() rep.Interaction.ClientIsDragging:FireServer(log, DRAG_SECRET); log:SetPrimaryPartCFrame(targetPos) end)
+                            task.wait(0.01)
+                        end
+                    end
+                end
+            end
+
+            if rootSection and rootSection.Parent then
+                if not model.PrimaryPart then model.PrimaryPart = rootSection end
+                safeTeleport(rootSection.CFrame + Vector3.new(0, 2, 0))
+                dragToPosition(model, targetPos)
+            end
+            notify("誓言", "分解完成", 3)
+        end)
+    end)
+end
+
+-- ==================== UI 模块 ====================
+local OathGui = new("ScreenGui",{Name="OathPanel", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, Enabled=false}, PG)
+local Main = new("Frame",{Size=UDim2.fromOffset(620,400), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Bg, BorderSizePixel=0, ClipsDescendants=true}, OathGui)
+crn(Main,16); strk(Main,T.Stroke,1)
+
+local Sb = new("Frame",{Size=UDim2.new(0,150,1,0), BackgroundColor3=T.Sidebar, BorderSizePixel=0}, Main)
+crn(Sb,16)
+new("TextLabel",{Size=UDim2.new(0,130,0,20), Position=UDim2.new(0,14,0,6), BackgroundTransparency=1, Text=GAME_TITLE, Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left}, Sb)
+
+local tabs = {"信息","功能"}
+local tabBtns = {}
+local pc = new("Frame",{Position=UDim2.new(0,150,0,0), Size=UDim2.new(1,-150,1,0), BackgroundTransparency=1}, Main)
+local pages = {}
+for i, name in ipairs(tabs) do
+    local p = new("ScrollingFrame",{Name=name, Size=UDim2.fromScale(1,1), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y, Visible=false}, pc)
+    new("UIListLayout",{Padding=UDim.new(0,4), SortOrder=Enum.SortOrder.LayoutOrder}, p)
+    new("UIPadding",{PaddingTop=UDim.new(0,48), PaddingBottom=UDim.new(0,10), PaddingLeft=UDim.new(0,14), PaddingRight=UDim.new(0,14)}, p)
+    pages[i] = p
+end
+
+local h = new("Frame",{Position=UDim2.new(0,0,0,56), Size=UDim2.new(1,0,1,-64), BackgroundTransparency=1}, Sb)
+new("UIListLayout",{Padding=UDim.new(0,4), HorizontalAlignment=Enum.HorizontalAlignment.Center}, h)
+for i, name in ipairs(tabs) do
+    local b = new("TextButton",{Size=UDim2.new(1,0,0,32), BackgroundTransparency=1, Text="", AutoButtonColor=false, LayoutOrder=i}, h)
+    crn(b,16)
+    local l = new("TextLabel",{Position=UDim2.new(0,14,0,0), Size=UDim2.new(1,-14,1,0), BackgroundTransparency=1, Text=name, Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left}, b)
+    tabBtns[i] = {button=b, label=l}
+    b.MouseButton1Click:Connect(function()
+        for j, p in ipairs(pages) do p.Visible = (j == i); tabBtns[j].label.TextColor3 = (j == i) and T.Text or T.Sub end
+    end)
+end
+pages[1].Visible = true; tabBtns[1].label.TextColor3 = T.Text
+
+local info = pages[1]
+local ic = new("Frame",{Size=UDim2.new(1,0,0,100), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true}, info)
+crn(ic,10)
+local icOverlay = new("Frame",{Size=UDim2.fromScale(1,1), BackgroundColor3=Color3.fromRGB(0,0,0), BackgroundTransparency=0.5, BorderSizePixel=0, ZIndex=2}, ic)
+crn(icOverlay,10)
+new("TextLabel",{Size=UDim2.new(1,-20,0,30), Position=UDim2.new(0,10,0,10), BackgroundTransparency=1, Text=GAME_TITLE.." · 誓言面板", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7, TextStrokeColor3=Color3.fromRGB(0,0,0)}, ic)
+new("TextLabel",{Size=UDim2.new(1,-20,0,20), Position=UDim2.new(0,10,0,40), BackgroundTransparency=1, Text="作者：是我太傻   QQ：3767465890   群：1109682737", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7, TextStrokeColor3=Color3.fromRGB(0,0,0)}, ic)
+
+local btnHolder = new("Frame",{Size=UDim2.fromOffset(50, 18), Position=UDim2.new(1, -14, 0, 14), AnchorPoint=Vector2.new(1, 0), BackgroundTransparency=1, ZIndex=10}, Main)
+local function makeWinDot(color, x, cb)
+    local btn = new("TextButton",{Size=UDim2.fromOffset(16, 16), Position=UDim2.new(0, x, 0, 0), BackgroundColor3=color, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=10}, btnHolder)
+    crn(btn, 8)
+    btn.MouseButton1Click:Connect(cb)
+    return btn
+end
+
+local fc = pages[2]
+local function sectionHeader(title, order)
+    local hh = new("Frame",{Size=UDim2.new(1,0,0,26), BackgroundColor3=T.Sidebar, BorderSizePixel=0, LayoutOrder=order}, fc)
+    crn(hh,6)
+    new("Frame",{Size=UDim2.fromOffset(3,14), Position=UDim2.new(0,8,0.5,-7), BackgroundColor3=T.Accent, BorderSizePixel=0}, hh)
+    new("TextLabel",{Size=UDim2.new(1,-30,1,0), Position=UDim2.new(0,20,0,0), BackgroundTransparency=1, Text=title, Font=Enum.Font.GothamBold, TextSize=13, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left}, hh)
+end
+local function makeBtn(text, order, cb)
+    local btn = new("TextButton",{Size=UDim2.new(1,0,0,32), BackgroundColor3=T.RowBg, BorderSizePixel=0, Text="   "..text, Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, AutoButtonColor=false, LayoutOrder=order}, fc)
+    crn(btn,6); strk(btn,Color3.fromRGB(48,48,52),1,0.3)
+    btn.MouseButton1Click:Connect(function()
+        btn.BackgroundColor3 = T.White; btn.TextColor3 = Color3.fromRGB(20,20,20)
+        task.delay(0.15, function() TS:Create(btn,TweenInfo.new(0.15),{BackgroundColor3=T.RowBg}):Play(); TS:Create(btn,TweenInfo.new(0.15),{TextColor3=T.Text}):Play() end)
+        if cb then pcall(cb) end
+    end)
+    return btn
+end
+local function makeBox(text, placeholder, order, cb)
+    local row = new("Frame",{Size=UDim2.new(1,0,0,32), BackgroundColor3=T.RowBg, BorderSizePixel=0, LayoutOrder=order}, fc)
+    crn(row,6); strk(row,Color3.fromRGB(48,48,52),1,0.3)
+    new("TextLabel",{Position=UDim2.new(0,12,0,0), Size=UDim2.new(0.4,0,1,0), BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=12, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left}, row)
+    local box = new("TextBox",{Position=UDim2.new(0.4,0,0,4), Size=UDim2.new(0.6,-12,0,24), BackgroundColor3=Color3.fromRGB(24,25,29), BorderSizePixel=0, Text="", PlaceholderText=placeholder or "", PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Text, ClearTextOnFocus=false}, row)
+    crn(box,4)
+    box.FocusLost:Connect(function() if cb then pcall(cb, box.Text) end end)
+end
+
+local currentExpandedDropdown = nil
+local dropdownCloseFuncs = {}
+local function makeDropdownWithPlus(text, options, default, order, cb)
+    local HEADER_H, SEARCH_H, ITEM_H, MAX_LIST_H = 32, 26, 24, 180
+    local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
+    local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
+    crn(header, 6); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
+    local cur = default or options[1]
+    new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.35, 0, 0, HEADER_H), BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=12, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
+    local valueLbl = new("TextLabel",{Position=UDim2.new(0.4, 0, 0, 0), Size=UDim2.new(0.5, -12, 0, HEADER_H), BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
+    local plusBtn = new("TextButton",{Size=UDim2.fromOffset(22, 22), Position=UDim2.new(1, -28, 0.5, -11), BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
+    crn(plusBtn, 4)
+    local listFrame = new("Frame",{Position=UDim2.new(0, 0, 0, HEADER_H), Size=UDim2.new(1, 0, 0, 0), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, Visible=false, ZIndex=10}, container)
+    crn(listFrame, 6)
+    local searchBox = new("TextBox",{Position=UDim2.new(0, 4, 0, 4), Size=UDim2.new(1, -8, 0, SEARCH_H - 4), BackgroundColor3=Color3.fromRGB(24, 25, 29), BorderSizePixel=0, Text="", PlaceholderText="搜索...", PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=11}, listFrame)
+    crn(searchBox, 4)
+    local scrollFrame = new("ScrollingFrame",{Position=UDim2.new(0, 4, 0, SEARCH_H + 4), Size=UDim2.new(1, -8, 0, 0), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0, 0, 0, 0), AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=11}, listFrame)
+    new("UIListLayout",{ Padding=UDim.new(0, 2), SortOrder=Enum.SortOrder.LayoutOrder }, scrollFrame)
+    local expanded = false
+    local allOptions = {}
+    for _, o in ipairs(options) do table.insert(allOptions, o) end
+    local function buildItems(filterText)
+        for _, ch in ipairs(scrollFrame:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
+        filterText = (filterText or ""):lower()
+        local count = 0
+        for i, opt in ipairs(allOptions) do
+            local txt = tostring(opt)
+            if filterText == "" or txt:lower():find(filterText, 1, true) then
+                count = count + 1
+                local b = new("TextButton",{Size=UDim2.new(1, 0, 0, ITEM_H - 2), BackgroundTransparency=1, Text="   "..txt, Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=i, AutoButtonColor=false, ZIndex=12}, scrollFrame)
+                b.MouseButton1Click:Connect(function() cur = opt; valueLbl.Text = tostring(cur); if cb then pcall(cb, cur) end; expand(false) end)
+            end
+        end
+        return count
+    end
+    function expand(state)
+        expanded = state
+        if state then
+            if currentExpandedDropdown and currentExpandedDropdown ~= container then
+                local oldCloseFunc = dropdownCloseFuncs[currentExpandedDropdown]
+                if oldCloseFunc then oldCloseFunc() else currentExpandedDropdown.ZIndex = 1 end
+            end
+            currentExpandedDropdown = container; container.ZIndex = 100
+            plusBtn.Text = "−"; listFrame.Visible = true
+            local cnt = buildItems(searchBox.Text)
+            local listH = SEARCH_H + 8 + math.min(cnt * ITEM_H, MAX_LIST_H)
+            TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, listH) }):Play()
+            TS:Create(scrollFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, -8, 0, math.min(cnt * ITEM_H, MAX_LIST_H)) }):Play()
+            TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
+        else
+            if currentExpandedDropdown == container then currentExpandedDropdown = nil end
+            container.ZIndex = 1; plusBtn.Text = "+"
+            TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
+            TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H) }):Play()
+            task.delay(0.2, function() listFrame.Visible = false end)
+        end
+    end
+    plusBtn.MouseButton1Click:Connect(function() expand(not expanded) end)
+    dropdownCloseFuncs[container] = function() if expanded then expand(false) end end
+    return container
+end
+
+sectionHeader("带来树", 1)
+local treeNamesWithPlaceholder = { "--- 请选择树木 ---" }
+for _, name in ipairs(treeNames) do table.insert(treeNamesWithPlaceholder, name) end
+local selectedTreeClass = nil
+makeDropdownWithPlus("选择树木种类", treeNamesWithPlaceholder, treeNamesWithPlaceholder[1], 2, function(b)
+    if b == "--- 请选择树木 ---" then selectedTreeClass = nil else selectedTreeClass = treeMapping[b] end
 end)
-
-SectionEVIL:Button("自动合成核心（生成EvilHeart）",function()
-if evilHeathAutoRunning then
-notify("雪糕","EvilHeart自动合成已在运行中",3)
-return
-end
-if not _G.qSnowBuyBlueprintBox then
-notify("雪糕","自动购买模块未加载，无法买材料",4)
-return
-end
-evilHeathAutoRunning=true
-evilHeathStopFlag=false
-task.spawn(function()
-local baseHrp=lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-local basePos=baseHrp and baseHrp.CFrame
-local successCount=0
-local total=evilHeathCount or 1
-for c=1,total do
-if evilHeathStopFlag then break end
-notify("雪糕",string.format("=== 第 %d/%d 次 EvilHeart 合成 ===",c,total),2)
-if startEvilHeartCombine(basePos) then
-successCount=successCount+1
-notify("雪糕",string.format("第 %d 次 EvilHeart 合成完成",c),2)
-else
-notify("雪糕",string.format("第 %d 次 EvilHeart 合成未完成",c),3)
-end
-if basePos then safeTeleport(basePos)end
-task.wait(1)
-end
-evilHeathAutoRunning=false
-if basePos then safeTeleport(basePos)end
-notify("雪糕",string.format("EvilHeart 自动合成结束：成功 %d 次",successCount),4)
+makeDropdownWithPlus("选择砍树方案", {"方案1（主脚本）", "方案2（源码）"}, "方案1（主脚本）", 3, function(choice)
+    if choice == "方案2（源码）" then selectedPlan = 2 else selectedPlan = 1 end
 end)
+local batchCount = 1
+makeBox("数量", "1", 4, function(v) local num = tonumber(v); if num and num > 0 then batchCount = math.floor(num) end end)
+local isBringRunning = false
+makeBtn("带来树", 5, function()
+    if isBringRunning then notify("誓言", "任务运行中", 2); return end
+    if not selectedTreeClass then notify("誓言", "请先选择树木种类", 3); return end
+    isBringRunning = true
+    task.spawn(function()
+        local s, f = 0, 0
+        for i = 1, batchCount do
+            if not isBringRunning then break end
+            local ok = runBringTree(selectedTreeClass)
+            if ok then s = s + 1 else f = f + 1; break end
+            task.wait(0.01)
+        end
+        isBringRunning = false
+    end)
 end)
+makeBtn("停止", 6, function() isBringRunning = false end)
 
-SectionEVIL:Button("停止EvilHeart合成",function()
-evilHeathStopFlag=true
-notify("雪糕","已发送停止信号",3)
-end)
+sectionHeader("一键加工", 7)
+makeBtn("选择锯木机", 8, selectSawmill)
+makeBtn("一键加工（分解 + 拖拽到锯木机）", 9, startDecomposeSelection)
+new("TextLabel",{Size=UDim2.new(1,0,0,18), BackgroundTransparency=1, Text="   先选锯木机 → 再点树", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=10}, fc)
 
-Section3:Slider('设置速度','Sliderflag',16,100,600,false,function(s)
-bai.walkspeed=s
-spawn(function()
-while task.wait()do
-if lp.Character then lp.Character.Humanoid.WalkSpeed=bai.walkspeed end
-end
-end)
-end)
-Section3:Slider('设置跳跃','Sliderflag',50,50,600,false,function(s)
-bai.JumpPower=s
-spawn(function()
-while task.wait()do
-if lp.Character then lp.Character.Humanoid.JumpPower=bai.JumpPower end
-end
-end)
-end)
-Section3:Slider('设置重力','Sliderflag',198,-999,999,false,function(s)
-game.workspace.Gravity=s
-end)
-Section3:Slider('设置相机焦距','Sliderflag',100,0,9999,false,function(s)
-lp.CameraMaxZoomDistance=s
-end)
-Section3:Toggle("穿墙",'Toggleflag',false,function(state)
-applyNoClip(state)
-end)
-Section3:Toggle("自身发光",'Toggleflag',false,function(state)
-if state then
-local light=Instance.new('PointLight',lp.Character.Head);light.Name='bai';light.Range=150;light.Brightness=1.7
-else
-pcall(function()lp.Character.Head.bai:remove()end)
-end
-end)
-Section3:Button("加载隐身脚本",function()
-loadstring(game:HttpGet("http://qinscript.lol/333/隐身开源.lua"))()
-end)
-Section3:Button("安全自杀（删除头部）",function()
-lp.Character.Head:Destroy()
-end)
-Section3:Button("解锁最大焦距",function()
-lp.CameraMaxZoomDistance=9e9
-end)
-
-Section4:Dropdown("传送","Dropdown_Teleport",{
-"出生点","木材反斗城","回家","连接逻辑店","土地商店","会员商店","画店",
-"桥对岸","沙滩","火木","雪山","洞穴","码头","黑市","糖果原","雪地入口",
-"盖克斯航运","玻璃冰木入口","云层","山边商品","章鱼哥祭坛","沼泽商店",
-"石头商店","沼泽","冰胡","沙漠","辐射商店","核污染区","种子商人",
-"鲍勃的店","家具店","车店","罗布克斯商店","肯德坤专卖店","秋季商店"
-},function(b)
-local list=b
-if list=="出生点"then
-tp(CFrame.new(187,3,55))
-elseif list=="木材反斗城"then
-tp(CFrame.new(265,5,57))
-elseif list=="洞穴"then
-tp(CFrame.new(3581,-177,430))
-elseif list=="连接逻辑店"then
-tp(CFrame.new(4607,9,-798))
-elseif list=="雪山"then
-tp(CFrame.new(1451.66248,412.208405,3183.47607))
-elseif list=="土地商店"then
-tp(CFrame.new(258,5,-99))
-elseif list=="画店"then
-tp(CFrame.new(5207,-156,719))
-elseif list=="火木"then
-tp(CFrame.new(-1585,625,1140))
-elseif list=="沙滩"then
-tp(CFrame.new(2549,5,-42))
-elseif list=="桥对岸"then
-tp(CFrame.new(109,5,-1166))
-elseif list=="会员商店"then
-tp(CFrame.new(907,4,-92))
-elseif list=="码头"then
-tp(CFrame.new(1122,1,-203))
-elseif list=="黑市"then
-tp(CFrame.new(-22,61,1377))
-elseif list=="糖果原"then
-tp(CFrame.new(-561,272,2312))
-elseif list=="雪地入口"then
-tp(CFrame.new(888,61,1188))
-elseif list=="盖克斯航运"then
-tp(CFrame.new(1894,-2,1581))
-elseif list=="玻璃冰木入口"then
-tp(CFrame.new(1929,256,2918))
-elseif list=="云层"then
-tp(CFrame.new(2073,495,2967))
-elseif list=="山边商品"then
-tp(CFrame.new(-640,160,374))
-elseif list=="章鱼哥祭坛"then
-tp(CFrame.new(-1622,196,941))
-elseif list=="沼泽商店"then
-tp(CFrame.new(-1274,133,-1443))
-elseif list=="沼泽"then
-tp(CFrame.new(-999,133,-1191))
-elseif list=="石头商店"then
-tp(CFrame.new(-2387,302,-1899))
-elseif list=="冰胡"then
-tp(CFrame.new(-2149,321,743))
-elseif list=="沙漠"then
-tp(CFrame.new(-612,46,-3169))
-elseif list=="辐射商店"then
-tp(CFrame.new(172,12,-2627))
-elseif list=="核污染区"then
-tp(CFrame.new(207,15,-2752))
-elseif list=="种子商人"then
-tp(CFrame.new(-24,18,-2684))
-elseif list=="鲍勃的店"then
-tp(CFrame.new(261,9,-2541))
-elseif list=="家具店"then
-tp(CFrame.new(492,4,-1723))
-elseif list=="车店"then
-tp(CFrame.new(512,4,-1459))
-elseif list=="罗布克斯商店"then
-tp(CFrame.new(652,4,-1589))
-elseif list=="肯德坤专卖店"then
-tp(CFrame.new(65,4,-455))
-elseif list=="秋季商店"then
-tp(CFrame.new(6004,4,33))
-elseif list=="回家"then
-for i,v in pairs(game.Workspace.Properties:GetChildren())do
-if v.Owner.Value==lp then
-tp(v.OriginSquare.CFrame+Vector3.new(0,10,0))
-break
-end
-end
-end
-end)
-
-local teleList={
-"恶魔鸭合成地点","裂纹木所在地","回家","连接逻辑店","土地商店","会员商店","画店",
-"桥对岸","沙滩","火木","雪山","洞穴","码头","黑市","糖果原","雪地入口",
-"盖克斯航运","玻璃冰木入口","云层","山边商品","章鱼哥祭坛","沼泽商店",
-"石头商店","沼泽","冰胡","星星岛","辐射商店","核污染区","种子商人",
-"鲍勃的店","家具店","车店","罗布克斯商店","肯德坤专卖店","秋季商店"
-}
-
-Section6:Dropdown("传送","Dropdown_CarTeleport",teleList,function(val)
-local cf=nil
-if val=="出生点"then
-cf=CFrame.new(187,5,55)
-elseif val=="回家"then
-for _,v in pairs(workspace.Properties:GetChildren())do
-if v.Owner.Value==lp then
-cf=v.OriginSquare.CFrame+Vector3.new(0,10,0)
-break
-end
-end
-elseif val=="连接逻辑店"then
-cf=CFrame.new(4607,9,-740)
-elseif val=="土地商店"then
-cf=CFrame.new(230,5,-99)
-elseif val=="会员商店"then
-cf=CFrame.new(907,4,-115)
-elseif val=="画店"then
-cf=CFrame.new(5207,-156,719)
-elseif val=="桥对岸"then
-cf=CFrame.new(109,5,-1166)
-elseif val=="沙滩"then
-cf=CFrame.new(2549,5,-42)
-elseif val=="火木"then
-cf=CFrame.new(-1585,625,1140)
-elseif val=="雪山"then
-cf=CFrame.new(1451.66248,412.208405,3183.47607)
-elseif val=="洞穴"then
-cf=CFrame.new(3581,-177,430)
-elseif val=="码头"then
-cf=CFrame.new(1122,1,-203)
-elseif val=="黑市"then
-cf=CFrame.new(-15,61,1365)
-elseif val=="糖果原"then
-cf=CFrame.new(-561,272,2312)
-elseif val=="雪地入口"then
-cf=CFrame.new(888,61,1188)
-elseif val=="盖克斯航运"then
-cf=CFrame.new(1894,-2,1581)
-elseif val=="玻璃冰木入口"then
-cf=CFrame.new(1929,256,2918)
-elseif val=="云层"then
-cf=CFrame.new(2060,495,2967)
-elseif val=="山边商品"then
-cf=CFrame.new(-640,160,374)
-elseif val=="章鱼哥祭坛"then
-cf=CFrame.new(-1622,196,941)
-elseif val=="沼泽商店"then
-cf=CFrame.new(-1274,133,-1443)
-elseif val=="石头商店"then
-cf=CFrame.new(-2395,302,-1899)
-elseif val=="沼泽"then
-cf=CFrame.new(-999,133,-1191)
-elseif val=="冰胡"then
-cf=CFrame.new(-2149,321,743)
-elseif val=="星星岛"then
-cf=CFrame.new(-612,46,-3169)
-elseif val=="辐射商店"then
-cf=CFrame.new(172,12,-2627)
-elseif val=="核污染区"then
-cf=CFrame.new(207,15,-2752)
-elseif val=="种子商人"then
-cf=CFrame.new(-15,18,-2680)
-elseif val=="鲍勃的店"then
-cf=CFrame.new(245,9,-2541)
-elseif val=="家具店"then
-cf=CFrame.new(490,4,-1690)
-elseif val=="车店"then
-cf=CFrame.new(512,4,-1490)
-elseif val=="罗布克斯商店"then
-cf=CFrame.new(652,4,-1565)
-elseif val=="肯德坤专卖店"then
-cf=CFrame.new(100,4,-455)
-elseif val=="秋季商店"then
-cf=CFrame.new(6004,4,33)
-end
-if cf then
-carTeleport(cf)
-end
-end)
-
-Section:Toggle("自动扔斧头",'Toggleflag',false,function(state)
-bai.autodropae=state
-if state then
-while task.wait()do
-if bai.autodropae==true then
-droptool(lp.Character.HumanoidRootPart.CFrame)
-end
-end
-end
-end)
-Section:Toggle("自动捡斧头",'Toggleflag',false,function(state)
-bai.autopick=state
-if state then
-while bai.autopick==true do
-task.wait(0.5)
-for a,b in pairs(workspace.PlayerModels:GetChildren())do
-if b:FindFirstChild("Owner")and b.Owner.Value==lp then
-if b:FindFirstChild("Type")and b.Type.Value=="Tool"then
-rep.Interaction.ClientInteracted:FireServer(b,'Pick up tool')
-end
-end
-end
-end
-end
-end)
-
- teleportTargetCF=nil
- teleportTargetPlayer=lp.Name
- teleportMarker=nil
-
- selectingMode=false
- selectedItems={}
-local selectionBoxes={}
- selectionConn=nil
-
-local function setTeleportPoint()
-if teleportMarker then pcall(function()teleportMarker:Destroy()end);teleportMarker=nil end
-local hrp=lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-if not hrp then notify("雪糕","无法获取玩家位置",3)return end
-teleportTargetCF=hrp.CFrame
-local marker=Instance.new("Part")
-marker.Name="baiBasedropCord"
-marker.Anchored=true
-marker.Parent=workspace
-marker.Shape=Enum.PartType.Ball
-marker.Size=Vector3.new(2,2,2)
-marker.Color=Color3.fromRGB(0,217,255)
-marker.Material=Enum.Material.ForceField
-marker.CFrame=teleportTargetCF
-teleportMarker=marker
-notify("雪糕","传送点已设置（球体标记）",3)
+-- ==================== 卡密 UI ====================
+local function showKeyUI()
+    local KT = { Accent=Color3.fromRGB(88,220,130), Card=Color3.fromRGB(28,29,34), Input=Color3.fromRGB(22,23,27), Text=Color3.fromRGB(232,234,238), Sub=Color3.fromRGB(130,133,142), Stroke=Color3.fromRGB(48,50,56), Red=Color3.fromRGB(240,90,80) }
+    local keyGui = new("ScreenGui",{Name="OathKeyUI", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, DisplayOrder=200}, PG)
+    local bd = new("Frame",{Size=UDim2.fromScale(1,1), BackgroundColor3=Color3.fromRGB(0,0,0), BackgroundTransparency=0.35, BorderSizePixel=0}, keyGui)
+    local card = new("Frame",{Size=UDim2.fromOffset(360,400), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=KT.Card, BorderSizePixel=0, ClipsDescendants=true}, bd)
+    crn(card,22); strk(card,KT.Stroke,1)
+    local title = new("TextLabel",{Size=UDim2.new(1,-40,0,56), Position=UDim2.new(0,20,0,24), BackgroundTransparency=1, Text="Oath", Font=Enum.Font.SourceSansItalic, TextSize=46, TextColor3=KT.Accent, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3}, card)
+    local ih = new("Frame",{Size=UDim2.new(1,-60,0,42), Position=UDim2.new(0.5,0,0,118), AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=KT.Input, BorderSizePixel=0, ZIndex=3}, card)
+    crn(ih,12)
+    local ib = new("TextBox",{Size=UDim2.new(1,-24,1,0), Position=UDim2.new(0,12,0,0), BackgroundTransparency=1, Text="", PlaceholderText="请输入卡密...", PlaceholderColor3=KT.Sub, Font=Enum.Font.GothamMedium, TextSize=14, TextColor3=KT.Text, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=3}, ih)
+    local conf = new("TextButton",{Size=UDim2.new(1,-60,0,42), Position=UDim2.new(0.5,0,0,176), AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=KT.Accent, BorderSizePixel=0, Text="验 证", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=Color3.fromRGB(12,24,16), AutoButtonColor=false, ZIndex=3}, card)
+    crn(conf,12)
+    conf.MouseButton1Click:Connect(function()
+        if KEYS[ib.Text] then
+            OathGui.Enabled = true
+            keyGui:Destroy()
+        else
+            ib.Text = ""
+            notify("誓言", "卡密错误，请重试", 3)
+        end
+    end)
+    ib.FocusLost:Connect(function(e) if e then conf:IsA("TextButton") end end)
+    task.wait(0.3)
+    pcall(function() ib:CaptureFocus() end)
 end
 
-local function clearTeleportPoint()
-if teleportMarker then pcall(function()teleportMarker:Destroy()end);teleportMarker=nil end
-teleportTargetCF=nil
-notify("雪糕","🗑️ 传送点已清除",3)
-end
-
-local function isSelectable(model)
-if not model or not model:IsA("Model")then return false end
-
-if model:FindFirstChild("BlueprintWoodClass")then
-return false
-end
-
-if model:FindFirstChild("ButtonRemote_SpawnButton")then
-return false
-end
-
-local name=model.Name or""
-local hasPurchasedBoxItem=model:FindFirstChild("PurchasedBoxItemName")
-local hasBoxItem=model:FindFirstChild("BoxItemName")
-local hasType=model:FindFirstChild("Type")
-
-if name:find("Crate")or name:find("Box")or name:find("Gift")then
-
-local hasValidItem=false
-
-if hasPurchasedBoxItem then
-local val=hasPurchasedBoxItem.Value
-if val and val~=""and val~=" "then
-hasValidItem=true
-end
-end
-
-if not hasValidItem and hasBoxItem then
-local val=hasBoxItem.Value
-if val and val~=""and val~=" "then
-hasValidItem=true
-end
-end
-
-if not hasValidItem and hasType then
-local val=hasType.Value
-if val and val~=""and val~=" "then
-hasValidItem=true
-end
-end
-
-if not hasValidItem then
-return false
-end
-end
-
-local targetPlayer=game.Players:FindFirstChild(teleportTargetPlayer)
-if not targetPlayer then return false end
-
-local owner=model:FindFirstChild("Owner")
-if owner and owner.Value==targetPlayer then
-return true
-end
-
-if workspace.LogModels:FindFirstChild(model.Name)==model then
-if owner and owner.Value==targetPlayer then
-return true
-end
-end
-
-return false
-end
-
-local function highlightItem(model)
-if selectionBoxes[model]then return end
-local primary=model.PrimaryPart or model:FindFirstChild("Main")or model:FindFirstChild("WoodSection")or model:FindFirstChildWhichIsA("BasePart")
-if not primary then return end
-local box=Instance.new("SelectionBox")
-box.Adornee=primary
-box.Color3=Color3.fromRGB(0,255,0)
-box.Transparency=0.5
-box.LineThickness=0.05
-box.Parent=primary
-selectionBoxes[model]=box
-end
-
-local function unhighlightItem(model)
-local box=selectionBoxes[model]
-if box then
-pcall(function()box:Destroy()end)
-selectionBoxes[model]=nil
-end
-end
-
-local function clearSelection()
-for model,_ in pairs(selectedItems)do
-unhighlightItem(model)
-end
-selectedItems={}
-if selectionCountLabel then
-selectionCountLabel:SetText("已选中: 0")
-end
-end
-
-local function selectItem(model)
-if not isSelectable(model)then
-notify("雪糕","该物品不可选择或不属于所选玩家",2)
-return
-end
-if selectedItems[model]then
-unhighlightItem(model)
-selectedItems[model]=nil
-notify("雪糕","已取消选中: "..(model.Name or"物品"),2)
-if selectionCountLabel then
-local count=0
-for _ in pairs(selectedItems)do count=count+1 end
-selectionCountLabel:SetText("已选中: "..count)
-end
-return
-end
-selectedItems[model]=true
-highlightItem(model)
-notify("雪糕","已选中: "..(model.Name or"物品"),2)
-if selectionCountLabel then
-local count=0
-for _ in pairs(selectedItems)do count=count+1 end
-selectionCountLabel:SetText("已选中: "..count)
-end
-end
-
-local function selectSameNameItems(sourceModel)
-local firstModel=sourceModel or next(selectedItems)
-if not firstModel then
-notify("雪糕","请先至少选中一个物品",3)
-return
-end
-local targetName=firstModel.Name
-if not targetName then
-notify("雪糕","无法获取物品名称",3)
-return
-end
-
-local count=0
-
-if sourceModel and not selectedItems[sourceModel]then
-selectedItems[sourceModel]=true
-highlightItem(sourceModel)
-count=count+1
-end
-
-for _,model in pairs(workspace.PlayerModels:GetChildren())do
-if model:IsA("Model")and isSelectable(model)then
-if model.Name==targetName and not selectedItems[model]then
-selectedItems[model]=true
-highlightItem(model)
-count=count+1
-end
-end
-end
-
-for _,log in pairs(workspace.LogModels:GetChildren())do
-if isSelectable(log)then
-if log.Name==targetName and not selectedItems[log]then
-selectedItems[log]=true
-highlightItem(log)
-count=count+1
-end
-end
-end
-
-if count>0 then
-notify("雪糕",string.format("已添加 %d 个同名物品",count),3)
-else
-notify("雪糕","没有找到其他同名物品",3)
-end
-if selectionCountLabel then
-local total=0
-for _ in pairs(selectedItems)do total=total+1 end
-selectionCountLabel:SetText("已选中: "..total)
-end
-end
-
-local function teleportSelectedItems()
-if not teleportTargetCF then
-notify("雪糕","请先设置传送点",3)
-return
-end
-
-local all={}
-for model,_ in pairs(selectedItems)do
-if model and model.Parent then
-local primary=model.PrimaryPart or model:FindFirstChild("Main")or model:FindFirstChild("WoodSection")or model:FindFirstChildWhichIsA("BasePart")
-if primary then
-if not model.PrimaryPart then model.PrimaryPart=primary end
-table.insert(all,model)
-end
-end
-end
-if#all==0 then
-notify("雪糕","没有选中的物品",3)
-return
-end
-
-local originalPos=lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-if originalPos then originalPos=originalPos.CFrame end
-
-local successCount=0
-for _,model in ipairs(all)do
-if model.Parent and model.PrimaryPart then
-
-pcall(function()safeTeleport(model.PrimaryPart.CFrame+Vector3.new(0,2,0))end)
-task.wait(0.1)
-
-dragToPosition(model,teleportTargetCF)
-
-unhighlightItem(model)
-selectedItems[model]=nil
-successCount=successCount+1
-end
-end
-
-if selectionCountLabel then
-local remaining=0
-for _ in pairs(selectedItems)do remaining=remaining+1 end
-selectionCountLabel:SetText("已选中: "..remaining)
-end
-
-if originalPos and lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")then
-safeTeleport(originalPos)
-end
-
-notify("雪糕",string.format("传送完成，成功 %d / %d 个物品",successCount,#all),3)
-end
-
-local SectionTeleport=Tab:section("传送物品 (选择模式)",false)
-
- teleportPlayerDropdown=nil
-local function refreshTeleportPlayerList()
-local list={}
-for _,p in pairs(game.Players:GetPlayers())do table.insert(list,p.Name)end
-if teleportPlayerDropdown then
-teleportPlayerDropdown:SetOptions(list)
-if not table.find(list,teleportTargetPlayer)then
-teleportPlayerDropdown:SetValue(lp.Name)
-end
-end
-end
-
-teleportPlayerDropdown=SectionTeleport:Dropdown("选择玩家","TeleportPlayerDropdown",{lp.Name},function(v)
-teleportTargetPlayer=v
-clearSelection()
-end)
-refreshTeleportPlayerList()
-
-SectionTeleport:Button("刷新玩家列表",refreshTeleportPlayerList)
-
-SectionTeleport:Button("设置传送点（当前位置）",setTeleportPoint)
-SectionTeleport:Button("删除传送点",clearTeleportPoint)
-
-_G.qsMain=_G.qsMain or {}
-for k,v in pairs({createEspFrame=createEspFrame,removeEspFrame=removeEspFrame,updateEsp=updateEsp,enableEsp=enableEsp,disableEsp=disableEsp,bailib=bailib,win=win,Tab1=Tab1,Tab=Tab,Tab2=Tab2,Tab4=Tab4,Section3=Section3,Section4=Section4,Section6=Section6,Sectionbringtree=Sectionbringtree,Section5=Section5,SectionDuck=SectionDuck,Sectiontuozhuai=Sectiontuozhuai,SectionEVIL=SectionEVIL,SectionESP=SectionESP,Section1=Section1,Section=Section,Sectionshuaxin=Sectionshuaxin,Sectionyanjiang=Sectionyanjiang,Sectionqita=Sectionqita,Sectionzhengli=Sectionzhengli,Sectionhuanjin=Sectionhuanjin,Sectionmogui=Sectionmogui,getSortItemType=getSortItemType,getModelSize=getModelSize,getModelBottom=getModelBottom,isSortable=isSortable,giveSortTool=giveSortTool,selectedMaterialKeys=selectedMaterialKeys,dragTargets=dragTargets,openPositions=openPositions,highlightModel=highlightModel,getItemKey=getItemKey,findItemByKey=findItemByKey,openItem=openItem,waitItemReady=waitItemReady,waitEvilDuckAppear=waitEvilDuckAppear,waitEvilDuckLightGone=waitEvilDuckLightGone,startEvilDuckCombine=startEvilDuckCombine,selectMaterial=selectMaterial,getMaterialBuyName=getMaterialBuyName,evilHeathMaterials=evilHeathMaterials,evilHeathDragTargets=evilHeathDragTargets,waitEvilHeartAppear=waitEvilHeartAppear,startEvilHeartCombine=startEvilHeartCombine,teleList=teleList,selectionBoxes=selectionBoxes,setTeleportPoint=setTeleportPoint,clearTeleportPoint=clearTeleportPoint,isSelectable=isSelectable,highlightItem=highlightItem,unhighlightItem=unhighlightItem,clearSelection=clearSelection,selectItem=selectItem,selectSameNameItems=selectSameNameItems,teleportSelectedItems=teleportSelectedItems,SectionTeleport=SectionTeleport,refreshTeleportPlayerList=refreshTeleportPlayerList})do _G.qsMain[k]=v end
-
-]====]
+print("[誓言面板] 精简版已加载")
+showKeyUI()
