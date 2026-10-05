@@ -4,7 +4,7 @@
     ID_CONFIG 在顶部，自己改数字对应哪个列表
     ID分区在"信息"页里，点按钮展开对应列表
     列表标题不再显示 [ID x]
-    顶部横条与左侧边栏同色，横条下深色分割线
+    顶部横条深色，与左侧边栏连接；右上角圆润
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -945,12 +945,21 @@ local OathGui = new("ScreenGui",{Name="OathPanel", ResetOnSpawn=false, ZIndexBeh
 local Main = new("Frame",{Size=UDim2.fromOffset(540,340), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Bg, BorderSizePixel=0, ClipsDescendants=true}, OathGui)
 crn(Main,16); strk(Main,T.Stroke,1)
 
--- 左侧边栏（深色）
+-- ★ 左侧边栏（深色，左上角圆角，右上角遮方以便与顶栏连接）★
 local Sb = new("Frame",{Size=UDim2.new(0,130,1,0), BackgroundColor3=T.Sidebar, BorderSizePixel=0, ZIndex=2}, Main)
 crn(Sb,16)
-new("TextLabel",{Size=UDim2.new(0,110,0,20), Position=UDim2.new(0,14,0,6), BackgroundTransparency=1, Text=GAME_TITLE, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left}, Sb)
+-- 遮住侧栏右上角，让它变方角，与顶栏无缝连接
+new("Frame", {
+    Size = UDim2.fromOffset(20, 20),
+    Position = UDim2.new(1, -20, 0, 0),
+    BackgroundColor3 = T.Sidebar,
+    BorderSizePixel = 0,
+    ZIndex = 3
+}, Sb)
 
--- ★ 顶部横条：与侧边栏同色（深色），ZIndex=5 盖在内容之上但低于窗口按钮 ★
+new("TextLabel",{Size=UDim2.new(0,110,0,20), Position=UDim2.new(0,14,0,6), BackgroundTransparency=1, Text=GAME_TITLE, Font=Enum.Font.GothamBold, TextSize=15, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4}, Sb)
+
+-- ★ 顶部横条：与侧栏同色；右上角圆润（与主窗口对齐）；其余三角遮方 ★
 local topBar = new("Frame", {
     Size = UDim2.new(1, -130, 0, 50),
     Position = UDim2.new(0, 130, 0, 0),
@@ -958,17 +967,42 @@ local topBar = new("Frame", {
     BorderSizePixel = 0,
     ZIndex = 5
 }, Main)
+crn(topBar, 16)
+-- 遮左上角（与侧栏连接，方角）
+new("Frame", {
+    Size = UDim2.fromOffset(20, 20),
+    Position = UDim2.fromOffset(0, 0),
+    BackgroundColor3 = T.Sidebar,
+    BorderSizePixel = 0,
+    ZIndex = 6
+}, topBar)
+-- 遮左下角
+new("Frame", {
+    Size = UDim2.fromOffset(20, 20),
+    Position = UDim2.new(0, 0, 1, -20),
+    BackgroundColor3 = T.Sidebar,
+    BorderSizePixel = 0,
+    ZIndex = 6
+}, topBar)
+-- 遮右下角（让下方内容自然延续）
+new("Frame", {
+    Size = UDim2.fromOffset(20, 20),
+    Position = UDim2.new(1, -20, 1, -20),
+    BackgroundColor3 = T.Sidebar,
+    BorderSizePixel = 0,
+    ZIndex = 6
+}, topBar)
 
--- ★ 底部分割线：深黑色，视觉上明显断开 ★
+-- 底部分割线（深黑色）
 new("Frame", {
     Size = UDim2.new(1, 0, 0, 2),
     Position = UDim2.new(0, 0, 1, -2),
     BackgroundColor3 = Color3.fromRGB(8,8,10),
     BorderSizePixel = 0,
-    ZIndex = 6
+    ZIndex = 7
 }, topBar)
 
--- ★ 内容区从 y=50 开始（顶栏下方） ★
+-- ★ 内容区从 y=50 开始 ★
 local pc = new("Frame",{Position=UDim2.new(0,130,0,50), Size=UDim2.new(1,-130,1,-50), BackgroundTransparency=1, ZIndex=1}, Main)
 
 local tabs = {"信息","功能"}
@@ -994,7 +1028,7 @@ for i, name in ipairs(tabs) do
 end
 pages[1].Visible = true; tabBtns[1].label.TextColor3 = T.Text
 
--- ==================== 信息页（先放信息卡） ====================
+-- ==================== 信息页 ====================
 local info = pages[1]
 local ic = new("Frame",{Size=UDim2.new(1,0,0,90), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, LayoutOrder=0}, info)
 crn(ic,10)
@@ -1005,7 +1039,7 @@ crn(icOverlay,10)
 new("TextLabel",{Size=UDim2.new(1,-20,0,30), Position=UDim2.new(0,10,0,10), BackgroundTransparency=1, Text=GAME_TITLE.." · 誓言面板", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7}, ic)
 new("TextLabel",{Size=UDim2.new(1,-20,0,20), Position=UDim2.new(0,10,0,40), BackgroundTransparency=1, Text="作者：是我太傻   QQ：3767465890   群：1109682737", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7}, ic)
 
--- 窗口控制（黄/红按钮，ZIndex=10 在 topBar 之上）
+-- 窗口控制（黄/红按钮，在 topBar 之上）
 local btnHolder = new("Frame",{Size=UDim2.fromOffset(50, 18), Position=UDim2.new(1, -14, 0, 14), AnchorPoint=Vector2.new(1, 0), BackgroundTransparency=1, ZIndex=10}, Main)
 local function makeWinDot(color, x, cb)
     local btn = new("TextButton",{Size=UDim2.fromOffset(16, 16), Position=UDim2.new(0, x, 0, 0), BackgroundColor3=color, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=10}, btnHolder)
@@ -1423,30 +1457,4 @@ local function showKeyUI()
     local ih = new("Frame",{Size=UDim2.new(1,-60,0,42), Position=UDim2.new(0.5,0,0,118), AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=KT.Input, BorderSizePixel=0, ZIndex=3}, card)
     crn(ih,12)
     local ib = new("TextBox",{Size=UDim2.new(1,-24,1,0), Position=UDim2.new(0,12,0,0), BackgroundTransparency=1, Text="", PlaceholderText="请输入卡密...", PlaceholderColor3=KT.Sub, Font=Enum.Font.GothamMedium, TextSize=14, TextColor3=KT.Text, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=3}, ih)
-    local conf = new("TextButton",{Size=UDim2.new(1,-60,0,42), Position=UDim2.new(0.5,0,0,176), AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=KT.Accent, BorderSizePixel=0, Text="验 证", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=Color3.fromRGB(12,24,16), AutoButtonColor=false, ZIndex=3}, card)
-    crn(conf,12)
-    local tip = new("TextLabel",{Size=UDim2.new(1,-40,0,16), Position=UDim2.new(0,20,0,224), BackgroundTransparency=1, Text="", Font=Enum.Font.Gotham, TextSize=11, TextColor3=KT.Red, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3}, card)
-
-    local verifying = false
-    local function verify()
-        if verifying then return end; verifying = true
-        if KEYS[ib.Text] then
-            tip.TextColor3 = KT.Accent; tip.Text = "验证成功..."
-            OathGui.Enabled = true
-            TS:Create(card,TweenInfo.new(0.35,Enum.EasingStyle.Back,Enum.EasingDirection.In),{Size=UDim2.fromOffset(280,320), BackgroundTransparency=1}):Play()
-            TS:Create(bd,TweenInfo.new(0.35),{BackgroundTransparency=1}):Play()
-            task.wait(0.35)
-            keyGui:Destroy()
-        else
-            tip.TextColor3 = KT.Red; tip.Text = "卡密错误，请重试"
-            ib.Text = ""; verifying = false
-        end
-    end
-    conf.MouseButton1Click:Connect(verify)
-    ib.FocusLost:Connect(function(e) if e then verify() end end)
-    task.wait(0.3)
-    pcall(function() ib:CaptureFocus() end)
-end
-
-print("[誓言面板] 深色顶栏版 已加载")
-showKeyUI()
+    local conf = new("TextButton",{Size=UDim2.new(1,-60,0,42), Position=UDim2.new(0.5,0,0,176),
