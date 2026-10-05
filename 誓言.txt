@@ -1,10 +1,11 @@
 --[[
-    誓言面板 v11.1
+    誓言面板 v11.2
     卡密：誓言NB
     UI：v10.0 的自绘面板 + 卡密卡片
-    功能：只保留砍树
-      · 方案 "旧" = 主脚本.txt 的砍树逻辑（require 解析 + 相机跟随）
-      · 方案 "新" = 源码.lua 的砍树逻辑（decompile 解析 + 危险区检测 + Begin/Refresh/End）
+    功能：带来树 + 一键加工
+      · 砍树方案 "旧" = 主脚本.txt 的砍树逻辑
+      · 砍树方案 "新" = 源码.lua 的砍树逻辑
+    ★ 修复：下拉框展开不再被下方元素遮挡
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -80,11 +81,18 @@ local function safeTeleport(cf)
         if hrp.Position.Y < -100 then hrp.CFrame = uprightCFrame(hrp, cf) + Vector3.new(0,10,0) end
     end
 end
+local function safeTeleportNoWait(cf)
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.CFrame = uprightCFrame(hrp, cf)
+        if hrp.Position.Y < -100 then hrp.CFrame = uprightCFrame(hrp, cf) + Vector3.new(0,10,0) end
+    end
+end
 
 -- ==================== 全局状态 ====================
-local bai = { dragIDCounter=0 }
+local bai = { dragIDCounter=0, cachedSawmill=nil, cachedSawmillPos=nil }
 
--- ==================== 拖拽（源码.lua 协议，方案 新 用） ====================
+-- ==================== 拖拽（源码.lua 协议） ====================
 local function getNextDragID() bai.dragIDCounter = bai.dragIDCounter + 1; return bai.dragIDCounter end
 local DRAG_TOTAL = 60
 local DRAG_SET_START = 28
@@ -289,8 +297,17 @@ local function getTreeTopCFrame(treeModel)
     if not topCF then topCF = treeModel:GetPivot() + Vector3.new(0, 2, 0) end
     return topCF
 end
+local function getTreeClassFromModel(treeModel)
+    local tc = treeModel:FindFirstChild("TreeClass")
+    if tc then return tc.Value end
+    local name = treeModel.Name
+    for _, suffix in ipairs({"SpookyNeon","Spooky","GoldSwampy","Cherry","CaveCrawler","MuckySewer"}) do
+        if name:find(suffix) then return suffix end
+    end
+    return "Generic"
+end
 
--- ==================== 方案 旧：主脚本.txt 的斧头解析 + 拖拽 ====================
+-- ==================== 方案 旧：主脚本.txt ====================
 local function loadWeaponConfig(weaponName)
     local module = rep:FindFirstChild("LoadedAssets") and rep.LoadedAssets:FindFirstChild(weaponName.."AxeClass")
     if not module then return nil end
@@ -385,7 +402,7 @@ local function bringTreeRemotePlan1(treeClass)
     return true
 end
 
--- ==================== 方案 新：源码.lua 的斧头解析 + 危险区检测 ====================
+-- ==================== 方案 新：源码.lua ====================
 local axeConfigCache2 = {}
 local function loadWeaponConfig2(weaponName)
     if axeConfigCache2[weaponName] ~= nil then return axeConfigCache2[weaponName] end
@@ -604,6 +621,215 @@ local selectedPlan = 1
 local function runBringTree(treeClass)
     if selectedPlan == 2 then return bringTreeRemotePlan2(treeClass)
     else return bringTreeRemotePlan1(treeClass) end
+end
+
+-- ==================== 选择锯木机 ====================
+local isSelectingSawmill = false
+local sawmillSelectConn = nil
+local function selectSawmill()
+    if isSelectingSawmill then notify("誓言", "正在等待选择中...", 2); return end
+    isSelectingSawmill = true
+    notify("誓言", "请点击锯木机任意部件", 3)
+    if sawmillSelectConn then sawmillSelectConn:Disconnect() end
+    sawmillSelectConn = mouse.Button1Down:Connect(function()
+        local target = mouse.Target
+        if not target then notify("誓言", "未选中任何物体", 2); return end
+        local model = target:FindFirstAncestorOfClass("Model")
+        if not model then notify("誓言", "请点击一个模型", 2); return end
+        local function isSawmill(root)
+            local attr = root:GetAttribute("ItemName")
+            if attr and type(attr) == "string" and attr:lower():find("saw") then return true end
+            for _, child in pairs(root:GetDescendants()) do
+                if child.Name == "ItemName" then
+                    local val = child.Value
+                    if val and type(val) == "string" and val:lower():find("saw") then return true end
+                end
+            end
+            if root.Name and root.Name:lower():find("saw") then return true end
+            local typeVal = root:FindFirstChild("Type")
+            if typeVal and typeVal.Value == "Sawmill" then return true end
+            return false
+        end
+        if not isSawmill(model) then notify("誓言", "这不是锯木机", 3); return end
+        local function findPart(root)
+            for _, child in pairs(root:GetDescendants()) do
+                if child.Name == "Conveyor" and child:IsA("BasePart") then return child, "Conveyor" end
+            end
+            for _, child in pairs(root:GetDescendants()) do
+                if child.Name == "Main" and child:IsA("BasePart") then return child, "Main" end
+            end
+            return nil, nil
+        end
+        local part, partType = findPart(model)
+        if not part then notify("誓言", "找不到 Conveyor 或 Main 部件", 3); return end
+        bai.cachedSawmill = model
+        bai.cachedSawmillPos = part.CFrame
+        if sawmillSelectConn then sawmillSelectConn:Disconnect(); sawmillSelectConn = nil end
+        isSelectingSawmill = false
+        notify("誓言", "✅ 已记忆锯木机位置（" .. partType .. "）", 3)
+    end)
+end
+
+-- ==================== 一键加工 ====================
+local selectedTree, selectedSawmill, sawPos = nil, nil, nil
+local isDecomposeActive = false
+local decomposeConn = nil
+
+local function getBestAxeData(treeClass)
+    local toolFolder = lp:FindFirstChild("ToolFolder")
+    if not toolFolder then return nil, nil, "未找到 ToolFolder" end
+    local bw, bd, bc = nil, -1, nil
+    for _, child in pairs(toolFolder:GetChildren()) do
+        local config = loadWeaponConfig(child.Name)
+        if config then
+            local d = config.Damage or 0
+            if treeClass and config.SpecialTrees and config.SpecialTrees[treeClass] then
+                d = config.SpecialTrees[treeClass].Damage or d
+            end
+            if d > bd then bd = d; bw = child.Name; bc = config end
+        end
+    end
+    if not bw then return nil, nil, "未找到可用的斧头配置" end
+    local toolObj = toolFolder:FindFirstChild(bw)
+    local tool = toolObj and (toolObj:IsA("Tool") and toolObj or toolObj.Value)
+    if not tool then return nil, nil, "无法获取工具实例" end
+    return tool, bc, nil
+end
+local function dragLogToPosition(log, targetCF)
+    if not log then return false end
+    local primary = log.PrimaryPart or log:FindFirstChild("WoodSection") or log:FindFirstChild("Main") or log:FindFirstChildWhichIsA("BasePart")
+    if not primary then return false end
+    if not log.PrimaryPart then log.PrimaryPart = primary end
+    safeTeleportNoWait(primary.CFrame + Vector3.new(0, 2, 0))
+    for _ = 1, 3 do pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end); task.wait(0.01) end
+    for i = 1, 30 do
+        pcall(function() rep.Interaction.ClientIsDragging:FireServer(log, DRAG_SECRET); log:SetPrimaryPartCFrame(targetCF) end)
+        task.wait(0.01)
+    end
+    return true
+end
+local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
+    if not sawmillPos then notify("誓言", "锯木机位置无效，请重试", 3); return end
+    local sections = {}
+    local rootSection = nil
+    for _, child in pairs(treeModel:GetChildren()) do
+        if child.Name == "WoodSection" and child:IsA("BasePart") and child:FindFirstChild("ID") then
+            local id = child.ID.Value
+            if id >= 2 then table.insert(sections, {id = id, part = child})
+            elseif id == 1 then rootSection = child end
+        end
+    end
+    if #sections == 0 then notify("誓言", "该树没有可分解的部分（ID≥2）", 3); return end
+    table.sort(sections, function(a, b) return a.id > b.id end)
+    local cutEvent = treeModel:FindFirstChild("CutEvent")
+    if not cutEvent then notify("誓言", "该模型没有 CutEvent，无法砍伐", 3); return end
+    local treeClass = getTreeClassFromModel(treeModel)
+    local tool, config, err = getBestAxeData(treeClass)
+    if not tool then notify("誓言", "" .. (err or "无法获取斧头数据"), 3); return end
+    local damage = config and config.Damage or 10000
+    local cooldown = config and config.SwingCooldown or 0.3
+    if config and config.SpecialTrees and config.SpecialTrees[treeClass] then
+        damage = config.SpecialTrees[treeClass].Damage or damage
+        cooldown = config.SpecialTrees[treeClass].SwingCooldown or cooldown
+    end
+    local req = {LoveCave=10000000, Shine=80000000, Magma=5000000, Ice=8000000, Radioactive=10000000, Scale=40000000, Void=5000000, Flame=10000000, BlueFlame=3500000, RainbowFlame=3500000, Celestial=10000000}
+    if req[treeClass] and damage < req[treeClass] then
+        notify("誓言", string.format("伤害不足！需要至少 %.0f，当前 %.0f", req[treeClass], damage), 4)
+        return
+    end
+    local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
+    local initialLogs = {}
+    for _, log in pairs(ws.LogModels:GetChildren()) do initialLogs[log] = true end
+    local tasks = {}
+    notify("誓言", string.format("开始分解 %d 个部分", #sections), 2)
+    for _, sec in ipairs(sections) do
+        local part = sec.part
+        local sectionId = sec.id
+        local stopFlag = false
+        local taskId = task.spawn(function()
+            while not stopFlag do
+                pcall(remote.FireServer, remote, cutEvent, {height=0.11, faceVector=Vector3.new(-1,0,0), cooldown=cooldown, sectionId=sectionId, hitPoints=damage, tool=tool, cuttingClass="Axe"})
+                task.wait(0.01)
+                if not part or not part.Parent then break end
+            end
+        end)
+        tasks[taskId] = true
+    end
+    local function hasHighIDSections()
+        for _, child in pairs(treeModel:GetChildren()) do
+            if child.Name == "WoodSection" and child:FindFirstChild("ID") then
+                if child.ID.Value >= 2 then return true end
+            end
+        end
+        return false
+    end
+    local startTime = tick()
+    while hasHighIDSections() and tick() - startTime < 120 do task.wait(0.01) end
+    for taskId in pairs(tasks) do task.cancel(taskId) end
+    if hasHighIDSections() then notify("誓言", "停止", 3); return end
+    local allLogs = {}
+    for _, log in pairs(ws.LogModels:GetChildren()) do
+        if not initialLogs[log] and log:FindFirstChild("Owner") and log.Owner.Value == lp then
+            table.insert(allLogs, log)
+        end
+    end
+    if #allLogs == 0 then notify("誓言", "未找到木头（可能掉落失败），停止", 3); return end
+    local targetPos = sawmillPos + Vector3.new(0.7, 0, 0)
+    for idx, log in ipairs(allLogs) do
+        if log and log.Parent then
+            dragLogToPosition(log, targetPos)
+            if idx == 1 then
+                local temp = Instance.new("Part")
+                temp.Size = Vector3.one; temp.Anchored = true; temp.Transparency = 1; temp.CanCollide = false
+                temp.Parent = workspace
+                local sp = sawmillPos + Vector3.new(0, 1, 0)
+                local ep = sawmillPos + Vector3.new(3, 1, 0)
+                temp.CFrame = sp
+                for i = 1, 10 do
+                    pcall(function() rep.Interaction.ClientIsDragging:FireServer(temp, DRAG_SECRET); temp.CFrame = sp:Lerp(ep, i / 10) end)
+                end
+                for i = 1, 5 do
+                    pcall(function() rep.Interaction.ClientIsDragging:FireServer(temp, DRAG_SECRET); temp.CFrame = ep:Lerp(sp, i / 5) end)
+                end
+                temp:Destroy()
+            end
+        end
+    end
+    if rootSection and rootSection.Parent then
+        if not treeModel.PrimaryPart then treeModel.PrimaryPart = rootSection end
+        safeTeleport(rootSection.CFrame + Vector3.new(0, 2, 0))
+        dragToPosition(treeModel, targetPos)
+    end
+    notify("誓言", "分解完成", 3)
+end
+local function startDecomposeSelection()
+    if isDecomposeActive then notify("誓言", "分解选择已激活", 2); return end
+    if not bai.cachedSawmill or not bai.cachedSawmill.Parent then
+        notify("誓言", "请先使用 '选择锯木机' 按钮设置一个锯木机", 3); return
+    end
+    if not bai.cachedSawmillPos then notify("誓言", "锯木机位置无效", 3); return end
+    isDecomposeActive = true
+    selectedTree = nil
+    notify("誓言", "请点击一棵树", 3)
+    decomposeConn = mouse.Button1Down:Connect(function()
+        local target = mouse.Target
+        if not target then notify("誓言", "未选中任何物体", 2); return end
+        local model = target:FindFirstAncestorOfClass("Model")
+        if not model then notify("誓言", "请点击树干", 2); return end
+        local hasWood = false
+        for _, child in pairs(model:GetChildren()) do
+            if child.Name == "WoodSection" then hasWood = true end
+        end
+        if not (hasWood and model:FindFirstChild("CutEvent")) then
+            notify("誓言", "这不是一棵树", 2); return
+        end
+        if decomposeConn then decomposeConn:Disconnect(); decomposeConn = nil end
+        isDecomposeActive = false
+        notify("誓言", "已选中树，开始分解...", 3)
+        task.spawn(function()
+            decomposeAndProcess(model, bai.cachedSawmill, bai.cachedSawmillPos)
+        end)
+    end)
 end
 
 -- ==================== 主面板 ====================
@@ -880,40 +1106,48 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
     local SEARCH_H = 26
     local ITEM_H = 24
     local MAX_LIST_H = 180
+
+    -- ★ 容器 ZIndex 提到 100，展开时覆盖下方所有元素
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H),
-        BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false}, fc)
+        BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=100}, fc)
+
     local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), Position=UDim2.new(0, 0, 0, 0),
-        BackgroundColor3=T.RowBg, BorderSizePixel=0}, container)
+        BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=101}, container)
     crn(header, 6); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
     local cur = default or options[1]
     new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.35, 0, 0, HEADER_H),
         BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=12,
-        TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left}, header)
+        TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=102}, header)
     local valueLbl = new("TextLabel",{Position=UDim2.new(0.4, 0, 0, 0), Size=UDim2.new(0.5, -12, 0, HEADER_H),
         BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=11,
-        TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd}, header)
+        TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=102}, header)
     local plusBtn = new("TextButton",{Size=UDim2.fromOffset(22, 22), Position=UDim2.new(1, -28, 0.5, -11),
         BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+",
-        Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, AutoButtonColor=false}, header)
+        Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, AutoButtonColor=false, ZIndex=102}, header)
     crn(plusBtn, 4)
+
     local listFrame = new("Frame",{Position=UDim2.new(0, 0, 0, HEADER_H), Size=UDim2.new(1, 0, 0, 0),
-        BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, Visible=false, ZIndex=10}, container)
+        BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, Visible=false, ZIndex=200}, container)
     crn(listFrame, 6)
     dropdownRegistry[listFrame] = true
+
     local searchBox = new("TextBox",{Position=UDim2.new(0, 4, 0, 4), Size=UDim2.new(1, -8, 0, SEARCH_H - 4),
         BackgroundColor3=Color3.fromRGB(24, 25, 29), BorderSizePixel=0, Text="",
         PlaceholderText="搜索...", PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=11,
-        TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=11}, listFrame)
+        TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=201}, listFrame)
     crn(searchBox, 4)
     new("UIPadding",{ PaddingLeft=UDim.new(0,6) }, searchBox)
+
     local scrollFrame = new("ScrollingFrame",{Position=UDim2.new(0, 4, 0, SEARCH_H + 4),
         Size=UDim2.new(1, -8, 0, 0), BackgroundTransparency=1, BorderSizePixel=0,
         ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0, 0, 0, 0),
-        AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=11}, listFrame)
+        AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=201}, listFrame)
     new("UIListLayout",{ Padding=UDim.new(0, 2), SortOrder=Enum.SortOrder.LayoutOrder }, scrollFrame)
+
     local expanded = false
     local allOptions = {}
     for _, o in ipairs(options) do table.insert(allOptions, o) end
+
     local function buildItems(filterText)
         for _, ch in ipairs(scrollFrame:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
         filterText = (filterText or ""):lower()
@@ -924,7 +1158,7 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
                 count = count + 1
                 local b = new("TextButton",{Size=UDim2.new(1, 0, 0, ITEM_H - 2), BackgroundTransparency=1,
                     Text="   "..txt, Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text,
-                    TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=i, AutoButtonColor=false, ZIndex=12}, scrollFrame)
+                    TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=i, AutoButtonColor=false, ZIndex=202}, scrollFrame)
                 b.MouseEnter:Connect(function() b.BackgroundTransparency = 0.1; b.BackgroundColor3 = T.Hover end)
                 b.MouseLeave:Connect(function() b.BackgroundTransparency = 1 end)
                 b.MouseButton1Click:Connect(function()
@@ -936,6 +1170,7 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
         end
         return count
     end
+
     function expand(state)
         expanded = state
         if state then
@@ -953,6 +1188,7 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
             task.delay(0.2, function() listFrame.Visible = false end)
         end
     end
+
     plusBtn.MouseButton1Click:Connect(function() expand(not expanded) end)
     searchBox:GetPropertyChangedSignal("Text"):Connect(function()
         if expanded then
@@ -963,6 +1199,7 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
             TS:Create(container, TweenInfo.new(0.15), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
         end
     end)
+
     return container
 end
 
@@ -975,7 +1212,6 @@ makeDropdownWithPlus("选择树木种类", treeNamesWithPlaceholder, treeNamesWi
     else selectedTreeClass = treeMapping[b] end
 end)
 
--- ★ 砍树方案下拉：旧 / 新
 makeDropdownWithPlus("选择砍树方案", {"旧", "新"}, "旧", 3, function(choice)
     if choice == "新" then
         selectedPlan = 2
@@ -1026,6 +1262,13 @@ makeBtn("停止", 6, function()
     if isBringRunning then isBringRunning = false; notify("誓言", "正在停止任务...", 2)
     else notify("誓言", "当前没有运行中的任务", 2) end
 end)
+
+sectionHeader("一键加工", 7)
+makeBtn("选择锯木机", 8, selectSawmill)
+makeBtn("一键加工（分解 + 拖拽到锯木机）", 9, startDecomposeSelection)
+new("TextLabel",{Size=UDim2.new(1,0,0,18), BackgroundTransparency=1, Text="   先选锯木机 → 再点树",
+    Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Sub,
+    TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=10}, fc)
 
 -- ==================== 卡密 UI ====================
 local function showKeyUI()
