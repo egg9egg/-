@@ -1,8 +1,9 @@
 --[[
-    誓言面板 - 双方案版（弹窗树木选择器）
+    誓言面板 - 旧/新版本 + 源码.lua 一键加工
     卡密：誓言NB
-    旧版本 = 主脚本.txt（require 解析斧头 + 新版本拖拽方式）
+    旧版本 = 主脚本.txt（require 解析斧头 + 拖拽用新版 dragToPosition）
     新版本 = 源码.lua（decompile 反编译解析斧头）
+    一键加工 = 源码.lua 的 decomposeAndProcess 完整逻辑
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -292,7 +293,7 @@ local function getTreeClassFromModel(treeModel)
     return "Generic"
 end
 
--- 旧版本：主脚本.txt（require 解析斧头）
+-- 旧版本（主脚本.txt - require）
 local function loadWeaponConfigOld(weaponName)
     local module = rep:FindFirstChild("LoadedAssets") and rep.LoadedAssets:FindFirstChild(weaponName.."AxeClass")
     if not module then return nil end
@@ -320,7 +321,7 @@ local function selectBestWeaponOld(treeClass)
     return bw, bc, bd
 end
 
--- 新版本：源码.lua（decompile 反编译解析斧头）
+-- 新版本（源码.lua - decompile）
 local axeConfigCacheNew = {}
 local function loadWeaponConfigNew(weaponName)
     if axeConfigCacheNew[weaponName] ~= nil then return axeConfigCacheNew[weaponName] end
@@ -438,7 +439,7 @@ local function selectBestWeaponNew(treeClass)
     return bw, bc, bd
 end
 
--- ==================== 旧版本（拖拽方式用新版本的 dragToPosition） ====================
+-- ==================== 砍树旧版本（拖拽用新版 dragToPosition） ====================
 local function bringTreeOld(treeClass)
     local weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3) return false end
@@ -486,7 +487,6 @@ local function bringTreeOld(treeClass)
     local playerOriginalCF = lp.Character and lp.Character.HumanoidRootPart.CFrame
     if not playerOriginalCF then notify("誓言", "无法获取玩家位置", 3) return false end
 
-    -- ★ 用新版本的拖拽方式：lockPlayerAt + ClientRequestOwnership + dragToPosition
     pcall(rep.Interaction.ClientInteracted.FireServer, rep.Interaction, primary, 'Click'); task.wait(0.01)
     lockPlayerAt(primary.CFrame + Vector3.new(0,3,0))
     task.wait(0.15)
@@ -500,7 +500,7 @@ local function bringTreeOld(treeClass)
     return true
 end
 
--- ==================== 新版本（源码.lua） ====================
+-- ==================== 砍树新版本 ====================
 local function bringTreeNew(treeClass)
     local weaponName, weaponConfig, damage = selectBestWeaponNew(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
@@ -601,7 +601,7 @@ local function runBringTree(treeClass)
     else return bringTreeOld(treeClass) end
 end
 
--- ==================== 一键加工 ====================
+-- ==================== 一键加工（完全采用源码.lua 的 decomposeAndProcess） ====================
 local isSelectingSawmill = false
 local sawmillSelectConn = nil
 local function selectSawmill()
@@ -641,116 +641,210 @@ local function selectSawmill()
     end)
 end
 
+-- 根据方案选武器
+local function selectBestWeaponByPlan(treeClass)
+    if selectedPlan == 2 then
+        return selectBestWeaponNew(treeClass)
+    else
+        return selectBestWeaponOld(treeClass)
+    end
+end
+
+-- 源码.lua 里的 decomposeAndProcess（原样搬运，只把 selectBestWeapon 改成按方案选）
+local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
+    if not sawmillPos then
+        notify("誓言", "锯木机位置无效，请重新选择锯木机", 3)
+        return
+    end
+
+    local sections = {}
+    local rootSection = nil
+    for _, child in pairs(treeModel:GetChildren()) do
+        if child.Name == "WoodSection" and child:IsA("BasePart") and child:FindFirstChild("ID") then
+            local id = child.ID.Value
+            if id >= 2 then
+                table.insert(sections, {id = id, part = child})
+            elseif id == 1 then
+                rootSection = child
+            end
+        end
+    end
+    if #sections == 0 then
+        notify("誓言", "该树没有可分解的部分（ID≥2）", 3)
+        return
+    end
+    table.sort(sections, function(a, b) return a.id > b.id end)
+
+    local cutEvent = treeModel:FindFirstChild("CutEvent")
+    if not cutEvent then
+        notify("誓言", "该模型没有 CutEvent", 3)
+        return
+    end
+
+    local treeClass = getTreeClassFromModel(treeModel)
+    local weaponName, weaponConfig, err = selectBestWeaponByPlan(treeClass)
+    if not weaponName then
+        notify("誓言", "自动选武器失败: " .. (err or ""), 3)
+        return
+    end
+
+    local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
+    if not tool then
+        local toolFolder = lp:FindFirstChild("ToolFolder")
+        if toolFolder then
+            local weaponObj = toolFolder:FindFirstChild(weaponName)
+            tool = weaponObj and (weaponObj:IsA("Tool") and weaponObj or weaponObj.Value) or nil
+        end
+    end
+    if not tool then
+        notify("誓言", "未找到工具: " .. weaponName, 3)
+        return
+    end
+
+    local damage = weaponConfig and weaponConfig.Damage or 10000
+    local cooldown = weaponConfig and weaponConfig.SwingCooldown or 0.3
+    if weaponConfig and weaponConfig.SpecialTrees and weaponConfig.SpecialTrees[treeClass] then
+        damage = weaponConfig.SpecialTrees[treeClass].Damage or damage
+        cooldown = weaponConfig.SpecialTrees[treeClass].SwingCooldown or cooldown
+    end
+
+    local req = {
+        Flame=200000, BlueFlame=200000, Celestial=200000, Void=200000,
+        Ice=200000, Magma=200000, RainbowFlame=200000, Radioactive=200000,
+        Shine=200000, LoneCave=200000, Spirit=200000,
+    }
+    if req[treeClass] and damage < req[treeClass] then
+        notify("誓言", string.format("伤害不足！需要至少 %.0f，当前 %.0f", req[treeClass], damage), 4)
+        return
+    end
+
+    local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
+    local playerOriginalCF = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart").CFrame
+    if not playerOriginalCF then
+        notify("誓言", "无法获取玩家位置", 3)
+        return
+    end
+
+    local initialLogs = {}
+    for _, log in pairs(ws.LogModels:GetChildren()) do
+        initialLogs[log] = true
+    end
+
+    local tasks = {}
+    notify("誓言", string.format("开始分解 %d 个部分", #sections), 2)
+
+    for _, sec in ipairs(sections) do
+        local part = sec.part
+        local sectionId = sec.id
+        local stopFlag = false
+        local taskId = task.spawn(function()
+            while not stopFlag do
+                pcall(remote.FireServer, remote, cutEvent, {
+                    height = 0.11,
+                    faceVector = Vector3.new(-1, 0, 0),
+                    cooldown = cooldown,
+                    sectionId = sectionId,
+                    hitPoints = damage,
+                    tool = tool,
+                    cuttingClass = "Axe"
+                })
+                task.wait(0.01)
+                if not part or not part.Parent then
+                    break
+                end
+            end
+        end)
+        tasks[taskId] = true
+    end
+
+    local function hasHighIDSections()
+        for _, child in pairs(treeModel:GetChildren()) do
+            if child.Name == "WoodSection" and child:FindFirstChild("ID") then
+                local id = child.ID.Value
+                if id >= 2 then return true end
+            end
+        end
+        return false
+    end
+
+    local startTime = tick()
+    while hasHighIDSections() and tick() - startTime < 10 do
+        task.wait(0.01)
+    end
+    for taskId in pairs(tasks) do
+        task.cancel(taskId)
+    end
+
+    if hasHighIDSections() then
+        notify("誓言", "砍树超时", 3)
+        return
+    end
+
+    local allLogs = {}
+    for _, log in pairs(ws.LogModels:GetChildren()) do
+        if not initialLogs[log] and log:FindFirstChild("Owner") and log.Owner.Value == lp then
+            table.insert(allLogs, log)
+        end
+    end
+    if #allLogs == 0 then
+        notify("誓言", "未找到木头", 3)
+        return
+    end
+
+    -- 源码.lua 的锯木机落点计算
+    local pos = sawmillPos.p + sawmillPos:VectorToWorldSpace(Vector3.new(0.7, 0, 0))
+    local targetPos = CFrame.new(pos) * (sawmillPos - sawmillPos.p) * CFrame.Angles(math.rad(-90), math.rad(90), 0)
+
+    local allModels = {}
+    for _, log in ipairs(allLogs) do
+        if log and log.Parent then table.insert(allModels, log) end
+    end
+    if rootSection and rootSection.Parent then
+        if not treeModel.PrimaryPart then
+            treeModel.PrimaryPart = rootSection
+        end
+        table.insert(allModels, treeModel)
+    end
+
+    for _, model in ipairs(allModels) do
+        if model and model.Parent then
+            local primary = model.PrimaryPart or model:FindFirstChild("WoodSection") or model:FindFirstChild("Main") or model:FindFirstChildWhichIsA("BasePart")
+            if primary then
+                if not model.PrimaryPart then
+                    model.PrimaryPart = primary
+                end
+                safeTeleport(primary.CFrame + Vector3.new(0, 2, 0))
+                task.wait(0.06)
+                dragToPosition(model, targetPos)
+            end
+        end
+    end
+
+    notify("誓言", "所有木头和树根已拖拽完成", 3)
+end
+
+-- 点击树触发分解
 local isDecomposeActive = false
 local decomposeConn = nil
 local function startDecomposeSelection()
-    if isDecomposeActive then notify("誓言", "分解选择已激活", 2); return end
+    if isDecomposeActive then notify("誓言", "分解选择已激活，请先完成或取消", 2); return end
     if not bai.cachedSawmill or not bai.cachedSawmill.Parent then notify("誓言", "请先使用 '选择锯木机' 按钮设置一个锯木机", 3); return end
-    if not bai.cachedSawmillPos then notify("誓言", "锯木机位置无效", 3); return end
+    if not bai.cachedSawmillPos then notify("誓言", "锯木机位置无效，请重新选择", 3); return end
     isDecomposeActive = true
-    notify("誓言", "请点击一棵树", 3)
+    notify("誓言", "请点击一棵树（将使用已记忆的锯木机）", 3)
     decomposeConn = mouse.Button1Down:Connect(function()
         local target = mouse.Target
         if not target then notify("誓言", "未选中任何物体", 2); return end
         local model = target:FindFirstAncestorOfClass("Model")
-        if not model then notify("誓言", "请点击树干", 2); return end
+        if not model then notify("誓言", "请点击树的树干", 2); return end
         local hasWood = false
         for _, child in pairs(model:GetChildren()) do if child.Name == "WoodSection" then hasWood = true end end
-        if not (hasWood and model:FindFirstChild("CutEvent")) then notify("誓言", "这不是一棵树", 2); return end
+        if not (hasWood and model:FindFirstChild("CutEvent")) then notify("誓言", "这不是一棵树，请点击树干", 2); return end
         if decomposeConn then decomposeConn:Disconnect(); decomposeConn = nil end
         isDecomposeActive = false
         notify("誓言", "已选中树，开始分解...", 3)
         task.spawn(function()
-            local treeClass = getTreeClassFromModel(model)
-            local weaponName, weaponConfig, damage
-            if selectedPlan == 2 then
-                weaponName, weaponConfig, damage = selectBestWeaponNew(treeClass)
-            else
-                weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
-            end
-            if not weaponName then notify("誓言", "自动选武器失败", 3); return end
-            local cooldown = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].SwingCooldown) or weaponConfig.SwingCooldown
-            local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
-            if not tool then
-                local tf = lp:FindFirstChild("ToolFolder")
-                if tf then local wo = tf:FindFirstChild(weaponName); tool = wo and (wo:IsA("Tool") and wo or wo.Value) or nil end
-            end
-            if not tool then notify("誓言", "未找到工具: "..weaponName, 3); return end
-            local cutEvent = model:FindFirstChild("CutEvent")
-            if not cutEvent then notify("誓言", "无法获取CutEvent", 3); return end
-            local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
-
-            local sections = {}
-            local rootSection = nil
-            for _, child in pairs(model:GetChildren()) do
-                if child.Name == "WoodSection" and child:IsA("BasePart") and child:FindFirstChild("ID") then
-                    local id = child.ID.Value
-                    if id >= 2 then table.insert(sections, {id = id, part = child})
-                    elseif id == 1 then rootSection = child end
-                end
-            end
-            if #sections == 0 then notify("誓言", "该树没有可分解的部分（ID≥2）", 3); return end
-            table.sort(sections, function(a, b) return a.id > b.id end)
-
-            local initialLogs = {}
-            for _, log in pairs(ws.LogModels:GetChildren()) do initialLogs[log] = true end
-            local tasks = {}
-            notify("誓言", string.format("开始分解 %d 个部分", #sections), 2)
-
-            for _, sec in ipairs(sections) do
-                local part = sec.part
-                local sectionId = sec.id
-                local stopFlag = false
-                local taskId = task.spawn(function()
-                    while not stopFlag do
-                        pcall(remote.FireServer, remote, cutEvent, {height=0.11, faceVector=Vector3.new(-1,0,0), cooldown=cooldown, sectionId=sectionId, hitPoints=damage, tool=tool, cuttingClass="Axe"})
-                        task.wait(0.01)
-                        if not part or not part.Parent then break end
-                    end
-                end)
-                tasks[taskId] = true
-            end
-
-            local function hasHighIDSections()
-                for _, child in pairs(model:GetChildren()) do
-                    if child.Name == "WoodSection" and child:FindFirstChild("ID") and child.ID.Value >= 2 then return true end
-                end
-                return false
-            end
-
-            local startTime = tick()
-            while hasHighIDSections() and tick() - startTime < 120 do task.wait(0.01) end
-            for taskId in pairs(tasks) do task.cancel(taskId) end
-            if hasHighIDSections() then notify("誓言", "停止", 3); return end
-
-            local allLogs = {}
-            for _, log in pairs(ws.LogModels:GetChildren()) do
-                if not initialLogs[log] and log:FindFirstChild("Owner") and log.Owner.Value == lp then table.insert(allLogs, log) end
-            end
-            if #allLogs == 0 then notify("誓言", "未找到木头（可能掉落失败），停止", 3); return end
-
-            local targetPos = bai.cachedSawmillPos + Vector3.new(0.7, 0, 0)
-            for idx, log in ipairs(allLogs) do
-                if log and log.Parent then
-                    local primary = log.PrimaryPart or log:FindFirstChild("WoodSection") or log:FindFirstChild("Main") or log:FindFirstChildWhichIsA("BasePart")
-                    if primary then
-                        if not log.PrimaryPart then log.PrimaryPart = primary end
-                        safeTeleportNoWait(primary.CFrame + Vector3.new(0, 2, 0))
-                        for _ = 1, 3 do pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end); task.wait(0.01) end
-                        for i = 1, 30 do
-                            pcall(function() rep.Interaction.ClientIsDragging:FireServer(log, DRAG_SECRET); log:SetPrimaryPartCFrame(targetPos) end)
-                            task.wait(0.01)
-                        end
-                    end
-                end
-            end
-
-            if rootSection and rootSection.Parent then
-                if not model.PrimaryPart then model.PrimaryPart = rootSection end
-                safeTeleport(rootSection.CFrame + Vector3.new(0, 2, 0))
-                dragToPosition(model, targetPos)
-            end
-            notify("誓言", "分解完成", 3)
+            decomposeAndProcess(model, bai.cachedSawmill, bai.cachedSawmillPos)
         end)
     end)
 end
@@ -1012,10 +1106,10 @@ local function createTreePicker(parent, options, default, order, onSelect)
         end
     end)
 
-    return container, function() pickerGui.Enabled = false end
+    return container
 end
 
--- ==================== 砍树方案下拉框 ====================
+-- ==================== 方案下拉框 ====================
 local function createPlanDropdown(parent, options, default, order, onSelect)
     local HEADER_H, ITEM_H = 32, 24
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, parent)
@@ -1062,10 +1156,10 @@ local function createPlanDropdown(parent, options, default, order, onSelect)
         end
     end
     plusBtn.MouseButton1Click:Connect(function() expand(not expanded) end)
-    return container, function() if expanded then expand(false) end end
+    return container
 end
 
--- 创建两个控件
+-- 创建控件
 sectionHeader("带来树", 1)
 local treeNamesWithPlaceholder = { "--- 请选择树木 ---" }
 for _, name in ipairs(treeNames) do table.insert(treeNamesWithPlaceholder, name) end
@@ -1079,7 +1173,6 @@ createTreePicker(fc, treeNamesWithPlaceholder, "--- 请选择树木 ---", 2, fun
     end
 end)
 
--- ★ 方案名称改为“旧版本 / 新版本”
 createPlanDropdown(fc, {"旧版本（主脚本.txt）", "新版本（源码.lua）"}, "旧版本（主脚本.txt）", 3, function(choice)
     if choice == "新版本（源码.lua）" then
         selectedPlan = 2
@@ -1161,5 +1254,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 旧版本 + 新版本 已加载")
+print("[誓言面板] 源码.lua 一键加工版 已加载")
 showKeyUI()
