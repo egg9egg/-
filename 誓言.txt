@@ -1,6 +1,8 @@
 --[[
-    誓言面板 - 选择树木种类带搜索框
+    誓言面板 - 顶部横条可拖动版
     卡密：誓言NB
+    - 搜索框在选择树木列表内部，位于"请选择树木"上方
+    - 只有顶部横条（含"木材大亨"标题和最小化/关闭按钮的背景）可以拖动窗口
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -98,7 +100,7 @@ local function dragToPosition(model, targetCF, callback, waitFinish)
     local dragID = getNextDragID()
     local remote = rep.Interaction.ClientIsDragging
 
-    pcall(function() rep.Interaction.ClientOwnership:FireServer(primary) end)
+    pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end)
     pcall(function() remote:FireServer("Begin", model, dragID) end)
 
     local lastSet = DRAG_SET_START + DRAG_SET_COUNT - 1
@@ -440,7 +442,7 @@ local function isInDangerZone(pos)
         and pos.Z >= DANGER_MIN_Z and pos.Z <= DANGER_MAX_Z
 end
 
--- ==================== 砍树 ====================
+-- ==================== 砍树（旧版） ====================
 local function bringTreeOld(treeClass, progressText)
     local weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3) return false end
@@ -511,6 +513,7 @@ local function bringTreeOld(treeClass, progressText)
     return true
 end
 
+-- ==================== 砍树（新版） ====================
 local function bringTreeNew(treeClass, progressText)
     local weaponName, weaponConfig, damage = selectBestWeaponNew(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
@@ -1003,6 +1006,7 @@ crn(icOverlay,10)
 new("TextLabel",{Size=UDim2.new(1,-20,0,30), Position=UDim2.new(0,10,0,10), BackgroundTransparency=1, Text=GAME_TITLE.." · 誓言面板", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7}, ic)
 new("TextLabel",{Size=UDim2.new(1,-20,0,20), Position=UDim2.new(0,10,0,40), BackgroundTransparency=1, Text="作者：是我太傻   QQ：3767465890   群：1109682737", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7}, ic)
 
+-- 窗口控制按钮（黄=最小化 / 红=关闭）
 local btnHolder = new("Frame",{Size=UDim2.fromOffset(50, 18), Position=UDim2.new(1, -14, 0, 14), AnchorPoint=Vector2.new(1, 0), BackgroundTransparency=1, ZIndex=10}, Main)
 local function makeWinDot(color, x, cb)
     local btn = new("TextButton",{Size=UDim2.fromOffset(16, 16), Position=UDim2.new(0, x, 0, 0), BackgroundColor3=color, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=10}, btnHolder)
@@ -1072,28 +1076,44 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
+-- ★ 只有顶部横条（含"木材大亨"标题和最小化/关闭按钮的背景）可以拖动窗口 ★
 do
     local dragging, actualDragging = false, false
     local dragStart, startPos = nil, nil
     local DRAG_THRESHOLD = 3
+
     UIS.InputBegan:Connect(function(input, proc)
         if proc then return end
         if not Main.Visible then return end
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
         local mx, my = input.Position.X, input.Position.Y
+
+        -- 只允许在 topBar（顶部横条）范围内按下拖动
+        local tbPos = topBar.AbsolutePosition
+        local tbSize = topBar.AbsoluteSize
+        local inTopBar = mx >= tbPos.X and mx <= tbPos.X + tbSize.X
+                     and my >= tbPos.Y and my <= tbPos.Y + tbSize.Y
+        if not inTopBar then return end
+
+        -- 排除黄/红窗口按钮区域（在按钮上按下时不拖动）
+        local bhPos = btnHolder.AbsolutePosition
+        local bhSize = btnHolder.AbsoluteSize
+        local onWinBtn = mx >= bhPos.X and mx <= bhPos.X + bhSize.X
+                      and my >= bhPos.Y and my <= bhPos.Y + bhSize.Y
+        if onWinBtn then return end
+
+        -- 排除 TextButton/TextBox（防止点到滚动条之类）
         local objects = UIS:GetObjectsAtPosition(Vector3.new(mx, my, 0), PG)
         for _, obj in ipairs(objects) do
-            if obj:IsA("TextButton") or obj:IsA("TextBox") or obj:IsA("ScrollingFrame") then return end
+            if obj:IsA("TextButton") or obj:IsA("TextBox") then return end
         end
-        local mpos = Main.AbsolutePosition
-        local msize = Main.AbsoluteSize
-        if mx >= mpos.X and mx <= mpos.X + msize.X and my >= mpos.Y and my <= mpos.Y + msize.Y then
-            dragging = true
-            actualDragging = false
-            dragStart = input.Position
-            startPos = Main.Position
-        end
+
+        dragging = true
+        actualDragging = false
+        dragStart = input.Position
+        startPos = Main.Position
     end)
+
     UIS.InputChanged:Connect(function(input)
         if not dragging then return end
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
@@ -1106,6 +1126,7 @@ do
             end
         end
     end)
+
     UIS.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
@@ -1203,7 +1224,7 @@ end
 -- ★ 下拉框：searchable=true 时在列表内部最上方插入搜索框（位于"请选择树木"上方）★
 local function makeDropdown(text, order, options, default, onSelect, searchable)
     local HEADER_H, ITEM_H = 40, 30
-    local SEARCH_H = 34  -- 搜索框占的高度
+    local SEARCH_H = 34
 
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
     local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
@@ -1214,11 +1235,9 @@ local function makeDropdown(text, order, options, default, onSelect, searchable)
     local plusBtn = new("TextButton",{Size=UDim2.fromOffset(28, 28), Position=UDim2.new(1, -34, 0.5, -14), BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+", Font=Enum.Font.GothamBold, TextSize=18, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
     crn(plusBtn, 6)
 
-    -- 展开面板（listFrame），里面从上到下：搜索框（可选）→ 选项滚动区
     local listFrame = new("Frame",{Position=UDim2.new(0, 0, 0, HEADER_H), Size=UDim2.new(1, 0, 0, 0), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, Visible=false, ZIndex=10}, container)
     crn(listFrame, 8)
 
-    -- 搜索框：直接放在 listFrame 里，最顶部；位于滚动区（选项）之上
     local searchBox = nil
     if searchable then
         local searchBg = new("Frame", {
@@ -1229,7 +1248,7 @@ local function makeDropdown(text, order, options, default, onSelect, searchable)
             ZIndex = 15
         }, listFrame)
         crn(searchBg, 6)
-        local searchIcon = new("TextLabel", {
+        new("TextLabel", {
             Size = UDim2.fromOffset(20, 22),
             Position = UDim2.new(0, 6, 0, 0),
             BackgroundTransparency = 1,
@@ -1256,7 +1275,6 @@ local function makeDropdown(text, order, options, default, onSelect, searchable)
         }, searchBg)
     end
 
-    -- 选项滚动区（位置随 searchable 下移）
     local scrollOffsetY = searchable and SEARCH_H or 4
     local scrollFrame = new("ScrollingFrame",{
         Position = UDim2.new(0, 4, 0, scrollOffsetY),
@@ -1283,7 +1301,6 @@ local function makeDropdown(text, order, options, default, onSelect, searchable)
         local lowerFilter = currentFilter:lower()
         for _, opt in ipairs(options) do
             local optStr = tostring(opt)
-            -- 搜索时"--- 请选择树木 ---"永远保留在第一位
             local isPlaceholder = (optStr == "--- 请选择树木 ---")
             local matched = (currentFilter == "") or isPlaceholder or optStr:lower():find(lowerFilter, 1, true)
             if matched then
@@ -1543,5 +1560,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 搜索框在列表内版 已加载")
+print("[誓言面板] 顶部横条拖动版 已加载")
 showKeyUI()
