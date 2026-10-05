@@ -955,7 +955,7 @@ local pages = {}
 for i, name in ipairs(tabs) do
     local p = new("ScrollingFrame",{Name=name, Size=UDim2.fromScale(1,1), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y, Visible=false}, pc)
     new("UIListLayout",{Padding=UDim.new(0,6), SortOrder=Enum.SortOrder.LayoutOrder}, p)
-    new("UIPadding",{PaddingTop=UDim.new(0,48), PaddingBottom=UDim.new(0,10), PaddingLeft=UDim.new(0,14), PaddingRight=UDim.new(0,14)}, p)
+    new("UIPadding",{PaddingTop=UDim.new(0,82), PaddingBottom=UDim.new(0,10), PaddingLeft=UDim.new(0,14), PaddingRight=UDim.new(0,14)}, p)
     pages[i] = p
 end
 
@@ -1132,7 +1132,7 @@ local function makeBox(text, placeholder, order, default, cb, parent)
     return box
 end
 
--- ★ 修复版 makeToggle：右边小球用 AnchorPoint 定位，14x14，加描边，肯定可见 ★
+-- 修复版 makeToggle：右边小球用 AnchorPoint 定位，14x14，加描边
 local function makeToggle(text, order, defaultState, callback, parent)
     parent = parent or fc
     local state = defaultState
@@ -1144,7 +1144,6 @@ local function makeToggle(text, order, defaultState, callback, parent)
     }, parent)
     crn(btn, 8); strk(btn, Color3.fromRGB(48, 48, 52), 1, 0.3)
 
-    -- 文本（左侧）
     local txt = new("TextLabel", {
         Size = UDim2.new(1, -60, 1, 0),
         Position = UDim2.new(0, 14, 0, 0),
@@ -1155,7 +1154,6 @@ local function makeToggle(text, order, defaultState, callback, parent)
         TextTruncate = Enum.TextTruncate.AtEnd
     }, btn)
 
-    -- 小球指示器（右侧，用 AnchorPoint 定位确保可见）
     local indicator = new("Frame", {
         Size = UDim2.fromOffset(14, 14),
         AnchorPoint = Vector2.new(1, 0.5),
@@ -1184,7 +1182,7 @@ local function makeToggle(text, order, defaultState, callback, parent)
     return btn
 end
 
--- ★ 关键：下拉框工厂，每个实例的 expand 都是 local，绝不互相冲突 ★
+-- 下拉框工厂，每个实例的 expand 都是 local，绝不互相冲突
 local function makeDropdown(text, order, options, default, onSelect)
     local HEADER_H, ITEM_H = 40, 30
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
