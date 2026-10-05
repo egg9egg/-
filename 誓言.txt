@@ -1,8 +1,8 @@
 --[[
-    誓言面板 v9.8
+    誓言面板 v9.9
     卡密：誓言NB
-    ★ 带来树：依次尝试 ToolFolder 里的每个斧头（先第 1 个，失败换第 2 个，直到成功）
-    ★ 信息卡背景：改用 rbxassetid:// 直接引用 99744630992987
+    ★ 带来树：先锁定一棵树，依次尝试 ToolFolder 里的每个斧头（第 1 个砍不动换第 2 个，砍下即停）
+    ★ 信息卡背景：rbxassetid://99744630992987
     其他：拖拽防误触 / 通知标题统一 / 拖动页面不拖面板 全部保留
 ]]
 local Players = game:GetService("Players")
@@ -377,7 +377,7 @@ local function loadWeaponConfig(weaponName)
     return nil
 end
 
--- ★ 拿到按"从强到弱"排序的斧头列表（读不到的排最后，用默认配置兜底）
+-- 拿到按"从强到弱"排序的斧头列表
 local function getOrderedWeapons(treeClass)
     local toolFolder = lp:FindFirstChild("ToolFolder")
     if not toolFolder then return {} end
@@ -388,13 +388,8 @@ local function getOrderedWeapons(treeClass)
         if cfg then
             damage = (cfg.SpecialTrees[treeClass] and cfg.SpecialTrees[treeClass].Damage) or cfg.Damage or -1
         end
-        table.insert(list, {
-            name = child.Name,
-            damage = damage,
-            config = cfg or DEFAULT_CONFIG,
-        })
+        table.insert(list, { name = child.Name, damage = damage, config = cfg or DEFAULT_CONFIG })
     end
-    -- 按伤害降序排；伤害相同的按名字排
     table.sort(list, function(a, b)
         if a.damage ~= b.damage then return a.damage > b.damage end
         return a.name < b.name
@@ -449,11 +444,84 @@ local function getTreeTopCFrame(treeModel)
     return topCF
 end
 
--- ==================== 单次砍树（用指定武器） ====================
-local function tryBringTreeWithWeapon(treeClass, weaponName, weaponConfig)
+-- ==================== 单次砍树（用指定武器砍指定树） ====================
+-- 返回：fallenLog（成功掉落的木头模型）或 nil（失败）
+local function cutTreeOnce(tree, woodSec, treeClass, weaponName, weaponConfig)
+    -- 切换工具：把指定斧头放到手上
+    local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
+    local heldName = nil
+    if tool then
+        local tn = tool:FindFirstChild("ToolName")
+        heldName = tn and tostring(tn.Value) or tool.Name
+    end
+    if not tool or heldName ~= weaponName then
+        local toolFolder = lp:FindFirstChild("ToolFolder")
+        if toolFolder then
+            local weaponObj = toolFolder:FindFirstChild(weaponName)
+            local newTool = weaponObj and (weaponObj:IsA("Tool") and weaponObj or weaponObj.Value) or nil
+            if newTool and lp.Character then
+                newTool.Parent = lp.Character  -- 装备到手上
+                tool = newTool
+            end
+        end
+    end
+    if not tool then return nil end
+
+    local cutEvent = tree:FindFirstChild("CutEvent")
+    if not cutEvent then return nil end
+    local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
+
+    local damage = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].Damage)
+        or weaponConfig.Damage or 10000
+    local cooldown = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].SwingCooldown)
+        or weaponConfig.SwingCooldown or 0.3
+
+    -- 锁在树顶（保持网络所有权，砍伐不掉线）
+    lockPlayerAt(getTreeTopCFrame(tree))
+
+    local existingLogs = {}
+    for _, log in pairs(ws.LogModels:GetChildren()) do existingLogs[log] = true end
+    local treeCenter = woodSec.Position
+    local stopCutting = false
+
+    local sendTask = task.spawn(function()
+        while not stopCutting do
+            pcall(remote.FireServer, remote, cutEvent, {
+                height=0.3, faceVector=Vector3.new(-1,0,0), cooldown=cooldown,
+                sectionId=1, hitPoints=damage, tool=tool, cuttingClass="Axe"
+            })
+            task.wait(0.001)
+        end
+    end)
+
+    -- 单次最多尝试 8 秒，8 秒内没掉木头就认为这把斧头砍不动
+    local deadline = os.clock() + 8
+    local fallenLog = nil
+    while os.clock() < deadline and not fallenLog do
+        for _, log in pairs(ws.LogModels:GetChildren()) do
+            if not existingLogs[log] and log:FindFirstChild("Owner") and log.Owner.Value == lp
+            and log:FindFirstChild("TreeClass") and log.TreeClass.Value == treeClass then
+                if (log:GetPivot().Position - treeCenter).Magnitude < 100 then
+                    fallenLog = log
+                    break
+                end
+            end
+        end
+        task.wait(0.01)
+    end
+
+    stopCutting = true
+    task.cancel(sendTask)
+    return fallenLog
+end
+
+-- ==================== 带来树：先锁定一棵树，依次尝试每个斧头砍它 ====================
+local function bringTreeRemote(treeClass)
+    -- ① 只找一次目标树，全程用这棵
     local woodSec, tree = findUncutTree(treeClass)
     if not woodSec then notify("誓言", "附近没有可砍的树", 3); return false end
 
+    -- ② 危险区域检测（岩浆/火焰区）
     local minX, maxX = -543, -27.8
     local minY, maxY = -196.7, -148.2
     local minZ, maxZ = -2961.7, -2668.7
@@ -466,78 +534,51 @@ local function tryBringTreeWithWeapon(treeClass, weaponName, weaponConfig)
         return false
     end
 
-    local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
-    if not tool or (tool:FindFirstChild("ToolName") and tostring(tool.ToolName.Value) ~= weaponName) then
-        local toolFolder = lp:FindFirstChild("ToolFolder")
-        if toolFolder then
-            local weaponObj = toolFolder:FindFirstChild(weaponName)
-            tool = weaponObj and (weaponObj:IsA("Tool") and weaponObj or weaponObj.Value) or nil
-        end
-    end
-    if not tool then notify("誓言", "未找到工具: " .. weaponName, 3); return false end
-
-    local cutEvent = tree:FindFirstChild("CutEvent")
-    if not cutEvent then notify("誓言", "无法获取CutEvent", 3); return false end
-    local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
+    -- ③ 拿到斧头列表（已按伤害从高到低排好序）
+    local weapons = getOrderedWeapons(treeClass)
+    if #weapons == 0 then notify("誓言", "ToolFolder 里没有任何斧头", 3); return false end
 
     local playerOriginalCF = lp.Character and lp.Character.HumanoidRootPart.CFrame
     if not playerOriginalCF then notify("誓言", "无法获取玩家位置", 3); return false end
 
-    local damage = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].Damage) or weaponConfig.Damage or 10000
-    local cooldown = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].SwingCooldown) or weaponConfig.SwingCooldown or 0.3
-
-    -- 相机锁定树顶
-    local oldCamSubj = workspace.CurrentCamera.CameraSubject
-    workspace.CurrentCamera.CameraSubject = tree
-
-    lockPlayerAt(getTreeTopCFrame(tree))
-
-    local fallenLog, existingLogs = nil, {}
-    for _, log in pairs(ws.LogModels:GetChildren()) do existingLogs[log] = true end
-    local treeCenter = woodSec.Position
-    local stopCutting, timeoutReached = false, false
-
-    local sendTask = task.spawn(function()
-        while not stopCutting do
-            pcall(remote.FireServer, remote, cutEvent, {
-                height=0.3, faceVector=Vector3.new(-1,0,0), cooldown=cooldown,
-                sectionId=1, hitPoints=damage, tool=tool, cuttingClass="Axe"
-            })
-            task.wait(0.001)
-        end
-    end)
-    local timeoutTask = task.spawn(function()
-        task.wait(12)
-        if not stopCutting then timeoutReached = true; stopCutting = true end
-    end)
-
-    while not fallenLog and not stopCutting do
-        for _, log in pairs(ws.LogModels:GetChildren()) do
-            if not existingLogs[log] and log:FindFirstChild("Owner") and log.Owner.Value == lp
-            and log:FindFirstChild("TreeClass") and log.TreeClass.Value == treeClass then
-                if (log:GetPivot().Position - treeCenter).Magnitude < 100 then fallenLog = log; break end
+    -- ④ 依次用每个斧头砍【同一棵树】
+    local fallenLog = nil
+    for idx, w in ipairs(weapons) do
+        notify("誓言", string.format("用 [%s] 砍树 (第 %d/%d 个斧头)", w.name, idx, #weapons), 2)
+        fallenLog = cutTreeOnce(tree, woodSec, treeClass, w.name, w.config)
+        if fallenLog then
+            if idx == 1 then
+                notify("誓言", string.format("[%s] 砍成功", w.name), 3)
+            else
+                notify("誓言", string.format("[%s] 砍成功（第 %d 个斧头砍下的）", w.name, idx), 3)
             end
+            break  -- ★ 成功就停，不再尝试后续斧头
         end
-        task.wait(0.01)
+        if idx < #weapons then
+            notify("誓言", string.format("[%s] 砍不动，换下一个斧头", w.name), 2)
+            task.wait(0.2)
+        end
     end
-    stopCutting = true
-    task.cancel(sendTask); task.cancel(timeoutTask)
-    workspace.CurrentCamera.CameraSubject = oldCamSubj
 
-    if timeoutReached or not fallenLog then
+    -- ⑤ 所有斧头都试过还砍不动 → 失败
+    if not fallenLog then
         unlockPlayer()
+        notify("誓言", "所有斧头都砍不掉这棵树", 3)
         safeTeleport(playerOriginalCF)
         return false
     end
 
+    -- ⑥ 把砍下来的木头拖回原位置
     local primary = fallenLog.PrimaryPart or fallenLog:FindFirstChild("WoodSection")
         or fallenLog:FindFirstChild("Main") or fallenLog:FindFirstChildWhichIsA("BasePart")
     if not primary then
         unlockPlayer()
+        notify("誓言", "无法定位木头", 3)
         safeTeleport(playerOriginalCF)
         return false
     end
 
+    -- 木头危险区域检测
     local logPos = primary.Position
     if logPos.X >= minX and logPos.X <= maxX and
        logPos.Y >= minY and logPos.Y <= maxY and
@@ -550,7 +591,6 @@ local function tryBringTreeWithWeapon(treeClass, weaponName, weaponConfig)
     end
 
     if not fallenLog.PrimaryPart then fallenLog.PrimaryPart = primary end
-
     lockPlayerAt(primary.CFrame + Vector3.new(0, 3, 0))
     task.wait(0.15)
     for _ = 1, 3 do
@@ -565,33 +605,8 @@ local function tryBringTreeWithWeapon(treeClass, weaponName, weaponConfig)
 
     unlockPlayer()
     safeTeleport(playerOriginalCF)
+    notify("誓言", "树已带来", 2)
     return true
-end
-
--- ==================== 带来树：依次尝试每个斧头 ====================
-local function bringTreeRemote(treeClass)
-    local weapons = getOrderedWeapons(treeClass)
-    if #weapons == 0 then notify("誓言", "ToolFolder 里没有任何斧头", 3); return false end
-
-    notify("誓言", string.format("找到 %d 个斧头，开始依次尝试", #weapons), 2)
-
-    for idx, w in ipairs(weapons) do
-        notify("誓言", string.format("用 %s (第 %d/%d 个)", w.name, idx, #weapons), 2)
-        local ok = tryBringTreeWithWeapon(treeClass, w.name, w.config)
-        if ok then
-            if idx > 1 then
-                notify("誓言", string.format("%s 砍成功了（第 %d 个）", w.name, idx), 3)
-            end
-            return true
-        end
-        if idx < #weapons then
-            notify("誓言", string.format("%s 没砍掉，换下一个", w.name), 2)
-            task.wait(0.3)
-        end
-    end
-
-    notify("誓言", "所有斧头都砍不掉这棵树", 3)
-    return false
 end
 
 -- ==================== 选择锯木机 ====================
@@ -834,13 +849,12 @@ end
 pages[1].Visible = true
 tabBtns[1].label.TextColor3 = T.Text
 
--- ★ 信息卡：猫图背景 —— 用 rbxassetid 直接引用
+-- ★ 信息卡：猫图背景
 local info = pages[1]
 local ic = new("Frame",{Size=UDim2.new(1,0,0,100), BackgroundColor3=T.Panel,
     BorderSizePixel=0, ClipsDescendants=true}, info)
 crn(ic,10)
 
--- 背景猫图 —— rbxassetid 直接引用
 local icBg = new("ImageLabel",{
     Size=UDim2.fromScale(1,1), BackgroundTransparency=1,
     Image="rbxassetid://99744630992987",
@@ -848,7 +862,6 @@ local icBg = new("ImageLabel",{
 }, ic)
 crn(icBg,10)
 
--- 半透明遮罩
 local icOverlay = new("Frame",{
     Size=UDim2.fromScale(1,1), BackgroundColor3=Color3.fromRGB(0,0,0),
     BackgroundTransparency=0.5, BorderSizePixel=0, ZIndex=2,
