@@ -4,6 +4,7 @@
     旧版本 = 主脚本.txt（require 解析 + 危险区域检测）
     新版本 = 源码.lua（decompile 反编译解析 + 危险区域检测）
     一键加工 = 源码.lua 的 decomposeAndProcess 完整逻辑
+    选择锯木机 = 源码.lua 新版写法
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -459,7 +460,6 @@ local function bringTreeOld(treeClass)
     local woodSec, tree = findUncutTree(treeClass)
     if not woodSec then notify("誓言", "附近没有可砍的树", 3) return false end
 
-    -- ★ 新增：检测树是否在危险区域
     if isInDangerZone(woodSec.Position) then
         notify("誓言", "树在危险区域内，已删除", 5)
         if tree and tree.Parent then tree:Destroy() end
@@ -507,7 +507,6 @@ local function bringTreeOld(treeClass)
     if not primary then notify("誓言", "无法定位木头", 3) return false end
     if not fallenLog.PrimaryPart then fallenLog.PrimaryPart = primary end
 
-    -- ★ 新增：检测掉落的木头是否在危险区域
     if isInDangerZone(primary.Position) then
         notify("誓言", "木头掉落在危险区域，已删除", 5)
         if fallenLog and fallenLog.Parent then fallenLog:Destroy() end
@@ -538,7 +537,6 @@ local function bringTreeNew(treeClass)
     local woodSec, tree = findUncutTree(treeClass)
     if not woodSec then notify("誓言", "附近没有可砍的树", 3); return false end
 
-    -- 危险区域检测
     if isInDangerZone(woodSec.Position) then
         notify("誓言", "树在危险区域内，已删除", 5)
         if tree and tree.Parent then tree:Destroy() end
@@ -600,7 +598,6 @@ local function bringTreeNew(treeClass)
         return false
     end
 
-    -- 危险区域检测
     if isInDangerZone(primary.Position) then
         notify("誓言", "木头掉落在危险区域，已删除", 5)
         if fallenLog and fallenLog.Parent then fallenLog:Destroy() end
@@ -630,46 +627,73 @@ local function runBringTree(treeClass)
     else return bringTreeOld(treeClass) end
 end
 
--- ==================== 一键加工 ====================
-local isSelectingSawmill = false
-local sawmillSelectConn = nil
+-- ==================== 选择锯木机（★源码.lua 写法）====================
 local function selectSawmill()
-    if isSelectingSawmill then notify("誓言", "正在等待选择中...", 2); return end
-    isSelectingSawmill = true
     notify("誓言", "请点击锯木机任意部件", 3)
-    if sawmillSelectConn then sawmillSelectConn:Disconnect() end
-    sawmillSelectConn = mouse.Button1Down:Connect(function()
+    local conn
+    conn = mouse.Button1Down:Connect(function()
         local target = mouse.Target
-        if not target then notify("誓言", "未选中任何物体", 2); return end
+        if not target then
+            notify("誓言", "未选中任何物体", 2)
+            return
+        end
         local model = target:FindFirstAncestorOfClass("Model")
-        if not model then notify("誓言", "请点击一个模型", 2); return end
+        if not model then
+            notify("誓言", "请点击一个模型", 2)
+            return
+        end
         local function isSawmill(root)
             local attr = root:GetAttribute("ItemName")
-            if attr and type(attr) == "string" and attr:lower():find("saw") then return true end
-            for _, child in pairs(root:GetDescendants()) do
-                if child.Name == "ItemName" then local val = child.Value; if val and type(val) == "string" and val:lower():find("saw") then return true end end
+            if attr and type(attr) == "string" and attr:lower():find("saw") then
+                return true
             end
-            if root.Name and root.Name:lower():find("saw") then return true end
+            for _, child in pairs(root:GetDescendants()) do
+                if child.Name == "ItemName" then
+                    local val = child.Value
+                    if val and type(val) == "string" and val:lower():find("saw") then
+                        return true
+                    end
+                end
+            end
+            if root.Name and root.Name:lower():find("saw") then
+                return true
+            end
             local typeVal = root:FindFirstChild("Type")
-            if typeVal and typeVal.Value == "Sawmill" then return true end
+            if typeVal and typeVal.Value == "Sawmill" then
+                return true
+            end
             return false
         end
-        if not isSawmill(model) then notify("誓言", "这不是锯木机", 3); return end
+        if not isSawmill(model) then
+            notify("誓言", "这不是锯木机（未检测到锯木机标识）", 3)
+            return
+        end
         local function findPart(root)
-            for _, child in pairs(root:GetDescendants()) do if child.Name == "Conveyor" and child:IsA("BasePart") then return child, "Conveyor" end end
-            for _, child in pairs(root:GetDescendants()) do if child.Name == "Main" and child:IsA("BasePart") then return child, "Main" end end
+            for _, child in pairs(root:GetDescendants()) do
+                if child.Name == "Conveyor" and child:IsA("BasePart") then
+                    return child, "Conveyor"
+                end
+            end
+            for _, child in pairs(root:GetDescendants()) do
+                if child.Name == "Main" and child:IsA("BasePart") then
+                    return child, "Main"
+                end
+            end
             return nil, nil
         end
         local part, partType = findPart(model)
-        if not part then notify("誓言", "找不到 Conveyor 或 Main 部件", 3); return end
+        if not part then
+            notify("誓言", "找不到 Conveyor 或 Main 部件", 3)
+            return
+        end
         bai.cachedSawmill = model
         bai.cachedSawmillPos = part.CFrame
-        if sawmillSelectConn then sawmillSelectConn:Disconnect(); sawmillSelectConn = nil end
-        isSelectingSawmill = false
+        conn:Disconnect()
         notify("誓言", "✅ 已记忆锯木机位置（" .. partType .. "）", 3)
     end)
 end
 
+-- ==================== 一键加工 ====================
 local function selectBestWeaponByPlan(treeClass)
     if selectedPlan == 2 then
         return selectBestWeaponNew(treeClass)
@@ -1332,5 +1356,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 旧版本危险区域检测版 已加载")
+print("[誓言面板] 选择锯木机源码版 已加载")
 showKeyUI()
