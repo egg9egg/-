@@ -5,6 +5,7 @@
     新版本 = 源码.lua（decompile 反编译解析 + 危险区域检测）
     一键加工 = 源码.lua 的 decomposeAndProcess 完整逻辑
     选择锯木机 = 源码.lua 新版写法
+    批量进度提示：右下角显示 1/10、2/10 ...
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -16,7 +17,6 @@ local PG = lp:WaitForChild("PlayerGui")
 local ws = workspace
 local rep = game:GetService("ReplicatedStorage")
 local mouse = lp:GetMouse()
-local DRAG_SECRET = "Ifyouarereadingthisstophackingbrolegitalsokrnlisbadbtw432rewdWdwFe432432rwDWDAVWdawgdGWAYDFGYTUW"
 
 local KEYS = { ["誓言NB"] = true }
 local GAME_TITLE = "木材大亨2"
@@ -451,7 +451,7 @@ local function isInDangerZone(pos)
 end
 
 -- ==================== 砍树旧版本（带危险区域检测） ====================
-local function bringTreeOld(treeClass)
+local function bringTreeOld(treeClass, progressText)
     local weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3) return false end
     local req = {LoveCave=10000000, Shine=80000000, Magma=5000000, Ice=8000000, Radioactive=10000000, Scale=40000000, Void=5000000, Flame=10000000, BlueFlame=3500000, RainbowFlame=3500000, Celestial=10000000}
@@ -523,12 +523,12 @@ local function bringTreeOld(treeClass)
     local t = 0
     while not done and t < 6 do task.wait(0.05); t = t + 0.05 end
     safeTeleport(playerOriginalCF)
-    notify("誓言", "树已带来", 2)
+    notify("誓言", "树已带来" .. (progressText and (" · "..progressText) or ""), 2)
     return true
 end
 
 -- ==================== 砍树新版本 ====================
-local function bringTreeNew(treeClass)
+local function bringTreeNew(treeClass, progressText)
     local weaponName, weaponConfig, damage = selectBestWeaponNew(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
     local req = {Flame=200000, BlueFlame=200000, Celestial=200000, Void=200000, Ice=200000, Magma=200000, RainbowFlame=200000, Radioactive=200000, Shine=200000, LoneCave=200000, Spirit=200000}
@@ -616,15 +616,15 @@ local function bringTreeNew(treeClass)
     while not done and t < 6 do task.wait(0.05); t = t + 0.05 end
     if tempPart and tempPart.Parent then tempPart:Destroy() end
     safeTeleport(playerOriginalCF)
-    notify("誓言", "树已带来", 2)
+    notify("誓言", "树已带来" .. (progressText and (" · "..progressText) or ""), 2)
     return true
 end
 
 -- ==================== 分发 ====================
 local selectedPlan = 1
-local function runBringTree(treeClass)
-    if selectedPlan == 2 then return bringTreeNew(treeClass)
-    else return bringTreeOld(treeClass) end
+local function runBringTree(treeClass, progressText)
+    if selectedPlan == 2 then return bringTreeNew(treeClass, progressText)
+    else return bringTreeOld(treeClass, progressText) end
 end
 
 -- ==================== 选择锯木机（★源码.lua 写法）====================
@@ -1287,18 +1287,32 @@ end)
 
 local batchCount = 1
 makeBox("数量", "1", 4, function(v) local num = tonumber(v); if num and num > 0 then batchCount = math.floor(num) end end)
+
 local isBringRunning = false
 makeBtn("带来树", 5, function()
     if isBringRunning then notify("誓言", "任务运行中", 2); return end
     if not selectedTreeClass then notify("誓言", "请先选择树木种类", 3); return end
     isBringRunning = true
     task.spawn(function()
+        local total = batchCount
         local s, f = 0, 0
-        for i = 1, batchCount do
+        for i = 1, total do
             if not isBringRunning then break end
-            local ok = runBringTree(selectedTreeClass)
-            if ok then s = s + 1 else f = f + 1; break end
+            local progressText = string.format("%d/%d", i, total)
+            -- 开始提示（右下角）
+            notify("誓言", "正在带来树 · " .. progressText, 2)
+            local ok = runBringTree(selectedTreeClass, progressText)
+            if ok then
+                s = s + 1
+            else
+                f = f + 1
+                break
+            end
             task.wait(0.01)
+        end
+        -- 收尾提示
+        if s > 0 then
+            notify("誓言", string.format("批量完成 · 成功 %d/%d", s, total), 3)
         end
         isBringRunning = false
     end)
@@ -1356,5 +1370,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 选择锯木机源码版 已加载")
+print("[誓言面板] 批量进度提示版 已加载")
 showKeyUI()
