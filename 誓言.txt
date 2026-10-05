@@ -1,6 +1,8 @@
 --[[
-    誓言面板 - 完整版 + ID配置
+    誓言面板 - ID分区版
     卡密：誓言NB
+    ID_CONFIG 在顶部，你自己改数字对应哪个列表
+    ID分区里每个 ID 有一个"展开"按钮，点它就展开对应列表
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -16,14 +18,13 @@ local mouse = lp:GetMouse()
 local KEYS = { ["誓言NB"] = true }
 local GAME_TITLE = "木材大亨2"
 
--- ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
--- ★  ID 配置表：你自己改这里的数字，哪个列表对应哪个 ID  ★
--- ★  比如想把"选择树木种类"改成 ID 5，把 tree 改成 5 就行   ★
--- ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+-- ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
+-- ★  ID 配置表：改这里的数字，决定哪个列表对应哪个 ID  ★
+-- ★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★★
 local ID_CONFIG = {
     tree   = 1,   -- 选择树木种类
     plan   = 2,   -- 选择砍树方案
-    player = 3,   -- 传送 - 选择玩家
+    player = 3,   -- 选择玩家（传送）
 }
 
 local T = {
@@ -1124,37 +1125,15 @@ local function makeBox(text, placeholder, order, default, cb)
     box.FocusLost:Connect(function() if cb then pcall(cb, box.Text) end end)
     return box
 end
-local function makeToggle(text, order, defaultState, callback)
-    local state = defaultState
-    local btn = new("TextButton", {
-        Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = T.RowBg, BorderSizePixel = 0,
-        Text = "   " .. text .. (state and "  [已开启]" or "  [已关闭]"),
-        Font = Enum.Font.GothamMedium, TextSize = 14, TextColor3 = T.Text,
-        TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, LayoutOrder = order
-    }, fc)
-    crn(btn, 8); strk(btn, Color3.fromRGB(48, 48, 52), 1, 0.3)
-    local indicator = new("Frame", {
-        Size = UDim2.fromOffset(8, 8), Position = UDim2.new(1, -20, 0.5, -4),
-        BackgroundColor3 = state and T.Accent or T.Sub, BorderSizePixel = 0
-    }, btn)
-    crn(indicator, 4)
-    btn.MouseButton1Click:Connect(function()
-        state = not state
-        btn.Text = "   " .. text .. (state and "  [已开启]" or "  [已关闭]")
-        indicator.BackgroundColor3 = state and T.Accent or T.Sub
-        if callback then pcall(callback, state) end
-    end)
-    return btn
-end
 
--- ★★★ 关键：下拉框工厂，每个实例的 expand 都是 local，绝不互相冲突 ★★★
+-- ★ 关键：下拉框工厂，每个实例的 expand 都是 local，绝不互相冲突 ★
 local function makeDropdown(text, order, options, default, onSelect)
     local HEADER_H, ITEM_H = 40, 30
     local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
     local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
     crn(header, 8); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
     local cur = default or options[1]
-    local titleLbl = new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.55, 0, 0, HEADER_H), BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
+    new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.55, 0, 0, HEADER_H), BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
     local valueLbl = new("TextLabel",{Position=UDim2.new(0.5, 0, 0, 0), Size=UDim2.new(0.4, -12, 0, HEADER_H), BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
     local plusBtn = new("TextButton",{Size=UDim2.fromOffset(28, 28), Position=UDim2.new(1, -34, 0.5, -14), BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+", Font=Enum.Font.GothamBold, TextSize=18, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
     crn(plusBtn, 6)
@@ -1164,7 +1143,7 @@ local function makeDropdown(text, order, options, default, onSelect)
     new("UIListLayout",{ Padding=UDim.new(0, 2), SortOrder=Enum.SortOrder.LayoutOrder }, scrollFrame)
 
     local expanded = false
-    local expand  -- ★ 先声明 local，避免全局覆盖 ★
+    local expand
 
     local function buildItems()
         for _, ch in ipairs(scrollFrame:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
@@ -1179,7 +1158,7 @@ local function makeDropdown(text, order, options, default, onSelect)
         return #options
     end
 
-    expand = function(state)  -- ★ 赋值给 local ★
+    expand = function(state)
         expanded = state
         if state then
             container.ZIndex = 100
@@ -1198,29 +1177,28 @@ local function makeDropdown(text, order, options, default, onSelect)
     end
 
     plusBtn.MouseButton1Click:Connect(function() expand(not expanded) end)
-    return container, expand, titleLbl
+    return container, expand
 end
 
--- ==================== 列表创建（带 ID） ====================
-local openers = {}  -- [id] = function() expand(true) end
+-- ==================== 列表创建 ====================
+-- openers[id] = 展开该 ID 对应列表的函数
+local openers = {}
 
 sectionHeader("带来树", 1)
 
--- 【列表 1】选择树木种类
+local selectedTreeClass = nil
 do
     local treeOptions = { "--- 请选择树木 ---" }
     for _, n in ipairs(treeNames) do table.insert(treeOptions, n) end
-    local selectedTreeClass_l = nil
-    local container, expand, titleLbl = makeDropdown("选择树木种类 [ID "..ID_CONFIG.tree.."]", 2, treeOptions, "--- 请选择树木 ---", function(v)
+    local container, expand = makeDropdown("选择树木种类 [ID "..ID_CONFIG.tree.."]", 2, treeOptions, "--- 请选择树木 ---", function(v)
         if v == "--- 请选择树木 ---" then selectedTreeClass = nil
         else selectedTreeClass = treeMapping[v] end
     end)
     openers[ID_CONFIG.tree] = expand
 end
 
--- 【列表 2】选择砍树方案
 do
-    local container, expand, titleLbl = makeDropdown("选择砍树方案 [ID "..ID_CONFIG.plan.."]", 3, {"旧版本（主脚本.txt）", "新版本（源码.lua）"}, "旧版本（主脚本.txt）", function(v)
+    local container, expand = makeDropdown("选择砍树方案 [ID "..ID_CONFIG.plan.."]", 3, {"旧版本（主脚本.txt）", "新版本（源码.lua）"}, "旧版本（主脚本.txt）", function(v)
         if v == "新版本（源码.lua）" then
             selectedPlan = 2; notify("誓言", "已切换：新版本", 2)
         else
@@ -1260,12 +1238,11 @@ makeBtn("一键加工", 9, startDecomposeSelection)
 
 sectionHeader("传送", 10)
 
--- 【列表 3】选择玩家
 do
     local playerOptions = {}
     for _, p in ipairs(game.Players:GetPlayers()) do table.insert(playerOptions, p.Name) end
     if #playerOptions == 0 then playerOptions = {lp.Name} end
-    local container, expand, titleLbl = makeDropdown("选择玩家 [ID "..ID_CONFIG.player.."]", 11, playerOptions, lp.Name, function(v)
+    local container, expand = makeDropdown("选择玩家 [ID "..ID_CONFIG.player.."]", 11, playerOptions, lp.Name, function(v)
         teleportTargetPlayer = v
         clearSelection()
         notify("誓言", "已选择玩家: "..v, 2)
@@ -1318,13 +1295,17 @@ end)
 -- ==================== ID 分区 ====================
 sectionHeader("ID分区", 100)
 
--- 显示 ID 映射表（从 ID_CONFIG 自动生成）
+-- 显示 ID 映射表
+local idButtonDefs = {
+    {id = ID_CONFIG.tree,   name = "选择树木种类"},
+    {id = ID_CONFIG.plan,   name = "选择砍树方案"},
+    {id = ID_CONFIG.player, name = "选择玩家（传送）"},
+}
 do
-    local lines = {
-        string.format("ID %d = 选择树木种类", ID_CONFIG.tree),
-        string.format("ID %d = 选择砍树方案", ID_CONFIG.plan),
-        string.format("ID %d = 选择玩家（传送）", ID_CONFIG.player),
-    }
+    local lines = {}
+    for _, def in ipairs(idButtonDefs) do
+        table.insert(lines, string.format("ID %d = %s", def.id, def.name))
+    end
     local mapLabel = new("TextLabel", {
         Size = UDim2.new(1, 0, 0, #lines * 18 + 14),
         BackgroundColor3 = T.RowBg, BorderSizePixel = 0,
@@ -1336,22 +1317,18 @@ do
     new("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingTop = UDim.new(0, 6) }, mapLabel)
 end
 
-local idBox
-do
-    local row = new("Frame", {Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0, LayoutOrder=102}, fc)
-    crn(row, 8); strk(row, Color3.fromRGB(48,48,52), 1, 0.3)
-    new("TextLabel", {Position=UDim2.new(0,12,0,0), Size=UDim2.new(0.4,0,1,0), BackgroundTransparency=1, Text="输入ID", Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left}, row)
-    idBox = new("TextBox", {Position=UDim2.new(0.4,0,0,5), Size=UDim2.new(0.6,-12,0,30), BackgroundColor3=Color3.fromRGB(24,25,29), BorderSizePixel=0, Text="", PlaceholderText="例如 1", PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=13, TextColor3=T.Text, ClearTextOnFocus=false}, row)
-    crn(idBox, 6)
+-- ★ 每个 ID 一个"展开"按钮，点它就展开对应列表 ★
+for i, def in ipairs(idButtonDefs) do
+    makeBtn("展开 ID "..def.id.." - "..def.name, 110 + i, function()
+        local fn = openers[def.id]
+        if fn then
+            pcall(fn, true)
+            notify("誓言", "已展开 ID "..def.id.."："..def.name, 2)
+        else
+            notify("誓言", "ID "..def.id.." 没有对应的列表", 2)
+        end
+    end)
 end
-
-makeBtn("执行ID", 103, function()
-    local id = tonumber(idBox.Text)
-    if not id then notify("誓言", "请输入有效ID", 2); return end
-    local fn = openers[id]
-    if not fn then notify("誓言", "没有这个ID: "..id, 2); return end
-    pcall(fn, true)  -- 展开对应列表
-end)
 
 -- ==================== 卡密 UI ====================
 local function showKeyUI()
@@ -1395,5 +1372,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 完整版 + ID配置 已加载")
+print("[誓言面板] ID分区展开版 已加载")
 showKeyUI()
