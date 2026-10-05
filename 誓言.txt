@@ -1,7 +1,9 @@
 --[[
-    誓言面板 - 可拖动版
+    誓言面板 - 可拖动 + 旧版本危险区域检测版
     卡密：誓言NB
-    拖动：点击非交互区域即可拖动整个面板
+    旧版本 = 主脚本.txt（require 解析 + 危险区域检测）
+    新版本 = 源码.lua（decompile 反编译解析 + 危险区域检测）
+    一键加工 = 源码.lua 的 decomposeAndProcess 完整逻辑
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -291,7 +293,7 @@ local function getTreeClassFromModel(treeModel)
     return "Generic"
 end
 
--- 旧版本
+-- 旧版本（主脚本.txt - require）
 local function loadWeaponConfigOld(weaponName)
     local module = rep:FindFirstChild("LoadedAssets") and rep.LoadedAssets:FindFirstChild(weaponName.."AxeClass")
     if not module then return nil end
@@ -319,7 +321,7 @@ local function selectBestWeaponOld(treeClass)
     return bw, bc, bd
 end
 
--- 新版本
+-- 新版本（源码.lua - decompile）
 local axeConfigCacheNew = {}
 local function loadWeaponConfigNew(weaponName)
     if axeConfigCacheNew[weaponName] ~= nil then return axeConfigCacheNew[weaponName] end
@@ -437,7 +439,17 @@ local function selectBestWeaponNew(treeClass)
     return bw, bc, bd
 end
 
--- ==================== 砍树旧版本 ====================
+-- ==================== 危险区域常量 ====================
+local DANGER_MIN_X, DANGER_MAX_X = -543, -27.8
+local DANGER_MIN_Y, DANGER_MAX_Y = -196.7, -148.2
+local DANGER_MIN_Z, DANGER_MAX_Z = -2961.7, -2668.7
+local function isInDangerZone(pos)
+    return pos.X >= DANGER_MIN_X and pos.X <= DANGER_MAX_X
+        and pos.Y >= DANGER_MIN_Y and pos.Y <= DANGER_MAX_Y
+        and pos.Z >= DANGER_MIN_Z and pos.Z <= DANGER_MAX_Z
+end
+
+-- ==================== 砍树旧版本（带危险区域检测） ====================
 local function bringTreeOld(treeClass)
     local weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3) return false end
@@ -446,6 +458,14 @@ local function bringTreeOld(treeClass)
     local cooldown = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].SwingCooldown) or weaponConfig.SwingCooldown
     local woodSec, tree = findUncutTree(treeClass)
     if not woodSec then notify("誓言", "附近没有可砍的树", 3) return false end
+
+    -- ★ 新增：检测树是否在危险区域
+    if isInDangerZone(woodSec.Position) then
+        notify("誓言", "树在危险区域内，已删除", 5)
+        if tree and tree.Parent then tree:Destroy() end
+        return false
+    end
+
     local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
     if not tool then
         local tf = lp:FindFirstChild("ToolFolder")
@@ -454,6 +474,10 @@ local function bringTreeOld(treeClass)
     if not tool then notify("誓言", "未找到工具: "..weaponName, 3) return false end
     local cutEvent = tree:FindFirstChild("CutEvent")
     if not cutEvent then notify("誓言", "无法获取CutEvent", 3) return false end
+
+    local playerOriginalCF = lp.Character and lp.Character.HumanoidRootPart.CFrame
+    if not playerOriginalCF then notify("誓言", "无法获取玩家位置", 3) return false end
+
     local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
     local oldCamSubj = workspace.CurrentCamera.CameraSubject
     workspace.CurrentCamera.CameraSubject = tree
@@ -482,8 +506,15 @@ local function bringTreeOld(treeClass)
     local primary = fallenLog.PrimaryPart or fallenLog:FindFirstChild("WoodSection") or fallenLog:FindFirstChild("Main") or fallenLog:FindFirstChildWhichIsA("BasePart")
     if not primary then notify("誓言", "无法定位木头", 3) return false end
     if not fallenLog.PrimaryPart then fallenLog.PrimaryPart = primary end
-    local playerOriginalCF = lp.Character and lp.Character.HumanoidRootPart.CFrame
-    if not playerOriginalCF then notify("誓言", "无法获取玩家位置", 3) return false end
+
+    -- ★ 新增：检测掉落的木头是否在危险区域
+    if isInDangerZone(primary.Position) then
+        notify("誓言", "木头掉落在危险区域，已删除", 5)
+        if fallenLog and fallenLog.Parent then fallenLog:Destroy() end
+        safeTeleport(playerOriginalCF)
+        return false
+    end
+
     pcall(rep.Interaction.ClientInteracted.FireServer, rep.Interaction, primary, 'Click'); task.wait(0.01)
     lockPlayerAt(primary.CFrame + Vector3.new(0,3,0))
     task.wait(0.15)
@@ -506,15 +537,14 @@ local function bringTreeNew(treeClass)
     local cooldown = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].SwingCooldown) or weaponConfig.SwingCooldown
     local woodSec, tree = findUncutTree(treeClass)
     if not woodSec then notify("誓言", "附近没有可砍的树", 3); return false end
-    local minX, maxX = -543, -27.8
-    local minY, maxY = -196.7, -148.2
-    local minZ, maxZ = -2961.7, -2668.7
-    local tp_ = woodSec.Position
-    if tp_.X >= minX and tp_.X <= maxX and tp_.Y >= minY and tp_.Y <= maxY and tp_.Z >= minZ and tp_.Z <= maxZ then
+
+    -- 危险区域检测
+    if isInDangerZone(woodSec.Position) then
         notify("誓言", "树在危险区域内，已删除", 5)
         if tree and tree.Parent then tree:Destroy() end
         return false
     end
+
     local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
     if not tool then
         local tf = lp:FindFirstChild("ToolFolder")
@@ -569,14 +599,16 @@ local function bringTreeNew(treeClass)
         safeTeleport(playerOriginalCF)
         return false
     end
-    local logPos = primary.Position
-    if logPos.X >= minX and logPos.X <= maxX and logPos.Y >= minY and logPos.Y <= maxY and logPos.Z >= minZ and logPos.Z <= maxZ then
+
+    -- 危险区域检测
+    if isInDangerZone(primary.Position) then
         notify("誓言", "木头掉落在危险区域，已删除", 5)
         if fallenLog and fallenLog.Parent then fallenLog:Destroy() end
         if tempPart and tempPart.Parent then tempPart:Destroy() end
         safeTeleport(playerOriginalCF)
         return false
     end
+
     if not fallenLog.PrimaryPart then fallenLog.PrimaryPart = primary end
     lockPlayerAt(primary.CFrame + Vector3.new(0,3,0))
     task.wait(0.15)
@@ -956,7 +988,7 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
--- ==================== ★ 拖拽逻辑 ====================
+-- ==================== 拖拽逻辑 ====================
 do
     local dragging, actualDragging = false, false
     local dragStart, startPos = nil, nil
@@ -967,14 +999,12 @@ do
         if not Main.Visible then return end
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
         local mx, my = input.Position.X, input.Position.Y
-        -- 检查鼠标是否落在可交互控件上（按钮/输入框/滚动框）
         local objects = UIS:GetObjectsAtPosition(Vector3.new(mx, my, 0), PG)
         for _, obj in ipairs(objects) do
             if obj:IsA("TextButton") or obj:IsA("TextBox") or obj:IsA("ScrollingFrame") then
                 return
             end
         end
-        -- 检查鼠标是否在 Main 范围内
         local mpos = Main.AbsolutePosition
         local msize = Main.AbsoluteSize
         if mx >= mpos.X and mx <= mpos.X + msize.X and my >= mpos.Y and my <= mpos.Y + msize.Y then
@@ -1006,7 +1036,6 @@ do
     end)
 end
 
--- 右 Shift 开关面板
 UIS.InputBegan:Connect(function(input, proc)
     if proc then return end
     if input.KeyCode == Enum.KeyCode.RightShift then OathGui.Enabled = not OathGui.Enabled end
@@ -1303,5 +1332,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 可拖动版 已加载")
+print("[誓言面板] 旧版本危险区域检测版 已加载")
 showKeyUI()
