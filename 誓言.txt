@@ -1,10 +1,10 @@
 --[[
-    誓言面板 v11.0
+    誓言面板 v11.1
     卡密：誓言NB
     UI：v10.0 的自绘面板 + 卡密卡片
     功能：只保留砍树
-      · 方案1 = 主脚本.txt 的砍树逻辑（require 解析 + 相机跟随）
-      · 方案2 = 源码.lua 的砍树逻辑（decompile 解析 + 危险区检测 + Begin/Refresh/End）
+      · 方案 "旧" = 主脚本.txt 的砍树逻辑（require 解析 + 相机跟随）
+      · 方案 "新" = 源码.lua 的砍树逻辑（decompile 解析 + 危险区检测 + Begin/Refresh/End）
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -84,7 +84,7 @@ end
 -- ==================== 全局状态 ====================
 local bai = { dragIDCounter=0 }
 
--- ==================== 拖拽（源码.lua 协议，方案2 用） ====================
+-- ==================== 拖拽（源码.lua 协议，方案 新 用） ====================
 local function getNextDragID() bai.dragIDCounter = bai.dragIDCounter + 1; return bai.dragIDCounter end
 local DRAG_TOTAL = 60
 local DRAG_SET_START = 28
@@ -290,7 +290,7 @@ local function getTreeTopCFrame(treeModel)
     return topCF
 end
 
--- ==================== 方案1：主脚本.txt 的斧头解析 + 拖拽 ====================
+-- ==================== 方案 旧：主脚本.txt 的斧头解析 + 拖拽 ====================
 local function loadWeaponConfig(weaponName)
     local module = rep:FindFirstChild("LoadedAssets") and rep.LoadedAssets:FindFirstChild(weaponName.."AxeClass")
     if not module then return nil end
@@ -311,17 +311,6 @@ local function selectBestWeapon(treeClass)
         end
     end
     return bw, bc, bd
-end
-local function dragToPositionV1(model, targetCF)
-    local primary = model.PrimaryPart or model:FindFirstChild("WoodSection") or model:FindFirstChild("Main") or model:FindFirstChildWhichIsA("BasePart")
-    if not primary then return false end
-    if not model.PrimaryPart then model.PrimaryPart = primary end
-    for _ = 1, 3 do pcall(function() rep.Interaction.ClientRequestOwnership:FireServer(primary) end); task.wait(0.01) end
-    for i = 1, 30 do
-        pcall(function() rep.Interaction.ClientIsDragging:FireServer(model, DRAG_SECRET); model:SetPrimaryPartCFrame(targetCF) end)
-        task.wait(0.01)
-    end
-    return true
 end
 local function bringTreeRemotePlan1(treeClass)
     local weaponName, weaponConfig, damage = selectBestWeapon(treeClass)
@@ -396,7 +385,7 @@ local function bringTreeRemotePlan1(treeClass)
     return true
 end
 
--- ==================== 方案2：源码.lua 的斧头解析 + 危险区检测 ====================
+-- ==================== 方案 新：源码.lua 的斧头解析 + 危险区检测 ====================
 local axeConfigCache2 = {}
 local function loadWeaponConfig2(weaponName)
     if axeConfigCache2[weaponName] ~= nil then return axeConfigCache2[weaponName] end
@@ -986,14 +975,14 @@ makeDropdownWithPlus("选择树木种类", treeNamesWithPlaceholder, treeNamesWi
     else selectedTreeClass = treeMapping[b] end
 end)
 
--- ★ 砍树方案下拉
-makeDropdownWithPlus("选择砍树方案", {"方案1（主脚本）", "方案2（源码）"}, "方案1（主脚本）", 3, function(choice)
-    if choice == "方案2（源码）" then
+-- ★ 砍树方案下拉：旧 / 新
+makeDropdownWithPlus("选择砍树方案", {"旧", "新"}, "旧", 3, function(choice)
+    if choice == "新" then
         selectedPlan = 2
-        notify("誓言", "已切换：方案2（源码）", 2)
+        notify("誓言", "已切换：新（源码）", 2)
     else
         selectedPlan = 1
-        notify("誓言", "已切换：方案1（主脚本）", 2)
+        notify("誓言", "已切换：旧（主脚本）", 2)
     end
 end)
 
