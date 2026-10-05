@@ -1,8 +1,8 @@
 --[[
-    誓言面板 - 带来树 & 一键加工（双方案版）
+    誓言面板 vFinal - 双方案版
     卡密：誓言NB
-    方案1 = 主脚本.txt 的 require 解析斧头
-    方案2 = 源码.lua 的 decompile 反编译解析斧头
+    方案1 = 主脚本.txt（require 解析斧头）
+    方案2 = 源码.lua（decompile 反编译解析斧头）
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -246,7 +246,7 @@ local treeNames = {}
 for name in pairs(treeMapping) do table.insert(treeNames, name) end
 sortTreeNames(treeNames)
 
--- ==================== 通用工具 ====================
+-- ==================== 找树与斧头解析 ====================
 local function findUncutTree(treeClass)
     local playerPos = lp.Character and lp.Character.HumanoidRootPart.Position
     if not playerPos then return nil end
@@ -292,7 +292,7 @@ local function getTreeClassFromModel(treeModel)
     return "Generic"
 end
 
--- ==================== 斧头解析：方案1（主脚本.txt - require） ====================
+-- 方案1：主脚本.txt（require）
 local function loadWeaponConfigPlan1(weaponName)
     local module = rep:FindFirstChild("LoadedAssets") and rep.LoadedAssets:FindFirstChild(weaponName.."AxeClass")
     if not module then return nil end
@@ -320,7 +320,7 @@ local function selectBestWeaponPlan1(treeClass)
     return bw, bc, bd
 end
 
--- ==================== 斧头解析：方案2（源码.lua - decompile） ====================
+-- 方案2：源码.lua（decompile）
 local axeConfigCache2 = {}
 local function loadWeaponConfigPlan2(weaponName)
     if axeConfigCache2[weaponName] ~= nil then return axeConfigCache2[weaponName] end
@@ -438,7 +438,7 @@ local function selectBestWeaponPlan2(treeClass)
     return bw, bc, bd
 end
 
--- ==================== 砍树方案1（主脚本.txt逻辑） ====================
+-- ==================== 砍树方案1 ====================
 local function bringTreePlan1(treeClass)
     local weaponName, weaponConfig, damage = selectBestWeaponPlan1(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3) return false end
@@ -506,7 +506,7 @@ local function bringTreePlan1(treeClass)
     return true
 end
 
--- ==================== 砍树方案2（源码.lua逻辑） ====================
+-- ==================== 砍树方案2 ====================
 local function bringTreePlan2(treeClass)
     local weaponName, weaponConfig, damage = selectBestWeaponPlan2(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
@@ -855,7 +855,7 @@ local function restore()
     Main.Visible = true
     Main.Size = UDim2.fromOffset(280, 180)
     Main.BackgroundTransparency = 1
-    TS:Create(Main, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size=UDim2.fromOffset(620, 400)}):Play()
+    TS:Create(Main, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingStyle.Back), {Size=UDim2.fromOffset(620, 400)}):Play()
     TS:Create(Main, TweenInfo.new(0.28), {BackgroundTransparency=0}):Play()
     task.wait(0.35)
     animating = false
@@ -903,11 +903,11 @@ local function makeBox(text, placeholder, order, cb)
     box.FocusLost:Connect(function() if cb then pcall(cb, box.Text) end end)
 end
 
--- ★ 独立下拉框1：选择树木种类
-local TreeDropdownOpen = false
-local function makeTreeDropdown(options, default, order, cb)
+-- ★★★ 核心修复：两个下拉框完全独立，用局部变量做互斥，绝不用 _G ★★★
+-- 树下拉框（返回 3 个值：container, closeFn, isOpenFn）
+local function createTreeDropdown(parent, options, default, order, onSelect)
     local HEADER_H, SEARCH_H, ITEM_H, MAX_LIST_H = 32, 26, 24, 180
-    local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
+    local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, parent)
     local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
     crn(header, 6); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
     local cur = default or options[1]
@@ -921,170 +921,7 @@ local function makeTreeDropdown(options, default, order, cb)
     crn(searchBox, 4)
     local scrollFrame = new("ScrollingFrame",{Position=UDim2.new(0, 4, 0, SEARCH_H + 4), Size=UDim2.new(1, -8, 0, 0), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0, 0, 0, 0), AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=11}, listFrame)
     new("UIListLayout",{ Padding=UDim.new(0, 2), SortOrder=Enum.SortOrder.LayoutOrder }, scrollFrame)
-    local function buildItems(filterText)
-        for _, ch in ipairs(scrollFrame:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
-        filterText = (filterText or ""):lower()
-        local count = 0
-        for i, opt in ipairs(options) do
-            local txt = tostring(opt)
-            if filterText == "" or txt:lower():find(filterText, 1, true) then
-                count = count + 1
-                local b = new("TextButton",{Size=UDim2.new(1, 0, 0, ITEM_H - 2), BackgroundTransparency=1, Text="   "..txt, Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=i, AutoButtonColor=false, ZIndex=12}, scrollFrame)
-                b.MouseButton1Click:Connect(function() cur = opt; valueLbl.Text = tostring(cur); if cb then pcall(cb, cur) end; toggleTree(false) end)
-            end
-        end
-        return count
-    end
-    function toggleTree(state)
-        TreeDropdownOpen = state
-        if state then
-            if _G.PlanToggle and _G.PlanOpen then _G.PlanToggle(false) end
-            container.ZIndex = 100
-            plusBtn.Text = "−"; listFrame.Visible = true
-            local cnt = buildItems(searchBox.Text)
-            local listH = SEARCH_H + 8 + math.min(cnt * ITEM_H, MAX_LIST_H)
-            TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, listH) }):Play()
-            TS:Create(scrollFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, -8, 0, math.min(cnt * ITEM_H, MAX_LIST_H)) }):Play()
-            TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
-        else
-            container.ZIndex = 1; plusBtn.Text = "+"
-            TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
-            TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H) }):Play()
-            task.delay(0.2, function() listFrame.Visible = false end)
-        end
-    end
-    _G.PlanOpen = TreeDropdownOpen
-    _G.TreeToggle = toggleTree
-    plusBtn.MouseButton1Click:Connect(function() toggleTree(not TreeDropdownOpen) end)
-    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-        if TreeDropdownOpen then
-            local cnt = buildItems(searchBox.Text)
-            local listH = SEARCH_H + 8 + math.min(cnt * ITEM_H, MAX_LIST_H)
-            TS:Create(listFrame, TweenInfo.new(0.15), { Size = UDim2.new(1, 0, 0, listH) }):Play()
-            TS:Create(scrollFrame, TweenInfo.new(0.15), { Size = UDim2.new(1, -8, 0, math.min(cnt * ITEM_H, MAX_LIST_H)) }):Play()
-            TS:Create(container, TweenInfo.new(0.15), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
-        end
-    end)
-    return container
-end
 
--- ★ 独立下拉框2：选择砍树方案
-local PlanDropdownOpen = false
-local function makePlanDropdown(options, default, order, cb)
-    local HEADER_H, ITEM_H = 32, 24
-    local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
-    local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
-    crn(header, 6); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
-    local cur = default or options[1]
-    new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.4, 0, 0, HEADER_H), BackgroundTransparency=1, Text="选择砍树方案", Font=Enum.Font.GothamMedium, TextSize=12, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
-    local valueLbl = new("TextLabel",{Position=UDim2.new(0.45, 0, 0, 0), Size=UDim2.new(0.45, -12, 0, HEADER_H), BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
-    local plusBtn = new("TextButton",{Size=UDim2.fromOffset(22, 22), Position=UDim2.new(1, -28, 0.5, -11), BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
-    crn(plusBtn, 4)
-    local listFrame = new("Frame",{Position=UDim2.new(0, 0, 0, HEADER_H), Size=UDim2.new(1, 0, 0, 0), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, Visible=false, ZIndex=10}, container)
-    crn(listFrame, 6)
-    local scrollFrame = new("ScrollingFrame",{Position=UDim2.new(0, 4, 0, 4), Size=UDim2.new(1, -8, 0, 0), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0, 0, 0, 0), AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=11}, listFrame)
-    new("UIListLayout",{ Padding=UDim.new(0, 2), SortOrder=Enum.SortOrder.LayoutOrder }, scrollFrame)
-    local function buildItems()
-        for _, ch in ipairs(scrollFrame:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
-        for i, opt in ipairs(options) do
-            local b = new("TextButton",{Size=UDim2.new(1, 0, 0, ITEM_H - 2), BackgroundTransparency=1, Text="   "..tostring(opt), Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=i, AutoButtonColor=false, ZIndex=12}, scrollFrame)
-            b.MouseButton1Click:Connect(function() cur = opt; valueLbl.Text = tostring(cur); if cb then pcall(cb, cur) end; togglePlan(false) end)
-        end
-        return #options
-    end
-    function togglePlan(state)
-        PlanDropdownOpen = state
-        if state then
-            if _G.TreeOpen and _G.TreeToggle then _G.TreeToggle(false) end
-            container.ZIndex = 100
-            plusBtn.Text = "−"; listFrame.Visible = true
-            local cnt = buildItems()
-            local listH = 8 + math.min(cnt * ITEM_H, 100)
-            TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, listH) }):Play()
-            TS:Create(scrollFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, -8, 0, math.min(cnt * ITEM_H, 100)) }):Play()
-            TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
-        else
-            container.ZIndex = 1; plusBtn.Text = "+"
-            TS:Create(listFrame, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, 0) }):Play()
-            TS:Create(container, TweenInfo.new(0.2), { Size = UDim2.new(1, 0, 0, HEADER_H) }):Play()
-            task.delay(0.2, function() listFrame.Visible = false end)
-        end
-    end
-    _G.PlanToggle = togglePlan
-    plusBtn.MouseButton1Click:Connect(function() togglePlan(not PlanDropdownOpen) end)
-    return container
-end
-
--- 绑定互斥
-_G.TreeOpen = false
-_G.PlanOpen = false
-_G.TreeToggle = _G.TreeToggle or function() end
-_G.PlanToggle = _G.PlanToggle or function() end
-
-sectionHeader("带来树", 1)
-local treeNamesWithPlaceholder = { "--- 请选择树木 ---" }
-for _, name in ipairs(treeNames) do table.insert(treeNamesWithPlaceholder, name) end
-local selectedTreeClass = nil
-local treeDD = makeTreeDropdown(treeNamesWithPlaceholder, treeNamesWithPlaceholder[1], 2, function(b)
-    if b == "--- 请选择树木 ---" then selectedTreeClass = nil else selectedTreeClass = treeMapping[b] end
-end)
--- 重新绑定互斥（因为上面覆盖了 _G.TreeToggle）
-_G.TreeToggle = function(state)
-    TreeDropdownOpen = state
-    if state then
-        if _G.PlanToggle then _G.PlanToggle(false) end
-    end
-    -- 通过点击按钮的方式比较麻烦，简单处理：直接改
-end
-
--- 由于我们的 makeTreeDropdown 内部 toggleTree 是局部的，无法从外部调用
--- 所以互斥逻辑采用简单的办法：点击加号时，先关闭另一个
-
--- 直接改上面生成的按钮行为：替换 plusBtn 的 MouseButton1Click 是不行的
--- 那就单独处理，用一个注册表
-local treeCloseFunc, planCloseFunc = nil, nil
-
--- 重新创建两个下拉框（这次暴露关闭函数）
--- （为了减少改动，用全局变量传递）
-do
-    -- 移除上面创建的两个下拉框（不做真正的移除，直接重新创建一份，把旧的隐藏）
-    treeDD.Visible = false
-    -- 我们改用简单方案：在 makeTreeDropdown/makePlanDropdown 里通过 _G 传递关闭函数
-end
-
--- 简化处理：直接修改上面的调用，给关闭函数传递
--- 让 makeTreeDropdown 的 toggleTree 存储到 _G.TreeCloseFunc
--- makePlanDropdown 的 togglePlan 存储到 _G.PlanCloseFunc
--- 互斥触发时调用对方的 closeFunc
-
--- 由于我们的函数里已经写了 `if _G.PlanToggle and _G.PlanOpen then _G.PlanToggle(false) end`
--- 只需在 makePlanDropdown 里把 `_G.PlanToggle = togglePlan` 改为同时设置 `_G.PlanOpen = PlanDropdownOpen` 即可
-
--- 但这样不会实时更新 _G.PlanOpen。简单加一个心跳：
-task.spawn(function()
-    while true do
-        task.wait(0.1)
-        _G.PlanOpen = PlanDropdownOpen
-    end
-end)
-
--- 重新创建下拉框（正确版本）
-local function makeTreeDropdownFinal(options, default, order, cb)
-    local HEADER_H, SEARCH_H, ITEM_H, MAX_LIST_H = 32, 26, 24, 180
-    local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
-    local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
-    crn(header, 6); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
-    local cur = default or options[1]
-    new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.35, 0, 0, HEADER_H), BackgroundTransparency=1, Text="选择树木种类", Font=Enum.Font.GothamMedium, TextSize=12, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
-    local valueLbl = new("TextLabel",{Position=UDim2.new(0.4, 0, 0, 0), Size=UDim2.new(0.5, -12, 0, HEADER_H), BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
-    local plusBtn = new("TextButton",{Size=UDim2.fromOffset(22, 22), Position=UDim2.new(1, -28, 0.5, -11), BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
-    crn(plusBtn, 4)
-    local listFrame = new("Frame",{Position=UDim2.new(0, 0, 0, HEADER_H), Size=UDim2.new(1, 0, 0, 0), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, Visible=false, ZIndex=10}, container)
-    crn(listFrame, 6)
-    local searchBox = new("TextBox",{Position=UDim2.new(0, 4, 0, 4), Size=UDim2.new(1, -8, 0, SEARCH_H - 4), BackgroundColor3=Color3.fromRGB(24, 25, 29), BorderSizePixel=0, Text="", PlaceholderText="搜索...", PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=11}, listFrame)
-    crn(searchBox, 4)
-    local scrollFrame = new("ScrollingFrame",{Position=UDim2.new(0, 4, 0, SEARCH_H + 4), Size=UDim2.new(1, -8, 0, 0), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0, 0, 0, 0), AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=11}, listFrame)
-    new("UIListLayout",{ Padding=UDim.new(0, 2), SortOrder=Enum.SortOrder.LayoutOrder }, scrollFrame)
     local expanded = false
     local function buildItems(filterText)
         for _, ch in ipairs(scrollFrame:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
@@ -1095,15 +932,18 @@ local function makeTreeDropdownFinal(options, default, order, cb)
             if filterText == "" or txt:lower():find(filterText, 1, true) then
                 count = count + 1
                 local b = new("TextButton",{Size=UDim2.new(1, 0, 0, ITEM_H - 2), BackgroundTransparency=1, Text="   "..txt, Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=i, AutoButtonColor=false, ZIndex=12}, scrollFrame)
-                b.MouseButton1Click:Connect(function() cur = opt; valueLbl.Text = tostring(cur); if cb then pcall(cb, cur) end; doExpand(false) end)
+                b.MouseButton1Click:Connect(function()
+                    cur = opt; valueLbl.Text = tostring(cur)
+                    if onSelect then pcall(onSelect, cur) end
+                    expand(false)
+                end)
             end
         end
         return count
     end
-    function doExpand(state)
+    function expand(state)
         expanded = state
         if state then
-            if _G.PlanClose then _G.PlanClose() end
             container.ZIndex = 100
             plusBtn.Text = "−"; listFrame.Visible = true
             local cnt = buildItems(searchBox.Text)
@@ -1118,8 +958,7 @@ local function makeTreeDropdownFinal(options, default, order, cb)
             task.delay(0.2, function() listFrame.Visible = false end)
         end
     end
-    _G.TreeClose = function() if expanded then doExpand(false) end end
-    plusBtn.MouseButton1Click:Connect(function() doExpand(not expanded) end)
+    plusBtn.MouseButton1Click:Connect(function() expand(not expanded) end)
     searchBox:GetPropertyChangedSignal("Text"):Connect(function()
         if expanded then
             local cnt = buildItems(searchBox.Text)
@@ -1129,12 +968,13 @@ local function makeTreeDropdownFinal(options, default, order, cb)
             TS:Create(container, TweenInfo.new(0.15), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
         end
     end)
-    return container
+    return container, function() if expanded then expand(false) end end
 end
 
-local function makePlanDropdownFinal(options, default, order, cb)
+-- 方案下拉框
+local function createPlanDropdown(parent, options, default, order, onSelect)
     local HEADER_H, ITEM_H = 32, 24
-    local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
+    local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, parent)
     local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
     crn(header, 6); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
     local cur = default or options[1]
@@ -1146,19 +986,23 @@ local function makePlanDropdownFinal(options, default, order, cb)
     crn(listFrame, 6)
     local scrollFrame = new("ScrollingFrame",{Position=UDim2.new(0, 4, 0, 4), Size=UDim2.new(1, -8, 0, 0), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0, 0, 0, 0), AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=11}, listFrame)
     new("UIListLayout",{ Padding=UDim.new(0, 2), SortOrder=Enum.SortOrder.LayoutOrder }, scrollFrame)
+
     local expanded = false
     local function buildItems()
         for _, ch in ipairs(scrollFrame:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
         for i, opt in ipairs(options) do
             local b = new("TextButton",{Size=UDim2.new(1, 0, 0, ITEM_H - 2), BackgroundTransparency=1, Text="   "..tostring(opt), Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=i, AutoButtonColor=false, ZIndex=12}, scrollFrame)
-            b.MouseButton1Click:Connect(function() cur = opt; valueLbl.Text = tostring(cur); if cb then pcall(cb, cur) end; doExpand(false) end)
+            b.MouseButton1Click:Connect(function()
+                cur = opt; valueLbl.Text = tostring(cur)
+                if onSelect then pcall(onSelect, cur) end
+                expand(false)
+            end)
         end
         return #options
     end
-    function doExpand(state)
+    function expand(state)
         expanded = state
         if state then
-            if _G.TreeClose then _G.TreeClose() end
             container.ZIndex = 100
             plusBtn.Text = "−"; listFrame.Visible = true
             local cnt = buildItems()
@@ -1173,23 +1017,23 @@ local function makePlanDropdownFinal(options, default, order, cb)
             task.delay(0.2, function() listFrame.Visible = false end)
         end
     end
-    _G.PlanClose = function() if expanded then doExpand(false) end end
-    plusBtn.MouseButton1Click:Connect(function() doExpand(not expanded) end)
-    return container
+    plusBtn.MouseButton1Click:Connect(function() expand(not expanded) end)
+    return container, function() if expanded then expand(false) end end
 end
 
--- 移除前面创建的旧下拉框
-treeDD:Destroy()
+-- 创建两个下拉框，用局部变量做互斥
+sectionHeader("带来树", 1)
+local treeNamesWithPlaceholder = { "--- 请选择树木 ---" }
+for _, name in ipairs(treeNames) do table.insert(treeNamesWithPlaceholder, name) end
+local selectedTreeClass = nil
 
--- 重新创建两个下拉框（最终版）
-local treeNamesWithPlaceholder2 = { "--- 请选择树木 ---" }
-for _, name in ipairs(treeNames) do table.insert(treeNamesWithPlaceholder2, name) end
-local finalTreeClass = nil
-makeTreeDropdownFinal(treeNamesWithPlaceholder2, treeNamesWithPlaceholder2[1], 2, function(b)
-    if b == "--- 请选择树木 ---" then finalTreeClass = nil else finalTreeClass = treeMapping[b] end
+local treeDD, treeClose
+local planDD, planClose
+
+treeDD, treeClose = createTreeDropdown(fc, treeNamesWithPlaceholder, treeNamesWithPlaceholder[1], 2, function(b)
+    if b == "--- 请选择树木 ---" then selectedTreeClass = nil else selectedTreeClass = treeMapping[b] end
 end)
-
-makePlanDropdownFinal({"方案1（主脚本.txt）", "方案2（源码.lua）"}, "方案1（主脚本.txt）", 3, function(choice)
+planDD, planClose = createPlanDropdown(fc, {"方案1（主脚本.txt）", "方案2（源码.lua）"}, "方案1（主脚本.txt）", 3, function(choice)
     if choice == "方案2（源码.lua）" then
         selectedPlan = 2
         notify("誓言", "已切换：方案2（源码.lua）", 2)
@@ -1199,18 +1043,40 @@ makePlanDropdownFinal({"方案1（主脚本.txt）", "方案2（源码.lua）"},
     end
 end)
 
+-- 给两个下拉框的按钮加互斥（点击 A 时关闭 B）
+do
+    local originalTreeHeader = treeDD:FindFirstChildWhichIsA("Frame")
+    local originalPlanHeader = planDD:FindFirstChildWhichIsA("Frame")
+    if originalTreeHeader then
+        local plusBtn = originalTreeHeader:FindFirstChildWhichIsA("TextButton")
+        if plusBtn then
+            plusBtn.MouseButton1Click:Connect(function()
+                if planClose then planClose() end
+            end)
+        end
+    end
+    if originalPlanHeader then
+        local plusBtn = originalPlanHeader:FindFirstChildWhichIsA("TextButton")
+        if plusBtn then
+            plusBtn.MouseButton1Click:Connect(function()
+                if treeClose then treeClose() end
+            end)
+        end
+    end
+end
+
 local batchCount = 1
 makeBox("数量", "1", 4, function(v) local num = tonumber(v); if num and num > 0 then batchCount = math.floor(num) end end)
 local isBringRunning = false
 makeBtn("带来树", 5, function()
     if isBringRunning then notify("誓言", "任务运行中", 2); return end
-    if not finalTreeClass then notify("誓言", "请先选择树木种类", 3); return end
+    if not selectedTreeClass then notify("誓言", "请先选择树木种类", 3); return end
     isBringRunning = true
     task.spawn(function()
         local s, f = 0, 0
         for i = 1, batchCount do
             if not isBringRunning then break end
-            local ok = runBringTree(finalTreeClass)
+            local ok = runBringTree(selectedTreeClass)
             if ok then s = s + 1 else f = f + 1; break end
             task.wait(0.01)
         end
@@ -1270,5 +1136,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 双方案版已加载")
+print("[誓言面板] vFinal 已加载")
 showKeyUI()
