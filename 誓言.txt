@@ -1,8 +1,9 @@
 --[[
-    誓言面板 - ID分区版
+    誓言面板 - ID分区版（ID分区放信息页）
     卡密：誓言NB
-    ID_CONFIG 在顶部，你自己改数字对应哪个列表
-    ID分区里每个 ID 有一个"展开"按钮，点它就展开对应列表
+    ID_CONFIG 在顶部，自己改数字对应哪个列表
+    ID分区在"信息"页里，点按钮展开对应列表
+    列表标题不再显示 [ID x]
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -971,8 +972,9 @@ for i, name in ipairs(tabs) do
 end
 pages[1].Visible = true; tabBtns[1].label.TextColor3 = T.Text
 
+-- ==================== 信息页（先放信息卡） ====================
 local info = pages[1]
-local ic = new("Frame",{Size=UDim2.new(1,0,0,90), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true}, info)
+local ic = new("Frame",{Size=UDim2.new(1,0,0,90), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, LayoutOrder=0}, info)
 crn(ic,10)
 local icBg = new("ImageLabel",{Size=UDim2.fromScale(1,1), BackgroundTransparency=1, Image="rbxassetid://99744630992987", ScaleType=Enum.ScaleType.Crop, ZIndex=1}, ic)
 crn(icBg,10)
@@ -981,6 +983,7 @@ crn(icOverlay,10)
 new("TextLabel",{Size=UDim2.new(1,-20,0,30), Position=UDim2.new(0,10,0,10), BackgroundTransparency=1, Text=GAME_TITLE.." · 誓言面板", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7}, ic)
 new("TextLabel",{Size=UDim2.new(1,-20,0,20), Position=UDim2.new(0,10,0,40), BackgroundTransparency=1, Text="作者：是我太傻   QQ：3767465890   群：1109682737", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7}, ic)
 
+-- 窗口控制
 local btnHolder = new("Frame",{Size=UDim2.fromOffset(50, 18), Position=UDim2.new(1, -14, 0, 14), AnchorPoint=Vector2.new(1, 0), BackgroundTransparency=1, ZIndex=10}, Main)
 local function makeWinDot(color, x, cb)
     local btn = new("TextButton",{Size=UDim2.fromOffset(16, 16), Position=UDim2.new(0, x, 0, 0), BackgroundColor3=color, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=10}, btnHolder)
@@ -1097,17 +1100,19 @@ UIS.InputBegan:Connect(function(input, proc)
     if input.KeyCode == Enum.KeyCode.RightShift then OathGui.Enabled = not OathGui.Enabled end
 end)
 
--- ==================== 功能页 ====================
+-- ==================== 通用 UI 工厂（支持指定 parent） ====================
 local fc = pages[2]
 
-local function sectionHeader(title, order)
-    local hh = new("Frame",{Size=UDim2.new(1,0,0,32), BackgroundColor3=T.Sidebar, BorderSizePixel=0, LayoutOrder=order}, fc)
+local function sectionHeader(title, order, parent)
+    parent = parent or fc
+    local hh = new("Frame",{Size=UDim2.new(1,0,0,32), BackgroundColor3=T.Sidebar, BorderSizePixel=0, LayoutOrder=order}, parent)
     crn(hh,6)
     new("Frame",{Size=UDim2.fromOffset(3,16), Position=UDim2.new(0,8,0.5,-8), BackgroundColor3=T.Accent, BorderSizePixel=0}, hh)
     new("TextLabel",{Size=UDim2.new(1,-30,1,0), Position=UDim2.new(0,20,0,0), BackgroundTransparency=1, Text=title, Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left}, hh)
 end
-local function makeBtn(text, order, cb)
-    local btn = new("TextButton",{Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0, Text="   "..text, Font=Enum.Font.GothamMedium, TextSize=14, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, AutoButtonColor=false, LayoutOrder=order}, fc)
+local function makeBtn(text, order, cb, parent)
+    parent = parent or fc
+    local btn = new("TextButton",{Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0, Text="   "..text, Font=Enum.Font.GothamMedium, TextSize=14, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, AutoButtonColor=false, LayoutOrder=order}, parent)
     crn(btn,8); strk(btn,Color3.fromRGB(48,48,52),1,0.3)
     btn.MouseButton1Click:Connect(function()
         btn.BackgroundColor3 = T.White; btn.TextColor3 = Color3.fromRGB(20,20,20)
@@ -1116,8 +1121,9 @@ local function makeBtn(text, order, cb)
     end)
     return btn
 end
-local function makeBox(text, placeholder, order, default, cb)
-    local row = new("Frame",{Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0, LayoutOrder=order}, fc)
+local function makeBox(text, placeholder, order, default, cb, parent)
+    parent = parent or fc
+    local row = new("Frame",{Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0, LayoutOrder=order}, parent)
     crn(row,8); strk(row,Color3.fromRGB(48,48,52),1,0.3)
     new("TextLabel",{Position=UDim2.new(0,12,0,0), Size=UDim2.new(0.4,0,1,0), BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left}, row)
     local box = new("TextBox",{Position=UDim2.new(0.4,0,0,5), Size=UDim2.new(0.6,-12,0,30), BackgroundColor3=Color3.fromRGB(24,25,29), BorderSizePixel=0, Text=tostring(default or ""), PlaceholderText=placeholder or "", PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=13, TextColor3=T.Text, ClearTextOnFocus=false}, row)
@@ -1180,7 +1186,7 @@ local function makeDropdown(text, order, options, default, onSelect)
     return container, expand
 end
 
--- ==================== 列表创建 ====================
+-- ==================== 功能页列表创建 ====================
 -- openers[id] = 展开该 ID 对应列表的函数
 local openers = {}
 
@@ -1190,7 +1196,7 @@ local selectedTreeClass = nil
 do
     local treeOptions = { "--- 请选择树木 ---" }
     for _, n in ipairs(treeNames) do table.insert(treeOptions, n) end
-    local container, expand = makeDropdown("选择树木种类 [ID "..ID_CONFIG.tree.."]", 2, treeOptions, "--- 请选择树木 ---", function(v)
+    local container, expand = makeDropdown("选择树木种类", 2, treeOptions, "--- 请选择树木 ---", function(v)
         if v == "--- 请选择树木 ---" then selectedTreeClass = nil
         else selectedTreeClass = treeMapping[v] end
     end)
@@ -1198,7 +1204,7 @@ do
 end
 
 do
-    local container, expand = makeDropdown("选择砍树方案 [ID "..ID_CONFIG.plan.."]", 3, {"旧版本（主脚本.txt）", "新版本（源码.lua）"}, "旧版本（主脚本.txt）", function(v)
+    local container, expand = makeDropdown("选择砍树方案", 3, {"旧版本（主脚本.txt）", "新版本（源码.lua）"}, "旧版本（主脚本.txt）", function(v)
         if v == "新版本（源码.lua）" then
             selectedPlan = 2; notify("誓言", "已切换：新版本", 2)
         else
@@ -1242,7 +1248,7 @@ do
     local playerOptions = {}
     for _, p in ipairs(game.Players:GetPlayers()) do table.insert(playerOptions, p.Name) end
     if #playerOptions == 0 then playerOptions = {lp.Name} end
-    local container, expand = makeDropdown("选择玩家 [ID "..ID_CONFIG.player.."]", 11, playerOptions, lp.Name, function(v)
+    local container, expand = makeDropdown("选择玩家", 11, playerOptions, lp.Name, function(v)
         teleportTargetPlayer = v
         clearSelection()
         notify("誓言", "已选择玩家: "..v, 2)
@@ -1292,10 +1298,9 @@ makeBtn("同名选择开关", 17, function()
     end
 end)
 
--- ==================== ID 分区 ====================
-sectionHeader("ID分区", 100)
+-- ==================== 信息页里的 ID 分区 ====================
+sectionHeader("ID分区", 1, info)
 
--- 显示 ID 映射表
 local idButtonDefs = {
     {id = ID_CONFIG.tree,   name = "选择树木种类"},
     {id = ID_CONFIG.plan,   name = "选择砍树方案"},
@@ -1311,23 +1316,25 @@ do
         BackgroundColor3 = T.RowBg, BorderSizePixel = 0,
         Text = table.concat(lines, "\n"), Font = Enum.Font.Gotham, TextSize = 12, TextColor3 = T.Sub,
         TextXAlignment = Enum.TextXAlignment.Left, TextYAlignment = Enum.TextYAlignment.Top,
-        LayoutOrder = 101
-    }, fc)
+        LayoutOrder = 2
+    }, info)
     crn(mapLabel, 8); strk(mapLabel, Color3.fromRGB(48,48,52), 1, 0.3)
     new("UIPadding", { PaddingLeft = UDim.new(0, 12), PaddingTop = UDim.new(0, 6) }, mapLabel)
 end
 
--- ★ 每个 ID 一个"展开"按钮，点它就展开对应列表 ★
+-- 每个 ID 一个"展开"按钮，点它展开对应列表
 for i, def in ipairs(idButtonDefs) do
-    makeBtn("展开 ID "..def.id.." - "..def.name, 110 + i, function()
+    makeBtn("展开 ID "..def.id.." - "..def.name, 10 + i, function()
         local fn = openers[def.id]
         if fn then
+            -- 先切到"功能"页，再展开
+            for j, p in ipairs(pages) do p.Visible = (j == 2); tabBtns[j].label.TextColor3 = (j == 2) and T.Text or T.Sub end
             pcall(fn, true)
             notify("誓言", "已展开 ID "..def.id.."："..def.name, 2)
         else
             notify("誓言", "ID "..def.id.." 没有对应的列表", 2)
         end
-    end)
+    end, info)
 end
 
 -- ==================== 卡密 UI ====================
@@ -1372,5 +1379,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] ID分区展开版 已加载")
+print("[誓言面板] ID分区在信息页版 已加载")
 showKeyUI()
