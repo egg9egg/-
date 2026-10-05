@@ -1,8 +1,10 @@
 --[[
-    誓言面板 v9.5
+    誓言面板 v9.7
     卡密：誓言NB
     UI：v9 原版 + 作者信息卡背景图
     修复：拖动功能分区（页面内容）时不拖动整个面板
+    通知标题：全部显示为「誓言」
+    斧头配置：require + decompile 双层兜底（旧新结合）
     核心：带来树 / 一键加工 完全使用源码.lua 的实现
 ]]
 local Players = game:GetService("Players")
@@ -41,6 +43,13 @@ local function notify(title, desc, duration)
             Title=tostring(title), Text=tostring(desc), Duration=duration or 3,
         })
     end)
+end
+
+-- ★ 全局通知标题统一显示为「誓言」
+local _notify_orig = notify
+notify = function(title, desc, duration)
+    if title == "雪糕" or title == nil or title == "" then title = "誓言" end
+    return _notify_orig(title, desc, duration)
 end
 
 -- ==================== 基础工具 ====================
@@ -300,12 +309,58 @@ local treeNames = {}
 for name in pairs(treeMapping) do table.insert(treeNames, name) end
 sortTreeNames(treeNames)
 
--- ==================== 斧头配置 ====================
+-- ==================== 斧头配置（★ 旧新结合：require + decompile） ====================
 local axeConfigCache = {}
 
 local function loadWeaponConfig(weaponName)
     if axeConfigCache[weaponName] ~= nil then return axeConfigCache[weaponName] end
 
+    -- ========================================================
+    -- 【第一层】require 老方法 —— 能成功就直接用（最精确）
+    -- 优先尝试：如果执行器 hook 了 require，就能像原游戏一样拿到
+    -- AxeClass 表，实例化后直接读 Damage / SwingCooldown / Range /
+    -- SpecialTrees，无需解析源码，100% 准确。
+    -- 如果失败（非 RobloxScript 上下文），自动进入下一层。
+    -- ========================================================
+    do
+        local la = rep:FindFirstChild("LoadedAssets")
+        local module = la and la:FindFirstChild(weaponName .. "AxeClass")
+        if module and module:IsA("ModuleScript") then
+            local ok, axeClass = pcall(require, module)
+            if ok and axeClass ~= nil then
+                local inst = axeClass
+                if type(axeClass) == "table" and type(axeClass.new) == "function" then
+                    -- 老写法：type(axeClass.new)=="function" and (axeClass.new() or axeClass.new({})) or axeClass
+                    local ok2, obj = pcall(axeClass.new, axeClass)
+                    if not (ok2 and obj) then
+                        local ok3, obj2 = pcall(axeClass.new, axeClass, {})
+                        if ok3 and obj2 then obj = obj2 end
+                    end
+                    if ok2 and obj then inst = obj end
+                end
+                if type(inst) == "table" then
+                    local cfg = {
+                        Damage = inst.Damage,
+                        SwingCooldown = inst.SwingCooldown,
+                        Range = inst.Range,
+                        SpecialTrees = inst.SpecialTrees or {},
+                    }
+                    if cfg.Damage or cfg.SwingCooldown or next(cfg.SpecialTrees) then
+                        cfg.Damage = cfg.Damage or 10000
+                        cfg.SwingCooldown = cfg.SwingCooldown or 0.3
+                        cfg.Range = cfg.Range or 10
+                        axeConfigCache[weaponName] = cfg
+                        return cfg
+                    end
+                end
+            end
+        end
+    end
+
+    -- ========================================================
+    -- 【第二层】OlReliable / OIReliable 特例：
+    -- 读 Tool 上的 AxeClassDamageOverride（属性 + 子值对象）
+    -- ========================================================
     if weaponName == "OlReliable" or weaponName == "OIReliable" then
         local override = nil
         local wsTool = workspace:FindFirstChild(lp.Name)
@@ -361,6 +416,11 @@ local function loadWeaponConfig(weaponName)
         end
     end
 
+    -- ========================================================
+    -- 【第三层】decompile 反编译 —— 新方法，兼容性最强
+    -- require 失败时（loadstring 出来的 chunk 属于非 RobloxScript 上下文），
+    -- 用执行器提供的 decompile 读取模块源码，正则解析。
+    -- ========================================================
     local function decompileSafe(s)
         if not s then return nil end
         if type(decompile) == "function" then
@@ -390,8 +450,8 @@ local function loadWeaponConfig(weaponName)
     end
     local function findAxeModule(name)
         local want = name .. "AxeClass"
-        local la = rep:FindFirstChild("LoadedAssets")
-        if la then local m = la:FindFirstChild(want); if m then return m end end
+        local la2 = rep:FindFirstChild("LoadedAssets")
+        if la2 then local m = la2:FindFirstChild(want); if m then return m end end
         if type(getloadedmodules) == "function" then
             for _, m in ipairs(getloadedmodules()) do
                 if m:IsA("ModuleScript") and (m.Name == want or m:GetFullName():sub(-#want) == want) then
@@ -422,19 +482,19 @@ local function loadWeaponConfig(weaponName)
         return false
     end
 
-    local module = findAxeModule(weaponName)
-    if not module then
+    local module2 = findAxeModule(weaponName)
+    if not module2 then
         requestAxeAsset(weaponName)
         local deadline = os.clock() + 3
         repeat
-            module = findAxeModule(weaponName)
-            if module then break end
+            module2 = findAxeModule(weaponName)
+            if module2 then break end
             task.wait(0.15)
         until os.clock() >= deadline
     end
-    if not module then axeConfigCache[weaponName] = nil; return nil end
+    if not module2 then axeConfigCache[weaponName] = nil; return nil end
 
-    local src = decompileSafe(module)
+    local src = decompileSafe(module2)
     if not src then axeConfigCache[weaponName] = nil; return nil end
 
     local config = {
@@ -538,7 +598,7 @@ end
 -- ==================== 带来树 ====================
 local function bringTreeRemote(treeClass)
     local weaponName, weaponConfig, damage = selectBestWeapon(treeClass)
-    if not weaponName then notify("雪糕", "自动选武器失败", 3); return false end
+    if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
 
     local req = {
         Flame=200000, BlueFlame=200000, Celestial=200000, Void=200000, Ice=200000,
@@ -546,12 +606,12 @@ local function bringTreeRemote(treeClass)
         LoneCave=200000, Spirit=200000,
     }
     if req[treeClass] and damage < req[treeClass] then
-        notify("雪糕", string.format("伤害不足！需要至少 %.0f", req[treeClass]), 4); return false
+        notify("誓言", string.format("伤害不足！需要至少 %.0f", req[treeClass]), 4); return false
     end
     local cooldown = (weaponConfig.SpecialTrees[treeClass] and weaponConfig.SpecialTrees[treeClass].SwingCooldown) or weaponConfig.SwingCooldown
 
     local woodSec, tree = findUncutTree(treeClass)
-    if not woodSec then notify("雪糕", "附近没有可砍的树", 3); return false end
+    if not woodSec then notify("誓言", "附近没有可砍的树", 3); return false end
 
     local minX, maxX = -543, -27.8
     local minY, maxY = -196.7, -148.2
@@ -561,7 +621,7 @@ local function bringTreeRemote(treeClass)
     if treePos.X >= minX and treePos.X <= maxX and
        treePos.Y >= minY and treePos.Y <= maxY and
        treePos.Z >= minZ and treePos.Z <= maxZ then
-        notify("雪糕", "树在危险区域内，已删除", 5)
+        notify("誓言", "树在危险区域内，已删除", 5)
         if tree and tree.Parent then tree:Destroy() end
         return false
     end
@@ -574,14 +634,14 @@ local function bringTreeRemote(treeClass)
             tool = weaponObj and (weaponObj:IsA("Tool") and weaponObj or weaponObj.Value) or nil
         end
     end
-    if not tool then notify("雪糕", "未找到工具: " .. weaponName, 3); return false end
+    if not tool then notify("誓言", "未找到工具: " .. weaponName, 3); return false end
 
     local cutEvent = tree:FindFirstChild("CutEvent")
-    if not cutEvent then notify("雪糕", "无法获取CutEvent", 3); return false end
+    if not cutEvent then notify("誓言", "无法获取CutEvent", 3); return false end
     local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
 
     local playerOriginalCF = lp.Character and lp.Character.HumanoidRootPart.CFrame
-    if not playerOriginalCF then notify("雪糕", "无法获取玩家位置", 3); return false end
+    if not playerOriginalCF then notify("誓言", "无法获取玩家位置", 3); return false end
 
     local platformPos = woodSec.Position + Vector3.new(8, 2.5, 0)
     local tempPart = Instance.new("Part")
@@ -628,7 +688,7 @@ local function bringTreeRemote(treeClass)
 
     if timeoutReached or not fallenLog then
         unlockPlayer()
-        notify("雪糕", "砍树超时或木头未掉落", 3)
+        notify("誓言", "砍树超时或木头未掉落", 3)
         if tempPart and tempPart.Parent then tempPart:Destroy() end
         safeTeleport(playerOriginalCF)
         return false
@@ -637,7 +697,7 @@ local function bringTreeRemote(treeClass)
     local primary = fallenLog.PrimaryPart or fallenLog:FindFirstChild("WoodSection") or fallenLog:FindFirstChild("Main") or fallenLog:FindFirstChildWhichIsA("BasePart")
     if not primary then
         unlockPlayer()
-        notify("雪糕", "无法定位木头", 3)
+        notify("誓言", "无法定位木头", 3)
         if tempPart and tempPart.Parent then tempPart:Destroy() end
         safeTeleport(playerOriginalCF)
         return false
@@ -648,7 +708,7 @@ local function bringTreeRemote(treeClass)
        logPos.Y >= minY and logPos.Y <= maxY and
        logPos.Z >= minZ and logPos.Z <= maxZ then
         unlockPlayer()
-        notify("雪糕", "木头掉落在危险区域，已删除", 5)
+        notify("誓言", "木头掉落在危险区域，已删除", 5)
         if fallenLog and fallenLog.Parent then fallenLog:Destroy() end
         if tempPart and tempPart.Parent then tempPart:Destroy() end
         safeTeleport(playerOriginalCF)
@@ -676,16 +736,16 @@ local isSelectingSawmill = false
 local sawmillSelectConn = nil
 
 local function selectSawmill()
-    if isSelectingSawmill then notify("雪糕", "正在等待选择中...", 2); return end
+    if isSelectingSawmill then notify("誓言", "正在等待选择中...", 2); return end
     isSelectingSawmill = true
-    notify("雪糕", "请点击锯木机任意部件", 3)
+    notify("誓言", "请点击锯木机任意部件", 3)
 
     if sawmillSelectConn then sawmillSelectConn:Disconnect() end
     sawmillSelectConn = mouse.Button1Down:Connect(function()
         local target = mouse.Target
-        if not target then notify("雪糕", "未选中任何物体", 2); return end
+        if not target then notify("誓言", "未选中任何物体", 2); return end
         local model = target:FindFirstAncestorOfClass("Model")
-        if not model then notify("雪糕", "请点击一个模型", 2); return end
+        if not model then notify("誓言", "请点击一个模型", 2); return end
 
         local function isSawmill(root)
             local attr = root:GetAttribute("ItemName")
@@ -701,7 +761,7 @@ local function selectSawmill()
             if typeVal and typeVal.Value == "Sawmill" then return true end
             return false
         end
-        if not isSawmill(model) then notify("雪糕", "这不是锯木机（未检测到锯木机标识）", 3); return end
+        if not isSawmill(model) then notify("誓言", "这不是锯木机（未检测到锯木机标识）", 3); return end
 
         local function findPart(root)
             for _, child in pairs(root:GetDescendants()) do
@@ -713,13 +773,13 @@ local function selectSawmill()
             return nil, nil
         end
         local part, partType = findPart(model)
-        if not part then notify("雪糕", "找不到 Conveyor 或 Main 部件", 3); return end
+        if not part then notify("誓言", "找不到 Conveyor 或 Main 部件", 3); return end
 
         bai.cachedSawmill = model
         bai.cachedSawmillPos = part.CFrame
         if sawmillSelectConn then sawmillSelectConn:Disconnect(); sawmillSelectConn = nil end
         isSelectingSawmill = false
-        notify("雪糕", "✅ 已记忆锯木机位置（" .. partType .. "）", 3)
+        notify("誓言", "✅ 已记忆锯木机位置（" .. partType .. "）", 3)
     end)
 end
 
@@ -742,7 +802,7 @@ local function forceDragUntilProcessed(model, targetCF, timeout)
 end
 
 local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
-    if not sawmillPos then notify("雪糕", "锯木机位置无效，请重新选择锯木机", 3); return end
+    if not sawmillPos then notify("誓言", "锯木机位置无效，请重新选择锯木机", 3); return end
     _G.stopDrag = false
 
     local sections = {}
@@ -754,15 +814,15 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
             elseif id == 1 then rootSection = child end
         end
     end
-    if #sections == 0 then notify("雪糕", "该树没有可分解的部分（ID≥2）", 3); return end
+    if #sections == 0 then notify("誓言", "该树没有可分解的部分（ID≥2）", 3); return end
     table.sort(sections, function(a, b) return a.id > b.id end)
 
     local cutEvent = treeModel:FindFirstChild("CutEvent")
-    if not cutEvent then notify("雪糕", "该模型没有 CutEvent", 3); return end
+    if not cutEvent then notify("誓言", "该模型没有 CutEvent", 3); return end
 
     local treeClass = getTreeClassFromModel(treeModel)
     local weaponName, weaponConfig, err = selectBestWeapon(treeClass)
-    if not weaponName then notify("雪糕", "自动选武器失败: " .. (err or ""), 3); return end
+    if not weaponName then notify("誓言", "自动选武器失败: " .. (err or ""), 3); return end
 
     local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
     if not tool then
@@ -772,7 +832,7 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
             tool = weaponObj and (weaponObj:IsA("Tool") and weaponObj or weaponObj.Value) or nil
         end
     end
-    if not tool then notify("雪糕", "未找到工具: " .. weaponName, 3); return end
+    if not tool then notify("誓言", "未找到工具: " .. weaponName, 3); return end
 
     local damage = weaponConfig and weaponConfig.Damage or 10000
     local cooldown = weaponConfig and weaponConfig.SwingCooldown or 0.3
@@ -787,19 +847,19 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         Shine=200000, LoneCave=200000, Spirit=200000,
     }
     if req[treeClass] and damage < req[treeClass] then
-        notify("雪糕", string.format("伤害不足！需要至少 %.0f，当前 %.0f", req[treeClass], damage), 4)
+        notify("誓言", string.format("伤害不足！需要至少 %.0f，当前 %.0f", req[treeClass], damage), 4)
         return
     end
 
     local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
     local playerOriginalCF = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart").CFrame
-    if not playerOriginalCF then notify("雪糕", "无法获取玩家位置", 3); return end
+    if not playerOriginalCF then notify("誓言", "无法获取玩家位置", 3); return end
 
     local initialLogs = {}
     for _, log in pairs(ws.LogModels:GetChildren()) do initialLogs[log] = true end
 
     local tasks = {}
-    notify("雪糕", string.format("开始分解 %d 个部分", #sections), 2)
+    notify("誓言", string.format("开始分解 %d 个部分", #sections), 2)
 
     for _, sec in ipairs(sections) do
         local part = sec.part
@@ -831,7 +891,7 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
     local startTime = tick()
     while hasHighIDSections() and tick() - startTime < 10 do task.wait(0.01) end
     for taskId in pairs(tasks) do task.cancel(taskId) end
-    if hasHighIDSections() then notify("雪糕", "砍树超时", 3); return end
+    if hasHighIDSections() then notify("誓言", "砍树超时", 3); return end
 
     local allLogs = {}
     for _, log in pairs(ws.LogModels:GetChildren()) do
@@ -839,7 +899,7 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
             table.insert(allLogs, log)
         end
     end
-    if #allLogs == 0 then notify("雪糕", "未找到木头", 3); return end
+    if #allLogs == 0 then notify("誓言", "未找到木头", 3); return end
 
     local pos = sawmillPos.p + sawmillPos:VectorToWorldSpace(Vector3.new(0.7, 0, 0))
     local targetPos = CFrame.new(pos) * (sawmillPos - sawmillPos.p) * CFrame.Angles(math.rad(-90), math.rad(90), 0)
@@ -871,28 +931,28 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         end
     end
 
-    notify("雪糕", "所有木头和树根已拖拽完成", 3)
+    notify("誓言", "所有木头和树根已拖拽完成", 3)
 end
 
 local function startDecomposeSelection()
-    if isDecomposeActive then notify("雪糕", "分解选择已激活，请先完成或取消", 2); return end
+    if isDecomposeActive then notify("誓言", "分解选择已激活，请先完成或取消", 2); return end
     if not bai.cachedSawmill or not bai.cachedSawmill.Parent then
-        notify("雪糕", "请先使用 '选择锯木机' 按钮设置一个锯木机", 3); return
+        notify("誓言", "请先使用 '选择锯木机' 按钮设置一个锯木机", 3); return
     end
-    if not bai.cachedSawmillPos then notify("雪糕", "锯木机位置无效，请重新选择", 3); return end
+    if not bai.cachedSawmillPos then notify("誓言", "锯木机位置无效，请重新选择", 3); return end
 
     isDecomposeActive = true
     selectedTree = nil
     selectedSawmill = nil
     sawPos = nil
 
-    notify("雪糕", "请点击一棵树（将使用已记忆的锯木机）", 3)
+    notify("誓言", "请点击一棵树（将使用已记忆的锯木机）", 3)
 
     decomposeConn = mouse.Button1Down:Connect(function()
         local target = mouse.Target
-        if not target then notify("雪糕", "未选中任何物体", 2); return end
+        if not target then notify("誓言", "未选中任何物体", 2); return end
         local model = target:FindFirstAncestorOfClass("Model")
-        if not model then notify("雪糕", "请点击树的树干", 2); return end
+        if not model then notify("誓言", "请点击树的树干", 2); return end
 
         local isTree = false
         local hasWood = false
@@ -900,14 +960,14 @@ local function startDecomposeSelection()
             if child.Name == "WoodSection" then hasWood = true end
         end
         if hasWood and model:FindFirstChild("CutEvent") then isTree = true end
-        if not isTree then notify("雪糕", "这不是一棵树，请点击树干", 2); return end
+        if not isTree then notify("誓言", "这不是一棵树，请点击树干", 2); return end
 
         selectedTree = model
         selectedSawmill = bai.cachedSawmill
         sawPos = bai.cachedSawmillPos
         if decomposeConn then decomposeConn:Disconnect(); decomposeConn = nil end
         isDecomposeActive = false
-        notify("雪糕", "已选中树，开始分解...", 3)
+        notify("誓言", "已选中树，开始分解...", 3)
         task.spawn(function()
             decomposeAndProcess(selectedTree, selectedSawmill, sawPos)
             selectedTree = nil
@@ -985,7 +1045,6 @@ local ic = new("Frame",{
 }, info)
 crn(ic,10)
 
--- ★ 作者信息卡背景图
 local icBg = new("ImageLabel",{
     Size=UDim2.fromScale(1,1), BackgroundTransparency=1,
     Image="rbxassetid://99744630992987",
@@ -993,7 +1052,6 @@ local icBg = new("ImageLabel",{
 }, ic)
 crn(icBg,10)
 
--- 半透明遮罩，让文字在图片上清晰可读
 local icOverlay = new("Frame",{
     Size=UDim2.fromScale(1,1), BackgroundColor3=Color3.fromRGB(0,0,0),
     BackgroundTransparency=0.45, BorderSizePixel=0, ZIndex=2,
@@ -1126,7 +1184,6 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
--- ★ 下拉列表注册表：阻止展开列表时拖动整个面板
 local dropdownRegistry = {}
 local function isPointerOverDropdown(mx, my)
     for frame in pairs(dropdownRegistry) do
@@ -1142,7 +1199,6 @@ local function isPointerOverDropdown(mx, my)
     return false
 end
 
--- ★ 判断鼠标是否在任意页面（功能分区）内容内
 local function isPointerOverPage(mx, my)
     for _, pg in ipairs(pages) do
         if pg and pg.Parent and pg.Visible then
@@ -1167,9 +1223,7 @@ do
         or input.UserInputType == Enum.UserInputType.Touch then
             if not Main.Visible then return end
             local mx, my = input.Position.X, input.Position.Y
-            -- ★ 鼠标在展开的下拉列表内 → 不拖动
             if isPointerOverDropdown(mx, my) then return end
-            -- ★ 鼠标在功能/信息页面内容内 → 不拖动（只能在侧边栏拖动面板）
             if isPointerOverPage(mx, my) then return end
             local mpos = Main.AbsolutePosition
             local msize = Main.AbsoluteSize
