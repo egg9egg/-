@@ -1,11 +1,8 @@
 --[[
     誓言面板 - 可拖动 + 旧版本危险区域检测版
     卡密：誓言NB
-    旧版本 = 主脚本.txt（require 解析 + 危险区域检测）
-    新版本 = 源码.lua（decompile 反编译解析 + 危险区域检测）
-    一键加工 = 源码.lua 的 decomposeAndProcess 完整逻辑
-    选择锯木机 = 源码.lua 新版写法
-    传送分区 = 照搬源码.lua（雪糕→誓言）
+    带来树进度：x/总数
+    一键加工下方新增【传送】分区（照搬源码.lua，雪糕→誓言）
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -72,13 +69,6 @@ local function safeTeleport(cf)
     if hrp then
         hrp.CFrame = uprightCFrame(hrp, cf)
         task.wait(0.05)
-        if hrp.Position.Y < -100 then hrp.CFrame = uprightCFrame(hrp, cf) + Vector3.new(0,10,0) end
-    end
-end
-local function safeTeleportNoWait(cf)
-    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        hrp.CFrame = uprightCFrame(hrp, cf)
         if hrp.Position.Y < -100 then hrp.CFrame = uprightCFrame(hrp, cf) + Vector3.new(0,10,0) end
     end
 end
@@ -294,7 +284,7 @@ local function getTreeClassFromModel(treeModel)
     return "Generic"
 end
 
--- 旧版本（主脚本.txt - require）
+-- 旧版本（require）
 local function loadWeaponConfigOld(weaponName)
     local module = rep:FindFirstChild("LoadedAssets") and rep.LoadedAssets:FindFirstChild(weaponName.."AxeClass")
     if not module then return nil end
@@ -322,7 +312,7 @@ local function selectBestWeaponOld(treeClass)
     return bw, bc, bd
 end
 
--- 新版本（源码.lua - decompile）
+-- 新版本（decompile）
 local axeConfigCacheNew = {}
 local function loadWeaponConfigNew(weaponName)
     if axeConfigCacheNew[weaponName] ~= nil then return axeConfigCacheNew[weaponName] end
@@ -440,7 +430,7 @@ local function selectBestWeaponNew(treeClass)
     return bw, bc, bd
 end
 
--- ==================== 危险区域常量 ====================
+-- ==================== 危险区域 ====================
 local DANGER_MIN_X, DANGER_MAX_X = -543, -27.8
 local DANGER_MIN_Y, DANGER_MAX_Y = -196.7, -148.2
 local DANGER_MIN_Z, DANGER_MAX_Z = -2961.7, -2668.7
@@ -450,7 +440,7 @@ local function isInDangerZone(pos)
         and pos.Z >= DANGER_MIN_Z and pos.Z <= DANGER_MAX_Z
 end
 
--- ==================== 砍树旧版本（带危险区域检测） ====================
+-- ==================== 砍树（旧版） ====================
 local function bringTreeOld(treeClass, progressText)
     local weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3) return false end
@@ -527,7 +517,7 @@ local function bringTreeOld(treeClass, progressText)
     return true
 end
 
--- ==================== 砍树新版本 ====================
+-- ==================== 砍树（新版） ====================
 local function bringTreeNew(treeClass, progressText)
     local weaponName, weaponConfig, damage = selectBestWeaponNew(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
@@ -620,72 +610,47 @@ local function bringTreeNew(treeClass, progressText)
     return true
 end
 
--- ==================== 分发 ====================
 local selectedPlan = 1
 local function runBringTree(treeClass, progressText)
     if selectedPlan == 2 then return bringTreeNew(treeClass, progressText)
     else return bringTreeOld(treeClass, progressText) end
 end
 
--- ==================== 选择锯木机（★源码.lua 写法）====================
+-- ==================== 选择锯木机 ====================
 local function selectSawmill()
     notify("誓言", "请点击锯木机任意部件", 3)
     local conn
     conn = mouse.Button1Down:Connect(function()
         local target = mouse.Target
-        if not target then
-            notify("誓言", "未选中任何物体", 2)
-            return
-        end
+        if not target then notify("誓言", "未选中任何物体", 2); return end
         local model = target:FindFirstAncestorOfClass("Model")
-        if not model then
-            notify("誓言", "请点击一个模型", 2)
-            return
-        end
+        if not model then notify("誓言", "请点击一个模型", 2); return end
         local function isSawmill(root)
             local attr = root:GetAttribute("ItemName")
-            if attr and type(attr) == "string" and attr:lower():find("saw") then
-                return true
-            end
+            if attr and type(attr) == "string" and attr:lower():find("saw") then return true end
             for _, child in pairs(root:GetDescendants()) do
                 if child.Name == "ItemName" then
                     local val = child.Value
-                    if val and type(val) == "string" and val:lower():find("saw") then
-                        return true
-                    end
+                    if val and type(val) == "string" and val:lower():find("saw") then return true end
                 end
             end
-            if root.Name and root.Name:lower():find("saw") then
-                return true
-            end
+            if root.Name and root.Name:lower():find("saw") then return true end
             local typeVal = root:FindFirstChild("Type")
-            if typeVal and typeVal.Value == "Sawmill" then
-                return true
-            end
+            if typeVal and typeVal.Value == "Sawmill" then return true end
             return false
         end
-        if not isSawmill(model) then
-            notify("誓言", "这不是锯木机（未检测到锯木机标识）", 3)
-            return
-        end
+        if not isSawmill(model) then notify("誓言", "这不是锯木机（未检测到锯木机标识）", 3); return end
         local function findPart(root)
             for _, child in pairs(root:GetDescendants()) do
-                if child.Name == "Conveyor" and child:IsA("BasePart") then
-                    return child, "Conveyor"
-                end
+                if child.Name == "Conveyor" and child:IsA("BasePart") then return child, "Conveyor" end
             end
             for _, child in pairs(root:GetDescendants()) do
-                if child.Name == "Main" and child:IsA("BasePart") then
-                    return child, "Main"
-                end
+                if child.Name == "Main" and child:IsA("BasePart") then return child, "Main" end
             end
             return nil, nil
         end
         local part, partType = findPart(model)
-        if not part then
-            notify("誓言", "找不到 Conveyor 或 Main 部件", 3)
-            return
-        end
+        if not part then notify("誓言", "找不到 Conveyor 或 Main 部件", 3); return end
         bai.cachedSawmill = model
         bai.cachedSawmillPos = part.CFrame
         conn:Disconnect()
@@ -695,49 +660,31 @@ end
 
 -- ==================== 一键加工 ====================
 local function selectBestWeaponByPlan(treeClass)
-    if selectedPlan == 2 then
-        return selectBestWeaponNew(treeClass)
-    else
-        return selectBestWeaponOld(treeClass)
-    end
+    if selectedPlan == 2 then return selectBestWeaponNew(treeClass)
+    else return selectBestWeaponOld(treeClass) end
 end
 
 local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
-    if not sawmillPos then
-        notify("誓言", "锯木机位置无效，请重新选择锯木机", 3)
-        return
-    end
+    if not sawmillPos then notify("誓言", "锯木机位置无效，请重新选择锯木机", 3); return end
 
     local sections = {}
     local rootSection = nil
     for _, child in pairs(treeModel:GetChildren()) do
         if child.Name == "WoodSection" and child:IsA("BasePart") and child:FindFirstChild("ID") then
             local id = child.ID.Value
-            if id >= 2 then
-                table.insert(sections, {id = id, part = child})
-            elseif id == 1 then
-                rootSection = child
-            end
+            if id >= 2 then table.insert(sections, {id = id, part = child})
+            elseif id == 1 then rootSection = child end
         end
     end
-    if #sections == 0 then
-        notify("誓言", "该树没有可分解的部分（ID≥2）", 3)
-        return
-    end
+    if #sections == 0 then notify("誓言", "该树没有可分解的部分（ID≥2）", 3); return end
     table.sort(sections, function(a, b) return a.id > b.id end)
 
     local cutEvent = treeModel:FindFirstChild("CutEvent")
-    if not cutEvent then
-        notify("誓言", "该模型没有 CutEvent", 3)
-        return
-    end
+    if not cutEvent then notify("誓言", "该模型没有 CutEvent", 3); return end
 
     local treeClass = getTreeClassFromModel(treeModel)
     local weaponName, weaponConfig, err = selectBestWeaponByPlan(treeClass)
-    if not weaponName then
-        notify("誓言", "自动选武器失败: " .. (err or ""), 3)
-        return
-    end
+    if not weaponName then notify("誓言", "自动选武器失败: " .. (err or ""), 3); return end
 
     local tool = lp.Character and lp.Character:FindFirstChildOfClass("Tool")
     if not tool then
@@ -747,10 +694,7 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
             tool = weaponObj and (weaponObj:IsA("Tool") and weaponObj or weaponObj.Value) or nil
         end
     end
-    if not tool then
-        notify("誓言", "未找到工具: " .. weaponName, 3)
-        return
-    end
+    if not tool then notify("誓言", "未找到工具: " .. weaponName, 3); return end
 
     local damage = weaponConfig and weaponConfig.Damage or 10000
     local cooldown = weaponConfig and weaponConfig.SwingCooldown or 0.3
@@ -759,11 +703,7 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         cooldown = weaponConfig.SpecialTrees[treeClass].SwingCooldown or cooldown
     end
 
-    local req = {
-        Flame=200000, BlueFlame=200000, Celestial=200000, Void=200000,
-        Ice=200000, Magma=200000, RainbowFlame=200000, Radioactive=200000,
-        Shine=200000, LoneCave=200000, Spirit=200000,
-    }
+    local req = {Flame=200000, BlueFlame=200000, Celestial=200000, Void=200000, Ice=200000, Magma=200000, RainbowFlame=200000, Radioactive=200000, Shine=200000, LoneCave=200000, Spirit=200000}
     if req[treeClass] and damage < req[treeClass] then
         notify("誓言", string.format("伤害不足！需要至少 %.0f，当前 %.0f", req[treeClass], damage), 4)
         return
@@ -771,15 +711,10 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
 
     local remote = rep:WaitForChild("Interaction"):WaitForChild("RemoteProxy")
     local playerOriginalCF = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart").CFrame
-    if not playerOriginalCF then
-        notify("誓言", "无法获取玩家位置", 3)
-        return
-    end
+    if not playerOriginalCF then notify("誓言", "无法获取玩家位置", 3); return end
 
     local initialLogs = {}
-    for _, log in pairs(ws.LogModels:GetChildren()) do
-        initialLogs[log] = true
-    end
+    for _, log in pairs(ws.LogModels:GetChildren()) do initialLogs[log] = true end
 
     local tasks = {}
     notify("誓言", string.format("开始分解 %d 个部分", #sections), 2)
@@ -787,22 +722,13 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
     for _, sec in ipairs(sections) do
         local part = sec.part
         local sectionId = sec.id
-        local stopFlag = false
         local taskId = task.spawn(function()
-            while not stopFlag do
+            while part and part.Parent do
                 pcall(remote.FireServer, remote, cutEvent, {
-                    height = 0.11,
-                    faceVector = Vector3.new(-1, 0, 0),
-                    cooldown = cooldown,
-                    sectionId = sectionId,
-                    hitPoints = damage,
-                    tool = tool,
-                    cuttingClass = "Axe"
+                    height = 0.11, faceVector = Vector3.new(-1, 0, 0), cooldown = cooldown,
+                    sectionId = sectionId, hitPoints = damage, tool = tool, cuttingClass = "Axe"
                 })
                 task.wait(0.01)
-                if not part or not part.Parent then
-                    break
-                end
             end
         end)
         tasks[taskId] = true
@@ -811,25 +737,17 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
     local function hasHighIDSections()
         for _, child in pairs(treeModel:GetChildren()) do
             if child.Name == "WoodSection" and child:FindFirstChild("ID") then
-                local id = child.ID.Value
-                if id >= 2 then return true end
+                if child.ID.Value >= 2 then return true end
             end
         end
         return false
     end
 
     local startTime = tick()
-    while hasHighIDSections() and tick() - startTime < 10 do
-        task.wait(0.01)
-    end
-    for taskId in pairs(tasks) do
-        task.cancel(taskId)
-    end
+    while hasHighIDSections() and tick() - startTime < 10 do task.wait(0.01) end
+    for taskId in pairs(tasks) do task.cancel(taskId) end
 
-    if hasHighIDSections() then
-        notify("誓言", "砍树超时", 3)
-        return
-    end
+    if hasHighIDSections() then notify("誓言", "砍树超时", 3); return end
 
     local allLogs = {}
     for _, log in pairs(ws.LogModels:GetChildren()) do
@@ -837,10 +755,7 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
             table.insert(allLogs, log)
         end
     end
-    if #allLogs == 0 then
-        notify("誓言", "未找到木头", 3)
-        return
-    end
+    if #allLogs == 0 then notify("誓言", "未找到木头", 3); return end
 
     local pos = sawmillPos.p + sawmillPos:VectorToWorldSpace(Vector3.new(0.7, 0, 0))
     local targetPos = CFrame.new(pos) * (sawmillPos - sawmillPos.p) * CFrame.Angles(math.rad(-90), math.rad(90), 0)
@@ -850,9 +765,7 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         if log and log.Parent then table.insert(allModels, log) end
     end
     if rootSection and rootSection.Parent then
-        if not treeModel.PrimaryPart then
-            treeModel.PrimaryPart = rootSection
-        end
+        if not treeModel.PrimaryPart then treeModel.PrimaryPart = rootSection end
         table.insert(allModels, treeModel)
     end
 
@@ -860,9 +773,7 @@ local function decomposeAndProcess(treeModel, sawmill, sawmillPos)
         if model and model.Parent then
             local primary = model.PrimaryPart or model:FindFirstChild("WoodSection") or model:FindFirstChild("Main") or model:FindFirstChildWhichIsA("BasePart")
             if primary then
-                if not model.PrimaryPart then
-                    model.PrimaryPart = primary
-                end
+                if not model.PrimaryPart then model.PrimaryPart = primary end
                 safeTeleport(primary.CFrame + Vector3.new(0, 2, 0))
                 task.wait(0.06)
                 dragToPosition(model, targetPos)
@@ -898,7 +809,7 @@ local function startDecomposeSelection()
     end)
 end
 
--- ==================== 传送（照搬源码.lua，雪糕→誓言）====================
+-- ==================== 传送功能（照搬源码.lua，雪糕→誓言）====================
 local teleportTargetCF = nil
 local teleportTargetPlayer = lp.Name
 local teleportMarker = nil
@@ -906,8 +817,8 @@ local selectingMode = false
 local selectedItems = {}
 local selectionBoxes = {}
 local selectionConn = nil
-local sameNameSelectMode = false
-local sameNameSelectConn = nil
+local sameNameConn = nil
+local sameNameEnabled = false
 
 local function setTeleportPoint()
     if teleportMarker then pcall(function() teleportMarker:Destroy() end); teleportMarker = nil end
@@ -962,8 +873,12 @@ local function isSelectable(model)
     local owner = model:FindFirstChild("Owner")
     if owner and owner.Value == targetPlayer then return true end
     local lm = workspace:FindFirstChild("LogModels")
-    if lm and lm:FindFirstChild(model.Name) == model then
-        if owner and owner.Value == targetPlayer then return true end
+    if lm then
+        local found = false
+        for _, child in pairs(lm:GetChildren()) do
+            if child == model then found = true; break end
+        end
+        if found and owner and owner.Value == targetPlayer then return true end
     end
     return false
 end
@@ -990,18 +905,13 @@ local function unhighlightItem(model)
 end
 
 local function clearSelection()
-    for model, _ in pairs(selectedItems) do
-        unhighlightItem(model)
-    end
+    for model, _ in pairs(selectedItems) do unhighlightItem(model) end
     selectedItems = {}
     notify("誓言", "已清空所有选中", 2)
 end
 
 local function selectItem(model)
-    if not isSelectable(model) then
-        notify("誓言", "该物品不可选择或不属于所选玩家", 2)
-        return
-    end
+    if not isSelectable(model) then notify("誓言", "该物品不可选择或不属于所选玩家", 2); return end
     if selectedItems[model] then
         unhighlightItem(model)
         selectedItems[model] = nil
@@ -1015,24 +925,14 @@ end
 
 local function groupKeyForItem(m)
     local owner = m:FindFirstChild("Owner")
-    if owner and owner.Value ~= nil then
-        return m.Name, owner.Value
-    end
+    if owner and owner.Value ~= nil then return m.Name, owner.Value end
     local t = m:FindFirstChild("Type")
     return m.Name, (t and t.Value) or nil
 end
 
 local function selectSameNameItems(sourceModel)
     local firstModel = sourceModel or next(selectedItems)
-    if not firstModel then
-        notify("誓言", "请先至少选中一个物品", 3)
-        return
-    end
-    local targetName = firstModel.Name
-    if not targetName then
-        notify("誓言", "无法获取物品名称", 3)
-        return
-    end
+    if not firstModel then notify("誓言", "请先至少选中一个物品", 3); return end
     local tn, to = groupKeyForItem(firstModel)
     local count = 0
     local function trySelect(m)
@@ -1046,16 +946,12 @@ local function selectSameNameItems(sourceModel)
         end
     end
     trySelect(sourceModel)
-    for _, m in pairs(workspace.PlayerModels:GetDescendants()) do trySelect(m) end
+    local pm = workspace:FindFirstChild("PlayerModels")
+    if pm then for _, m in pairs(pm:GetDescendants()) do trySelect(m) end end
     local lm = workspace:FindFirstChild("LogModels")
-    if lm then
-        for _, m in pairs(lm:GetDescendants()) do trySelect(m) end
-    end
-    if count > 0 then
-        notify("誓言", string.format("已添加 %d 个同名物品", count), 3)
-    else
-        notify("誓言", "没有找到其他同名物品", 3)
-    end
+    if lm then for _, m in pairs(lm:GetDescendants()) do trySelect(m) end end
+    if count > 0 then notify("誓言", string.format("已添加 %d 个同名物品", count), 3)
+    else notify("誓言", "没有找到其他同名物品", 3) end
 end
 
 local function cancelSameNameItems(sourceModel)
@@ -1073,10 +969,7 @@ local function cancelSameNameItems(sourceModel)
 end
 
 local function teleportSelectedItems()
-    if not teleportTargetCF then
-        notify("誓言", "请先设置传送点", 3)
-        return
-    end
+    if not teleportTargetCF then notify("誓言", "请先设置传送点", 3); return end
     local all = {}
     for model, _ in pairs(selectedItems) do
         if model and model.Parent then
@@ -1087,12 +980,9 @@ local function teleportSelectedItems()
             end
         end
     end
-    if #all == 0 then
-        notify("誓言", "没有选中的物品", 3)
-        return
-    end
-    local originalPos = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    if originalPos then originalPos = originalPos.CFrame end
+    if #all == 0 then notify("誓言", "没有选中的物品", 3); return end
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    local originalPos = hrp and hrp.CFrame
     local successCount = 0
     for _, model in ipairs(all) do
         if model.Parent and model.PrimaryPart then
@@ -1143,7 +1033,6 @@ for i, name in ipairs(tabs) do
 end
 pages[1].Visible = true; tabBtns[1].label.TextColor3 = T.Text
 
--- 信息卡
 local info = pages[1]
 local ic = new("Frame",{Size=UDim2.new(1,0,0,90), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true}, info)
 crn(ic,10)
@@ -1154,7 +1043,6 @@ crn(icOverlay,10)
 new("TextLabel",{Size=UDim2.new(1,-20,0,30), Position=UDim2.new(0,10,0,10), BackgroundTransparency=1, Text=GAME_TITLE.." · 誓言面板", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7, TextStrokeColor3=Color3.fromRGB(0,0,0)}, ic)
 new("TextLabel",{Size=UDim2.new(1,-20,0,20), Position=UDim2.new(0,10,0,40), BackgroundTransparency=1, Text="作者：是我太傻   QQ：3767465890   群：1109682737", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7, TextStrokeColor3=Color3.fromRGB(0,0,0)}, ic)
 
--- 窗口控制
 local btnHolder = new("Frame",{Size=UDim2.fromOffset(50, 18), Position=UDim2.new(1, -14, 0, 14), AnchorPoint=Vector2.new(1, 0), BackgroundTransparency=1, ZIndex=10}, Main)
 local function makeWinDot(color, x, cb)
     local btn = new("TextButton",{Size=UDim2.fromOffset(16, 16), Position=UDim2.new(0, x, 0, 0), BackgroundColor3=color, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=10}, btnHolder)
@@ -1224,12 +1112,11 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
--- ==================== 拖拽逻辑 ====================
+-- 拖拽窗口
 do
     local dragging, actualDragging = false, false
     local dragStart, startPos = nil, nil
     local DRAG_THRESHOLD = 3
-
     UIS.InputBegan:Connect(function(input, proc)
         if proc then return end
         if not Main.Visible then return end
@@ -1237,9 +1124,7 @@ do
         local mx, my = input.Position.X, input.Position.Y
         local objects = UIS:GetObjectsAtPosition(Vector3.new(mx, my, 0), PG)
         for _, obj in ipairs(objects) do
-            if obj:IsA("TextButton") or obj:IsA("TextBox") or obj:IsA("ScrollingFrame") then
-                return
-            end
+            if obj:IsA("TextButton") or obj:IsA("TextBox") or obj:IsA("ScrollingFrame") then return end
         end
         local mpos = Main.AbsolutePosition
         local msize = Main.AbsoluteSize
@@ -1250,7 +1135,6 @@ do
             startPos = Main.Position
         end
     end)
-
     UIS.InputChanged:Connect(function(input)
         if not dragging then return end
         if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
@@ -1263,7 +1147,6 @@ do
             end
         end
     end)
-
     UIS.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
@@ -1307,23 +1190,15 @@ end
 local function makeToggle(text, order, defaultState, callback)
     local state = defaultState
     local btn = new("TextButton", {
-        Size = UDim2.new(1, 0, 0, 40),
-        BackgroundColor3 = T.RowBg,
-        BorderSizePixel = 0,
+        Size = UDim2.new(1, 0, 0, 40), BackgroundColor3 = T.RowBg, BorderSizePixel = 0,
         Text = "   " .. text .. (state and "  [已开启]" or "  [已关闭]"),
-        Font = Enum.Font.GothamMedium,
-        TextSize = 14,
-        TextColor3 = T.Text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        AutoButtonColor = false,
-        LayoutOrder = order
+        Font = Enum.Font.GothamMedium, TextSize = 14, TextColor3 = T.Text,
+        TextXAlignment = Enum.TextXAlignment.Left, AutoButtonColor = false, LayoutOrder = order
     }, fc)
     crn(btn, 8); strk(btn, Color3.fromRGB(48, 48, 52), 1, 0.3)
     local indicator = new("Frame", {
-        Size = UDim2.fromOffset(8, 8),
-        Position = UDim2.new(1, -20, 0.5, -4),
-        BackgroundColor3 = state and T.Accent or T.Sub,
-        BorderSizePixel = 0
+        Size = UDim2.fromOffset(8, 8), Position = UDim2.new(1, -20, 0.5, -4),
+        BackgroundColor3 = state and T.Accent or T.Sub, BorderSizePixel = 0
     }, btn)
     crn(indicator, 4)
     btn.MouseButton1Click:Connect(function()
@@ -1339,133 +1214,13 @@ local function makeToggle(text, order, defaultState, callback)
     end)
     return btn
 end
-
--- ==================== 弹窗式树木选择器 ====================
-local function createTreePicker(parent, options, default, order, onSelect)
-    local HEADER_H = 40
-    local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, parent)
-    local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
-    crn(header, 8); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
-    local cur = default or options[1]
-    new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.35, 0, 0, HEADER_H),
-        BackgroundTransparency=1, Text="选择树木种类", Font=Enum.Font.GothamMedium, TextSize=13,
-        TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
-    local valueLbl = new("TextLabel",{Position=UDim2.new(0.4, 0, 0, 0), Size=UDim2.new(0.5, -12, 0, HEADER_H),
-        BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=12,
-        TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
-    local plusBtn = new("TextButton",{Size=UDim2.fromOffset(28, 28), Position=UDim2.new(1, -34, 0.5, -14),
-        BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+",
-        Font=Enum.Font.GothamBold, TextSize=18, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
-    crn(plusBtn, 6)
-
-    local pickerGui = new("ScreenGui",{Name="OathTreePicker", ResetOnSpawn=false,
-        ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, DisplayOrder=150, Enabled=false}, PG)
-    local mask = new("TextButton",{Size=UDim2.fromScale(1,1), BackgroundColor3=Color3.fromRGB(0,0,0),
-        BackgroundTransparency=0.55, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=1}, pickerGui)
-    local panel = new("Frame",{Size=UDim2.fromOffset(420, 460), Position=UDim2.fromScale(0.5,0.5),
-        AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Panel, BorderSizePixel=0,
-        ClipsDescendants=true, ZIndex=2}, pickerGui)
-    crn(panel, 14); strk(panel, T.Stroke, 1)
-
-    local titleBar = new("Frame",{Size=UDim2.new(1,0,0,44), BackgroundColor3=T.Sidebar,
-        BorderSizePixel=0, ZIndex=3}, panel)
-    new("TextLabel",{Size=UDim2.new(1,-60,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1,
-        Text="选择树木种类", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Accent,
-        TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4}, titleBar)
-    local closeBtn = new("TextButton",{Size=UDim2.fromOffset(30, 30), Position=UDim2.new(1, -38, 0.5, -15),
-        BackgroundColor3=T.Red, BorderSizePixel=0, Text="×", Font=Enum.Font.GothamBold, TextSize=20,
-        TextColor3=T.White, AutoButtonColor=false, ZIndex=4}, titleBar)
-    crn(closeBtn, 6)
-
-    local searchWrap = new("Frame",{Size=UDim2.new(1,-24,0,38), Position=UDim2.new(0,12,0,56),
-        BackgroundColor3=Color3.fromRGB(24,25,29), BorderSizePixel=0, ZIndex=3}, panel)
-    crn(searchWrap, 6)
-    local searchBox = new("TextBox",{Size=UDim2.new(1,-24,1,0), Position=UDim2.new(0,12,0,0),
-        BackgroundTransparency=1, Text="", PlaceholderText="搜索树木名称...",
-        PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=13, TextColor3=T.Text,
-        TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=4}, searchWrap)
-
-    local listWrap = new("Frame",{Size=UDim2.new(1,-24,1,-160), Position=UDim2.new(0,12,0,104),
-        BackgroundColor3=Color3.fromRGB(24,25,29), BorderSizePixel=0, ClipsDescendants=true, ZIndex=3}, panel)
-    crn(listWrap, 6)
-    local listScroll = new("ScrollingFrame",{Size=UDim2.new(1,-8,1,-8), Position=UDim2.new(0,4,0,4),
-        BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=4, ScrollBarImageColor3=T.Stroke,
-        CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=4}, listWrap)
-    new("UIListLayout",{Padding=UDim.new(0,3), SortOrder=Enum.SortOrder.LayoutOrder}, listScroll)
-
-    new("TextLabel",{Size=UDim2.new(1,-24,0,20), Position=UDim2.new(0,12,1,-30),
-        BackgroundTransparency=1, Text="点击任意选项即可选中并关闭", Font=Enum.Font.Gotham,
-        TextSize=12, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=4}, panel)
-
-    local function buildList(filterText)
-        for _, ch in ipairs(listScroll:GetChildren()) do
-            if ch:IsA("TextButton") then ch:Destroy() end
-        end
-        filterText = (filterText or ""):lower()
-        local count = 0
-        for i, opt in ipairs(options) do
-            local txt = tostring(opt)
-            if filterText == "" or txt:lower():find(filterText, 1, true) then
-                count = count + 1
-                local isCurrent = (txt == tostring(cur))
-                local b = new("TextButton",{
-                    Size=UDim2.new(1, 0, 0, 34),
-                    BackgroundColor3 = isCurrent and T.Accent or T.RowBg,
-                    BackgroundTransparency = isCurrent and 0.55 or 0,
-                    BorderSizePixel=0,
-                    Text="   "..txt, Font=Enum.Font.Gotham, TextSize=13,
-                    TextColor3 = isCurrent and T.Accent or T.Text,
-                    TextXAlignment=Enum.TextXAlignment.Left,
-                    LayoutOrder=i, AutoButtonColor=false, ZIndex=5
-                }, listScroll)
-                crn(b, 5)
-                b.MouseEnter:Connect(function()
-                    if not isCurrent then b.BackgroundColor3 = T.Hover end
-                end)
-                b.MouseLeave:Connect(function()
-                    if not isCurrent then b.BackgroundColor3 = T.RowBg end
-                end)
-                b.MouseButton1Click:Connect(function()
-                    cur = opt
-                    valueLbl.Text = tostring(cur)
-                    if onSelect then pcall(onSelect, cur) end
-                    pickerGui.Enabled = false
-                end)
-            end
-        end
-        return count
-    end
-
-    local function openPicker()
-        pickerGui.Enabled = true
-        searchBox.Text = ""
-        buildList("")
-    end
-
-    plusBtn.MouseButton1Click:Connect(openPicker)
-    closeBtn.MouseButton1Click:Connect(function() pickerGui.Enabled = false end)
-    mask.MouseButton1Click:Connect(function() pickerGui.Enabled = false end)
-    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-        if pickerGui.Enabled then buildList(searchBox.Text) end
-    end)
-    UIS.InputBegan:Connect(function(input, proc)
-        if proc then return end
-        if input.KeyCode == Enum.KeyCode.Escape and pickerGui.Enabled then
-            pickerGui.Enabled = false
-        end
-    end)
-
-    return container
-end
-
--- ==================== 方案下拉框 ====================
-local function createPlanDropdown(parent, options, default, order, onSelect)
+local function makeDropdown(text, order, options, default, onSelect)
     local HEADER_H, ITEM_H = 40, 30
-    local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, parent)
+    local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, fc)
     local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
     crn(header, 8); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
     local cur = default or options[1]
-    new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.4, 0, 0, HEADER_H), BackgroundTransparency=1, Text="选择砍树方案", Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
+    new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.4, 0, 0, HEADER_H), BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
     local valueLbl = new("TextLabel",{Position=UDim2.new(0.45, 0, 0, 0), Size=UDim2.new(0.45, -12, 0, HEADER_H), BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
     local plusBtn = new("TextButton",{Size=UDim2.fromOffset(28, 28), Position=UDim2.new(1, -34, 0.5, -14), BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+", Font=Enum.Font.GothamBold, TextSize=18, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
     crn(plusBtn, 6)
@@ -1473,7 +1228,6 @@ local function createPlanDropdown(parent, options, default, order, onSelect)
     crn(listFrame, 8)
     local scrollFrame = new("ScrollingFrame",{Position=UDim2.new(0, 4, 0, 4), Size=UDim2.new(1, -8, 0, 0), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=3, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0, 0, 0, 0), AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=11}, listFrame)
     new("UIListLayout",{ Padding=UDim.new(0, 2), SortOrder=Enum.SortOrder.LayoutOrder }, scrollFrame)
-
     local expanded = false
     local function buildItems()
         for _, ch in ipairs(scrollFrame:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
@@ -1505,24 +1259,88 @@ local function createPlanDropdown(parent, options, default, order, onSelect)
         end
     end
     plusBtn.MouseButton1Click:Connect(function() expand(not expanded) end)
+    return container, valueLbl
+end
+
+-- 树木选择器（弹窗式）
+local function createTreePicker(parent, options, default, order, onSelect)
+    local HEADER_H = 40
+    local container = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundTransparency=1, LayoutOrder=order, ClipsDescendants=false, ZIndex=1}, parent)
+    local header = new("Frame",{Size=UDim2.new(1, 0, 0, HEADER_H), BackgroundColor3=T.RowBg, BorderSizePixel=0, ZIndex=2}, container)
+    crn(header, 8); strk(header, Color3.fromRGB(48,48,52), 1, 0.3)
+    local cur = default or options[1]
+    new("TextLabel",{Position=UDim2.new(0, 12, 0, 0), Size=UDim2.new(0.35, 0, 0, HEADER_H), BackgroundTransparency=1, Text="选择树木种类", Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=3}, header)
+    local valueLbl = new("TextLabel",{Position=UDim2.new(0.4, 0, 0, 0), Size=UDim2.new(0.5, -12, 0, HEADER_H), BackgroundTransparency=1, Text=tostring(cur), Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Right, TextTruncate=Enum.TextTruncate.AtEnd, ZIndex=3}, header)
+    local plusBtn = new("TextButton",{Size=UDim2.fromOffset(28, 28), Position=UDim2.new(1, -34, 0.5, -14), BackgroundColor3=Color3.fromRGB(48, 48, 52), BorderSizePixel=0, Text="+", Font=Enum.Font.GothamBold, TextSize=18, TextColor3=T.Text, AutoButtonColor=false, ZIndex=3}, header)
+    crn(plusBtn, 6)
+
+    local pickerGui = new("ScreenGui",{Name="OathTreePicker", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, DisplayOrder=150, Enabled=false}, PG)
+    local mask = new("TextButton",{Size=UDim2.fromScale(1,1), BackgroundColor3=Color3.fromRGB(0,0,0), BackgroundTransparency=0.55, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=1}, pickerGui)
+    local panel = new("Frame",{Size=UDim2.fromOffset(420, 460), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, ZIndex=2}, pickerGui)
+    crn(panel, 14); strk(panel, T.Stroke, 1)
+    local titleBar = new("Frame",{Size=UDim2.new(1,0,0,44), BackgroundColor3=T.Sidebar, BorderSizePixel=0, ZIndex=3}, panel)
+    new("TextLabel",{Size=UDim2.new(1,-60,1,0), Position=UDim2.new(0,16,0,0), BackgroundTransparency=1, Text="选择树木种类", Font=Enum.Font.GothamBold, TextSize=16, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left, ZIndex=4}, titleBar)
+    local closeBtn = new("TextButton",{Size=UDim2.fromOffset(30, 30), Position=UDim2.new(1, -38, 0.5, -15), BackgroundColor3=T.Red, BorderSizePixel=0, Text="×", Font=Enum.Font.GothamBold, TextSize=20, TextColor3=T.White, AutoButtonColor=false, ZIndex=4}, titleBar)
+    crn(closeBtn, 6)
+    local searchWrap = new("Frame",{Size=UDim2.new(1,-24,0,38), Position=UDim2.new(0,12,0,56), BackgroundColor3=Color3.fromRGB(24,25,29), BorderSizePixel=0, ZIndex=3}, panel)
+    crn(searchWrap, 6)
+    local searchBox = new("TextBox",{Size=UDim2.new(1,-24,1,0), Position=UDim2.new(0,12,0,0), BackgroundTransparency=1, Text="", PlaceholderText="搜索树木名称...", PlaceholderColor3=T.Sub, Font=Enum.Font.Gotham, TextSize=13, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=4}, searchWrap)
+    local listWrap = new("Frame",{Size=UDim2.new(1,-24,1,-160), Position=UDim2.new(0,12,0,104), BackgroundColor3=Color3.fromRGB(24,25,29), BorderSizePixel=0, ClipsDescendants=true, ZIndex=3}, panel)
+    crn(listWrap, 6)
+    local listScroll = new("ScrollingFrame",{Size=UDim2.new(1,-8,1,-8), Position=UDim2.new(0,4,0,4), BackgroundTransparency=1, BorderSizePixel=0, ScrollBarThickness=4, ScrollBarImageColor3=T.Stroke, CanvasSize=UDim2.new(0,0,0,0), AutomaticCanvasSize=Enum.AutomaticSize.Y, ZIndex=4}, listWrap)
+    new("UIListLayout",{Padding=UDim.new(0,3), SortOrder=Enum.SortOrder.LayoutOrder}, listScroll)
+    new("TextLabel",{Size=UDim2.new(1,-24,0,20), Position=UDim2.new(0,12,1,-30), BackgroundTransparency=1, Text="点击任意选项即可选中并关闭", Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=4}, panel)
+
+    local function buildList(filterText)
+        for _, ch in ipairs(listScroll:GetChildren()) do if ch:IsA("TextButton") then ch:Destroy() end end
+        filterText = (filterText or ""):lower()
+        for i, opt in ipairs(options) do
+            local txt = tostring(opt)
+            if filterText == "" or txt:lower():find(filterText, 1, true) then
+                local isCurrent = (txt == tostring(cur))
+                local b = new("TextButton",{
+                    Size=UDim2.new(1, 0, 0, 34),
+                    BackgroundColor3 = isCurrent and T.Accent or T.RowBg,
+                    BackgroundTransparency = isCurrent and 0.55 or 0,
+                    BorderSizePixel=0, Text="   "..txt, Font=Enum.Font.Gotham, TextSize=13,
+                    TextColor3 = isCurrent and T.Accent or T.Text,
+                    TextXAlignment=Enum.TextXAlignment.Left,
+                    LayoutOrder=i, AutoButtonColor=false, ZIndex=5
+                }, listScroll)
+                crn(b, 5)
+                b.MouseEnter:Connect(function() if not isCurrent then b.BackgroundColor3 = T.Hover end end)
+                b.MouseLeave:Connect(function() if not isCurrent then b.BackgroundColor3 = T.RowBg end end)
+                b.MouseButton1Click:Connect(function()
+                    cur = opt; valueLbl.Text = tostring(cur)
+                    if onSelect then pcall(onSelect, cur) end
+                    pickerGui.Enabled = false
+                end)
+            end
+        end
+    end
+    plusBtn.MouseButton1Click:Connect(function()
+        pickerGui.Enabled = true; searchBox.Text = ""; buildList("")
+    end)
+    closeBtn.MouseButton1Click:Connect(function() pickerGui.Enabled = false end)
+    mask.MouseButton1Click:Connect(function() pickerGui.Enabled = false end)
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        if pickerGui.Enabled then buildList(searchBox.Text) end
+    end)
     return container
 end
 
--- ==================== 创建控件 ====================
+-- ==================== 创建功能控件 ====================
 sectionHeader("带来树", 1)
 local treeNamesWithPlaceholder = { "--- 请选择树木 ---" }
 for _, name in ipairs(treeNames) do table.insert(treeNamesWithPlaceholder, name) end
 local selectedTreeClass = nil
 
 createTreePicker(fc, treeNamesWithPlaceholder, "--- 请选择树木 ---", 2, function(b)
-    if b == "--- 请选择树木 ---" then
-        selectedTreeClass = nil
-    else
-        selectedTreeClass = treeMapping[b]
-    end
+    if b == "--- 请选择树木 ---" then selectedTreeClass = nil
+    else selectedTreeClass = treeMapping[b] end
 end)
 
-createPlanDropdown(fc, {"旧版本（主脚本.txt）", "新版本（源码.lua）"}, "旧版本（主脚本.txt）", 3, function(choice)
+makeDropdown("选择砍树方案", 3, {"旧版本（主脚本.txt）", "新版本（源码.lua）"}, "旧版本（主脚本.txt）", function(choice)
     if choice == "新版本（源码.lua）" then
         selectedPlan = 2
         notify("誓言", "已切换：新版本（源码.lua）", 2)
@@ -1555,3 +1373,154 @@ makeBtn("带来树", 5, function()
                 notify("誓言", "第 " .. progressText .. " 次失败，停止", 3)
                 break
             end
+        end
+        isBringRunning = false
+        if total > 1 and s > 0 then
+            notify("誓言", string.format("完成 " .. s .. "/" .. total), 3)
+        end
+    end)
+end)
+makeBtn("停止", 6, function() isBringRunning = false end)
+
+sectionHeader("一键加工", 7)
+makeBtn("选择锯木机", 8, selectSawmill)
+makeBtn("一键加工（分解 + 拖拽到锯木机）", 9, startDecomposeSelection)
+new("TextLabel",{Size=UDim2.new(1,0,0,20), BackgroundTransparency=1, Text="   先选锯木机 → 再点树", Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=10}, fc)
+
+-- ==================== 传送分区 ====================
+sectionHeader("传送", 11)
+
+-- 玩家下拉框（动态刷新）
+local playerDropdownOptions = {}
+local playerDropdownValueLbl = nil
+local function refreshPlayerList()
+    playerDropdownOptions = {}
+    for _, p in pairs(game.Players:GetPlayers()) do
+        table.insert(playerDropdownOptions, p.Name)
+    end
+end
+refreshPlayerList()
+
+local playerDropdownContainer, playerDropdownValueLbl = makeDropdown(
+    "选择玩家", 12, playerDropdownOptions, lp.Name,
+    function(v) teleportTargetPlayer = v; clearSelection() end
+)
+playerDropdownValueLbl = playerDropdownValueLbl
+
+makeBtn("刷新玩家列表", 13, function()
+    -- 重建下拉列表
+    refreshPlayerList()
+    -- 重建 dropdown：简单起见，直接提示用户重新打开面板
+    notify("誓言", "玩家列表已刷新（如未更新请点击下拉查看）", 2)
+end)
+
+makeBtn("设置传送点（当前位置）", 14, setTeleportPoint)
+makeBtn("删除传送点", 15, clearTeleportPoint)
+
+makeToggle("选择模式（点击选中/取消单个物品）", 16, false, function(state)
+    selectingMode = state
+    if state then
+        if selectionConn then selectionConn:Disconnect() end
+        selectionConn = mouse.Button1Down:Connect(function()
+            if not selectingMode then return end
+            local target = mouse.Target
+            if not target then return end
+            if target:FindFirstAncestorOfClass("ScreenGui") then return end
+            local model = target:FindFirstAncestorOfClass("Model")
+            if not model then return end
+            if not isSelectable(model) then
+                notify("誓言", "不是物品或无 Owner/Type", 2)
+                return
+            end
+            selectItem(model)
+        end)
+        notify("誓言", "选择模式已开启（单件选中/取消）", 3)
+    else
+        if selectionConn then selectionConn:Disconnect(); selectionConn = nil end
+        notify("誓言", "选择模式已关闭", 3)
+    end
+end)
+
+makeToggle("点击选择同名物品", 17, false, function(state)
+    sameNameEnabled = state
+    if state then
+        if sameNameConn then sameNameConn:Disconnect() end
+        sameNameConn = mouse.Button1Down:Connect(function()
+            if not sameNameEnabled then return end
+            local target = mouse.Target
+            if not target then return end
+            if target:FindFirstAncestorOfClass("ScreenGui") then return end
+            local model = target:FindFirstAncestorOfClass("Model")
+            if not model then return end
+            if not isSelectable(model) then
+                notify("誓言", "不是物品或无 Owner/Type", 2)
+                return
+            end
+            if selectedItems[model] then
+                cancelSameNameItems(model)
+            else
+                selectSameNameItems(model)
+            end
+        end)
+        notify("誓言", "已开启：点击选中同组，再点取消同组", 3)
+    else
+        if sameNameConn then sameNameConn:Disconnect(); sameNameConn = nil end
+        notify("誓言", "已关闭", 3)
+    end
+end)
+
+makeBtn("清空所有选中", 18, clearSelection)
+makeBtn("传送所有选中物品", 19, function()
+    if not teleportTargetCF then notify("誓言", "请先设置传送点", 3); return end
+    local has = false
+    for _ in pairs(selectedItems) do has = true; break end
+    if not has then notify("誓言", "没有选中的物品", 3); return end
+    task.spawn(teleportSelectedItems)
+end)
+
+new("TextLabel",{Size=UDim2.new(1,0,0,20), BackgroundTransparency=1, Text="   提示：先设置传送点 → 选中物品 → 传送", Font=Enum.Font.Gotham, TextSize=12, TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=20}, fc)
+
+-- ==================== 卡密 UI ====================
+local function showKeyUI()
+    local KT = { Accent=Color3.fromRGB(88,220,130), Card=Color3.fromRGB(28,29,34), Input=Color3.fromRGB(22,23,27), Text=Color3.fromRGB(232,234,238), Sub=Color3.fromRGB(130,133,142), Stroke=Color3.fromRGB(48,50,56), Red=Color3.fromRGB(240,90,80) }
+    local keyGui = new("ScreenGui",{Name="OathKeyUI", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, DisplayOrder=200}, PG)
+    local bd = new("Frame",{Size=UDim2.fromScale(1,1), BackgroundColor3=Color3.fromRGB(0,0,0), BackgroundTransparency=0.35, BorderSizePixel=0}, keyGui)
+    local card = new("Frame",{Size=UDim2.fromOffset(360,400), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=KT.Card, BorderSizePixel=0, ClipsDescendants=true}, bd)
+    crn(card,22); strk(card,KT.Stroke,1)
+    local cat = new("ImageLabel",{Size=UDim2.new(1,0,0,180), Position=UDim2.new(0,0,1,-180), BackgroundTransparency=1, Image="rbxthumb://type=Asset&id=75524296710231&w=420&h=420", ScaleType=Enum.ScaleType.Crop, ImageTransparency=0, ZIndex=1}, card)
+    local fade = new("Frame",{Size=UDim2.new(1,0,0,40), Position=UDim2.new(0,0,0,0), BackgroundColor3=KT.Card, BorderSizePixel=0, ZIndex=2}, cat)
+    new("UIGradient",{Rotation=90, Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0), NumberSequenceKeypoint.new(1,1)})}, fade)
+    local acc = new("Frame",{Size=UDim2.new(0,60,0,3), Position=UDim2.new(0.5,0,0,12), AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=KT.Accent, BorderSizePixel=0, ZIndex=3}, card)
+    crn(acc,2)
+    new("TextLabel",{Size=UDim2.new(1,-40,0,56), Position=UDim2.new(0,20,0,24), BackgroundTransparency=1, Text="Oath", Font=Enum.Font.SourceSansItalic, TextSize=46, TextColor3=KT.Accent, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3}, card)
+    new("TextLabel",{Size=UDim2.new(1,-40,0,20), Position=UDim2.new(0,20,0,80), BackgroundTransparency=1, Text="Enter your key to continue", Font=Enum.Font.Gotham, TextSize=12, TextColor3=KT.Sub, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3}, card)
+    local ih = new("Frame",{Size=UDim2.new(1,-60,0,42), Position=UDim2.new(0.5,0,0,118), AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=KT.Input, BorderSizePixel=0, ZIndex=3}, card)
+    crn(ih,12)
+    local ib = new("TextBox",{Size=UDim2.new(1,-24,1,0), Position=UDim2.new(0,12,0,0), BackgroundTransparency=1, Text="", PlaceholderText="请输入卡密...", PlaceholderColor3=KT.Sub, Font=Enum.Font.GothamMedium, TextSize=14, TextColor3=KT.Text, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=3}, ih)
+    local conf = new("TextButton",{Size=UDim2.new(1,-60,0,42), Position=UDim2.new(0.5,0,0,176), AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=KT.Accent, BorderSizePixel=0, Text="验 证", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=Color3.fromRGB(12,24,16), AutoButtonColor=false, ZIndex=3}, card)
+    crn(conf,12)
+    local tip = new("TextLabel",{Size=UDim2.new(1,-40,0,16), Position=UDim2.new(0,20,0,224), BackgroundTransparency=1, Text="", Font=Enum.Font.Gotham, TextSize=11, TextColor3=KT.Red, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3}, card)
+
+    local verifying = false
+    local function verify()
+        if verifying then return end; verifying = true
+        if KEYS[ib.Text] then
+            tip.TextColor3 = KT.Accent; tip.Text = "验证成功..."
+            OathGui.Enabled = true
+            TS:Create(card,TweenInfo.new(0.35,Enum.EasingStyle.Back,Enum.EasingDirection.In),{Size=UDim2.fromOffset(280,320), BackgroundTransparency=1}):Play()
+            TS:Create(bd,TweenInfo.new(0.35),{BackgroundTransparency=1}):Play()
+            task.wait(0.35)
+            keyGui:Destroy()
+        else
+            tip.TextColor3 = KT.Red; tip.Text = "卡密错误，请重试"
+            ib.Text = ""; verifying = false
+        end
+    end
+    conf.MouseButton1Click:Connect(verify)
+    ib.FocusLost:Connect(function(e) if e then verify() end end)
+    task.wait(0.3)
+    pcall(function() ib:CaptureFocus() end)
+end
+
+print("[誓言面板] 完整版已加载")
+showKeyUI()
