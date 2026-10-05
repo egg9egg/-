@@ -1,8 +1,8 @@
 --[[
-    誓言面板 - 顶部横条可拖动版
+    誓言面板 - 顶部整行可拖动版
     卡密：誓言NB
     - 搜索框在选择树木列表内部，位于"请选择树木"上方
-    - 只有顶部横条（含"木材大亨"标题和最小化/关闭按钮的背景）可以拖动窗口
+    - 窗口顶部整行 50px 高度（含"木材大亨"标题、横条、按钮背景）可拖动
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -1006,7 +1006,6 @@ crn(icOverlay,10)
 new("TextLabel",{Size=UDim2.new(1,-20,0,30), Position=UDim2.new(0,10,0,10), BackgroundTransparency=1, Text=GAME_TITLE.." · 誓言面板", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7}, ic)
 new("TextLabel",{Size=UDim2.new(1,-20,0,20), Position=UDim2.new(0,10,0,40), BackgroundTransparency=1, Text="作者：是我太傻   QQ：3767465890   群：1109682737", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, ZIndex=3, TextStrokeTransparency=0.7}, ic)
 
--- 窗口控制按钮（黄=最小化 / 红=关闭）
 local btnHolder = new("Frame",{Size=UDim2.fromOffset(50, 18), Position=UDim2.new(1, -14, 0, 14), AnchorPoint=Vector2.new(1, 0), BackgroundTransparency=1, ZIndex=10}, Main)
 local function makeWinDot(color, x, cb)
     local btn = new("TextButton",{Size=UDim2.fromOffset(16, 16), Position=UDim2.new(0, x, 0, 0), BackgroundColor3=color, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=10}, btnHolder)
@@ -1076,7 +1075,7 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
--- ★ 只有顶部横条（含"木材大亨"标题和最小化/关闭按钮的背景）可以拖动窗口 ★
+-- ★ 窗口顶部整行 50px 高度可拖动（包含"木材大亨"标题、右侧横条、按钮背景） ★
 do
     local dragging, actualDragging = false, false
     local dragStart, startPos = nil, nil
@@ -1088,25 +1087,19 @@ do
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
         local mx, my = input.Position.X, input.Position.Y
 
-        -- 只允许在 topBar（顶部横条）范围内按下拖动
-        local tbPos = topBar.AbsolutePosition
-        local tbSize = topBar.AbsoluteSize
-        local inTopBar = mx >= tbPos.X and mx <= tbPos.X + tbSize.X
-                     and my >= tbPos.Y and my <= tbPos.Y + tbSize.Y
-        if not inTopBar then return end
+        -- 判断是否在 Main 顶部 50px 高度范围内（横向：整个窗口宽度；纵向：顶部 50px）
+        local mp = Main.AbsolutePosition
+        local ms = Main.AbsoluteSize
+        local inTopRow = mx >= mp.X and mx <= mp.X + ms.X
+                     and my >= mp.Y and my <= mp.Y + 50
+        if not inTopRow then return end
 
-        -- 排除黄/红窗口按钮区域（在按钮上按下时不拖动）
+        -- 排除黄/红按钮区域（点在按钮上不拖动）
         local bhPos = btnHolder.AbsolutePosition
         local bhSize = btnHolder.AbsoluteSize
         local onWinBtn = mx >= bhPos.X and mx <= bhPos.X + bhSize.X
                       and my >= bhPos.Y and my <= bhPos.Y + bhSize.Y
         if onWinBtn then return end
-
-        -- 排除 TextButton/TextBox（防止点到滚动条之类）
-        local objects = UIS:GetObjectsAtPosition(Vector3.new(mx, my, 0), PG)
-        for _, obj in ipairs(objects) do
-            if obj:IsA("TextButton") or obj:IsA("TextBox") then return end
-        end
 
         dragging = true
         actualDragging = false
@@ -1221,7 +1214,6 @@ local function makeToggle(text, order, defaultState, callback, parent)
     return btn
 end
 
--- ★ 下拉框：searchable=true 时在列表内部最上方插入搜索框（位于"请选择树木"上方）★
 local function makeDropdown(text, order, options, default, onSelect, searchable)
     local HEADER_H, ITEM_H = 40, 30
     local SEARCH_H = 34
@@ -1376,7 +1368,6 @@ local selectedTreeClass = nil
 do
     local treeOptions = { "--- 请选择树木 ---" }
     for _, n in ipairs(treeNames) do table.insert(treeOptions, n) end
-    -- ★ 最后一个参数 true = 在列表展开后，正上方插入搜索框 ★
     local container, expand = makeDropdown("选择树木种类", 2, treeOptions, "--- 请选择树木 ---", function(v)
         if v == "--- 请选择树木 ---" then selectedTreeClass = nil
         else selectedTreeClass = treeMapping[v] end
@@ -1560,5 +1551,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 顶部横条拖动版 已加载")
+print("[誓言面板] 顶部整行可拖动版 已加载")
 showKeyUI()
