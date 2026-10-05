@@ -1,7 +1,7 @@
 --[[
-    誓言面板 v11.4
+    誓言面板 v11.5
     卡密：誓言NB
-    ★ 修复：dropdown container 默认 ZIndex=1，展开时才提升到 100，避免两个下拉框互相覆盖
+    ★ 修复：dropdown 互斥展开，点击一个加号时，另一个下拉框会自动完全收起
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -1091,8 +1091,9 @@ local function makeBox(text, placeholder, order, cb)
     box.FocusLost:Connect(function() if cb then pcall(cb, box.Text) end end)
 end
 
--- ★ 修复：container 默认 ZIndex=1，只有展开时提升到 100
+-- ★ 下拉框互斥展开
 local currentExpandedDropdown = nil
+local dropdownCloseFuncs = {} -- 新增：用于记录各个下拉框的收起函数
 
 local function makeDropdownWithPlus(text, options, default, order, cb)
     local HEADER_H = 32
@@ -1166,9 +1167,14 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
     function expand(state)
         expanded = state
         if state then
-            -- ★ 若已有其它 dropdown 展开，把它的 container ZIndex 复位
+            -- ★ 修改：如果已有其它 dropdown 展开，彻底让它执行收起逻辑
             if currentExpandedDropdown and currentExpandedDropdown ~= container then
-                currentExpandedDropdown.ZIndex = 1
+                local oldCloseFunc = dropdownCloseFuncs[currentExpandedDropdown]
+                if oldCloseFunc then
+                    oldCloseFunc() -- 触发前一个下拉框的收起动作
+                else
+                    currentExpandedDropdown.ZIndex = 1
+                end
             end
             currentExpandedDropdown = container
             container.ZIndex = 100  -- ★ 只把当前展开的抬高
@@ -1203,6 +1209,11 @@ local function makeDropdownWithPlus(text, options, default, order, cb)
             TS:Create(container, TweenInfo.new(0.15), { Size = UDim2.new(1, 0, 0, HEADER_H + listH) }):Play()
         end
     end)
+
+    -- 注册当前下拉框的收起功能
+    dropdownCloseFuncs[container] = function()
+        if expanded then expand(false) end
+    end
 
     return container
 end
