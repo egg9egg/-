@@ -1,9 +1,7 @@
 --[[
-    誓言面板 - 旧/新版本 + 源码.lua 一键加工（UI 放大按钮版）
+    誓言面板 - 可拖动版
     卡密：誓言NB
-    旧版本 = 主脚本.txt（require 解析斧头 + 拖拽用新版 dragToPosition）
-    新版本 = 源码.lua（decompile 反编译解析斧头）
-    一键加工 = 源码.lua 的 decomposeAndProcess 完整逻辑
+    拖动：点击非交互区域即可拖动整个面板
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -293,7 +291,7 @@ local function getTreeClassFromModel(treeModel)
     return "Generic"
 end
 
--- 旧版本（主脚本.txt - require）
+-- 旧版本
 local function loadWeaponConfigOld(weaponName)
     local module = rep:FindFirstChild("LoadedAssets") and rep.LoadedAssets:FindFirstChild(weaponName.."AxeClass")
     if not module then return nil end
@@ -321,7 +319,7 @@ local function selectBestWeaponOld(treeClass)
     return bw, bc, bd
 end
 
--- 新版本（源码.lua - decompile）
+-- 新版本
 local axeConfigCacheNew = {}
 local function loadWeaponConfigNew(weaponName)
     if axeConfigCacheNew[weaponName] ~= nil then return axeConfigCacheNew[weaponName] end
@@ -844,7 +842,7 @@ local function startDecomposeSelection()
     end)
 end
 
--- ==================== UI 主面板（整体缩小） ====================
+-- ==================== UI 主面板 ====================
 local OathGui = new("ScreenGui",{Name="OathPanel", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, Enabled=false}, PG)
 local Main = new("Frame",{Size=UDim2.fromOffset(540,340), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Bg, BorderSizePixel=0, ClipsDescendants=true}, OathGui)
 crn(Main,16); strk(Main,T.Stroke,1)
@@ -958,7 +956,63 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
--- ==================== 功能页 UI（按钮放大） ====================
+-- ==================== ★ 拖拽逻辑 ====================
+do
+    local dragging, actualDragging = false, false
+    local dragStart, startPos = nil, nil
+    local DRAG_THRESHOLD = 3
+
+    UIS.InputBegan:Connect(function(input, proc)
+        if proc then return end
+        if not Main.Visible then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseButton1 and input.UserInputType ~= Enum.UserInputType.Touch then return end
+        local mx, my = input.Position.X, input.Position.Y
+        -- 检查鼠标是否落在可交互控件上（按钮/输入框/滚动框）
+        local objects = UIS:GetObjectsAtPosition(Vector3.new(mx, my, 0), PG)
+        for _, obj in ipairs(objects) do
+            if obj:IsA("TextButton") or obj:IsA("TextBox") or obj:IsA("ScrollingFrame") then
+                return
+            end
+        end
+        -- 检查鼠标是否在 Main 范围内
+        local mpos = Main.AbsolutePosition
+        local msize = Main.AbsoluteSize
+        if mx >= mpos.X and mx <= mpos.X + msize.X and my >= mpos.Y and my <= mpos.Y + msize.Y then
+            dragging = true
+            actualDragging = false
+            dragStart = input.Position
+            startPos = Main.Position
+        end
+    end)
+
+    UIS.InputChanged:Connect(function(input)
+        if not dragging then return end
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            local delta = input.Position - dragStart
+            if not actualDragging then
+                if math.abs(delta.X) + math.abs(delta.Y) > DRAG_THRESHOLD then actualDragging = true end
+            end
+            if actualDragging then
+                Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end
+    end)
+
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+            actualDragging = false
+        end
+    end)
+end
+
+-- 右 Shift 开关面板
+UIS.InputBegan:Connect(function(input, proc)
+    if proc then return end
+    if input.KeyCode == Enum.KeyCode.RightShift then OathGui.Enabled = not OathGui.Enabled end
+end)
+
+-- ==================== 功能页 UI ====================
 local fc = pages[2]
 
 local function sectionHeader(title, order)
@@ -1249,5 +1303,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] UI 放大按钮版 已加载")
+print("[誓言面板] 可拖动版 已加载")
 showKeyUI()
