@@ -2,9 +2,8 @@
     誓言面板 - 可折叠分区版（完整）
     卡密：誓言NB
     左侧分区：信息 / 功能 / 合成 / 鸭子 / 购买
-    功能页与购买页的子分区点击标题可折叠/展开
-    传送页带刷新玩家列表按钮
-    EvilHeart 合成源码照搬版
+    功能页：带来树 / 一键加工 / 传送物品 / 传送地点 / 汽车传送
+    每个子分区点击标题可折叠/展开
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -828,6 +827,28 @@ local function teleportSelectedItems()
     notify("誓言", string.format("传送完成 %d/%d", successCount, #all), 3)
 end
 
+-- 传送辅助
+local function tp(pos)
+    if typeof(pos) == "CFrame" then
+        lp.Character:SetPrimaryPartCFrame(pos)
+    elseif typeof(pos) == "Vector3" then
+        lp.Character:MoveTo(pos)
+    end
+end
+local function carTeleport(cf)
+    if lp.Character and lp.Character.Humanoid.SeatPart ~= nil then
+        local Car = lp.Character.Humanoid.SeatPart.Parent
+        task.spawn(function()
+            for i = 1, 5 do
+                task.wait()
+                Car:SetPrimaryPartCFrame(cf * CFrame.Angles(math.rad(lp.Character.HumanoidRootPart.Orientation.x), math.rad(lp.Character.HumanoidRootPart.Orientation.y), 0))
+                rep.Interaction.ClientRequestOwnership:FireServer(Car.Main)
+                rep.Interaction.ClientIsDragging:FireServer(Car.Main)
+            end
+        end)
+    end
+end
+
 -- ==================== UI 主面板 ====================
 local OathGui = new("ScreenGui",{Name="OathPanel", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, Enabled=false}, PG)
 local Main = new("Frame",{Size=UDim2.fromOffset(540,340), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Bg, BorderSizePixel=0, ClipsDescendants=true}, OathGui)
@@ -1207,7 +1228,8 @@ sectionHeader("一键加工", 7)
 makeBtn("选择锯木机", 8, selectSawmill)
 makeBtn("一键加工", 9, startDecomposeSelection)
 
-sectionHeader("传送", 10)
+-- ==================== 传送物品 ====================
+sectionHeader("传送物品", 10)
 local tpSetOptions = nil
 do
     local pOpts = {}
@@ -1269,6 +1291,114 @@ makeToggle("同名选择开关", 18, false, function(s)
     else
         if sameNameConn then sameNameConn:Disconnect(); sameNameConn = nil end
     end
+end)
+
+-- ==================== 传送地点 ====================
+sectionHeader("传送地点", 20)
+local teleportLocations = {
+    "出生点","木材反斗城","回家","连接逻辑店","土地商店","会员商店","画店",
+    "桥对岸","沙滩","火木","雪山","洞穴","码头","黑市","糖果原","雪地入口",
+    "盖克斯航运","玻璃冰木入口","云层","山边商品","章鱼哥祭坛","沼泽商店",
+    "石头商店","沼泽","冰胡","沙漠","辐射商店","核污染区","种子商人",
+    "鲍勃的店","家具店","车店","罗布克斯商店","肯德坤专卖店","秋季商店"
+}
+makeDropdown("选择地点", 21, teleportLocations, "出生点", function(v)
+    local map = {
+        ["出生点"] = CFrame.new(187,3,55),
+        ["木材反斗城"] = CFrame.new(265,5,57),
+        ["洞穴"] = CFrame.new(3581,-177,430),
+        ["连接逻辑店"] = CFrame.new(4607,9,-798),
+        ["雪山"] = CFrame.new(1451.66248,412.208405,3183.47607),
+        ["土地商店"] = CFrame.new(258,5,-99),
+        ["画店"] = CFrame.new(5207,-156,719),
+        ["火木"] = CFrame.new(-1585,625,1140),
+        ["沙滩"] = CFrame.new(2549,5,-42),
+        ["桥对岸"] = CFrame.new(109,5,-1166),
+        ["会员商店"] = CFrame.new(907,4,-92),
+        ["码头"] = CFrame.new(1122,1,-203),
+        ["黑市"] = CFrame.new(-22,61,1377),
+        ["糖果原"] = CFrame.new(-561,272,2312),
+        ["雪地入口"] = CFrame.new(888,61,1188),
+        ["盖克斯航运"] = CFrame.new(1894,-2,1581),
+        ["玻璃冰木入口"] = CFrame.new(1929,256,2918),
+        ["云层"] = CFrame.new(2073,495,2967),
+        ["山边商品"] = CFrame.new(-640,160,374),
+        ["章鱼哥祭坛"] = CFrame.new(-1622,196,941),
+        ["沼泽商店"] = CFrame.new(-1274,133,-1443),
+        ["沼泽"] = CFrame.new(-999,133,-1191),
+        ["石头商店"] = CFrame.new(-2387,302,-1899),
+        ["冰胡"] = CFrame.new(-2149,321,743),
+        ["沙漠"] = CFrame.new(-612,46,-3169),
+        ["辐射商店"] = CFrame.new(172,12,-2627),
+        ["核污染区"] = CFrame.new(207,15,-2752),
+        ["种子商人"] = CFrame.new(-24,18,-2684),
+        ["鲍勃的店"] = CFrame.new(261,9,-2541),
+        ["家具店"] = CFrame.new(492,4,-1723),
+        ["车店"] = CFrame.new(512,4,-1459),
+        ["罗布克斯商店"] = CFrame.new(652,4,-1589),
+        ["肯德坤专卖店"] = CFrame.new(65,4,-455),
+        ["秋季商店"] = CFrame.new(6004,4,33),
+    }
+    local cf = map[v]
+    if v == "回家" then
+        for _, prop in pairs(workspace.Properties:GetChildren()) do
+            if prop.Owner.Value == lp then cf = prop.OriginSquare.CFrame + Vector3.new(0,10,0); break end
+        end
+    end
+    if cf then tp(cf) end
+end)
+
+-- ==================== 汽车传送 ====================
+sectionHeader("汽车传送", 30)
+local carTeleportLocations = {
+    "回家","连接逻辑店","土地商店","会员商店","画店",
+    "桥对岸","沙滩","火木","雪山","洞穴","码头","黑市","糖果原","雪地入口",
+    "盖克斯航运","玻璃冰木入口","云层","山边商品","章鱼哥祭坛","沼泽商店",
+    "石头商店","沼泽","冰胡","星星岛","辐射商店","核污染区","种子商人",
+    "鲍勃的店","家具店","车店","罗布克斯商店","肯德坤专卖店","秋季商店"
+}
+makeDropdown("选择地点", 31, carTeleportLocations, "回家", function(v)
+    local map = {
+        ["连接逻辑店"] = CFrame.new(4607,9,-740),
+        ["土地商店"] = CFrame.new(230,5,-99),
+        ["会员商店"] = CFrame.new(907,4,-115),
+        ["画店"] = CFrame.new(5207,-156,719),
+        ["桥对岸"] = CFrame.new(109,5,-1166),
+        ["沙滩"] = CFrame.new(2549,5,-42),
+        ["火木"] = CFrame.new(-1585,625,1140),
+        ["雪山"] = CFrame.new(1451.66248,412.208405,3183.47607),
+        ["洞穴"] = CFrame.new(3581,-177,430),
+        ["码头"] = CFrame.new(1122,1,-203),
+        ["黑市"] = CFrame.new(-15,61,1365),
+        ["糖果原"] = CFrame.new(-561,272,2312),
+        ["雪地入口"] = CFrame.new(888,61,1188),
+        ["盖克斯航运"] = CFrame.new(1894,-2,1581),
+        ["玻璃冰木入口"] = CFrame.new(1929,256,2918),
+        ["云层"] = CFrame.new(2060,495,2967),
+        ["山边商品"] = CFrame.new(-640,160,374),
+        ["章鱼哥祭坛"] = CFrame.new(-1622,196,941),
+        ["沼泽商店"] = CFrame.new(-1274,133,-1443),
+        ["石头商店"] = CFrame.new(-2395,302,-1899),
+        ["沼泽"] = CFrame.new(-999,133,-1191),
+        ["冰胡"] = CFrame.new(-2149,321,743),
+        ["星星岛"] = CFrame.new(-612,46,-3169),
+        ["辐射商店"] = CFrame.new(172,12,-2627),
+        ["核污染区"] = CFrame.new(207,15,-2752),
+        ["种子商人"] = CFrame.new(-15,18,-2680),
+        ["鲍勃的店"] = CFrame.new(245,9,-2541),
+        ["家具店"] = CFrame.new(490,4,-1690),
+        ["车店"] = CFrame.new(512,4,-1490),
+        ["罗布克斯商店"] = CFrame.new(652,4,-1565),
+        ["肯德坤专卖店"] = CFrame.new(100,4,-455),
+        ["秋季商店"] = CFrame.new(6004,4,33),
+    }
+    local cf = map[v]
+    if v == "回家" then
+        for _, prop in pairs(workspace.Properties:GetChildren()) do
+            if prop.Owner.Value == lp then cf = prop.OriginSquare.CFrame + Vector3.new(0,10,0); break end
+        end
+    end
+    if cf then carTeleport(cf) end
 end)
 
 print("[誓言面板] 第1段 已加载")
@@ -1975,7 +2105,6 @@ task.spawn(function()
     notify("誓言", string.format("已扫描 %d 个商店", #allStores), 2)
 end)
 
--- 单个购买循环（用 dragToPosition，跟带来树一样）
 local function purchaseCycle(storeInfo, selectedItemName, buyAmount, itemCD)
     local store = storeInfo.object
     local shopItems = storeInfo.shopItems
@@ -2151,7 +2280,7 @@ task.spawn(function()
         return
     end
 
-    -- 快捷操作（也做成可折叠）
+    -- 快捷操作
     local quickBody = makeCollapsible("快捷操作", 100, pBuy)
     makeBtn("一键购买所有蓝图", 101, function()
         task.spawn(function()
@@ -2235,19 +2364,16 @@ task.spawn(function()
             local selectedIdent = valueMap[displayOptions[1]]
             local buyAmount = 1
 
-            -- 1) 选择商品
             makeDropdown("选择商品", 1, displayOptions, displayOptions[1], function(v)
                 selectedIdent = valueMap[v]
             end, false, storeBody)
 
-            -- 2) 购买数量
             makeBox("购买数量", "1", 2, "1", function(v)
                 local n = tonumber(v)
                 if n and n > 0 then buyAmount = math.floor(n)
                 else notify("誓言", "请输入大于0的整数", 2) end
             end, storeBody)
 
-            -- 3) 购买按钮
             makeBtn("购买", 3, function()
                 if not store.npc.id then notify("誓言", "商店 ID 未就绪，请等待", 3); return end
                 if not selectedIdent then notify("誓言", "请先选择商品", 3); return end
@@ -2257,7 +2383,6 @@ task.spawn(function()
                 end)
             end, storeBody)
 
-            -- 4) 停止购买
             makeBtn("停止购买", 4, function()
                 stopPurchaseFlag = true
                 notify("誓言", "已停止", 2)
@@ -2308,5 +2433,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 完整版 已加载（可折叠分区 + 传送刷新 + EvilHeart源码版）")
+print("[誓言面板] 完整版 已加载（功能页含 传送物品/传送地点/汽车传送）")
 showKeyUI()
