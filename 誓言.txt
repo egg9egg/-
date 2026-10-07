@@ -1579,7 +1579,7 @@ makeBtn("删除恶魔鸭墙", 15, function()
     notify("誓言", "已尝试删除恶魔鸭墙", 3)
 end, evilSec)
 
--- ==================== EvilHeart 合成（源码照搬版）====================
+-- ==================== EvilHeart 合成 ====================
 local evilHeartSec = makeCollapsible("EvilHeart 合成", 20, pSynthesize)
 local evilHeathStopFlag = false
 local evilHeathAutoRunning = false
