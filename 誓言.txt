@@ -2,7 +2,7 @@
     誓言面板 - 可折叠分区版
     卡密：誓言NB
     左侧分区：信息 / 功能 / 合成 / 鸭子 / 购买
-    功能页的子分区点击标题可折叠/展开
+    功能页与购买页的子分区点击标题可折叠/展开
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -938,7 +938,7 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
--- 拖动（顶部 50px 高度）
+-- 拖动（顶部 50px）
 do
     local dragging, actualDragging = false, false
     local dragStart, startPos = nil, nil
@@ -985,10 +985,9 @@ end)
 local fc = pages[2]
 local currentSection = fc
 
--- ★ 可折叠分区 ★
+-- ★ 可折叠分区（fc 上使用） ★
 local function sectionHeader(title, order, parent)
     parent = parent or fc
-    -- 非 fc 的用普通标题（如 ID 分区）
     if parent ~= fc then
         local hh = new("Frame",{Size=UDim2.new(1,0,0,32), BackgroundColor3=T.Sidebar, BorderSizePixel=0, LayoutOrder=order}, parent)
         crn(hh,6)
@@ -997,7 +996,6 @@ local function sectionHeader(title, order, parent)
         currentSection = parent
         return hh
     end
-    -- fc 上的可折叠分区
     local container = new("Frame", {
         Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
         LayoutOrder = order, AutomaticSize = Enum.AutomaticSize.Y,
@@ -1152,7 +1150,7 @@ local function makeDropdown(text, order, options, default, onSelect, searchable,
     return container, expand
 end
 
--- ==================== 功能页（保持原功能）====================
+-- ==================== 功能页 ====================
 sectionHeader("带来树", 1)
 local selectedTreeClass = nil
 do
@@ -1241,15 +1239,49 @@ makeToggle("同名选择开关", 17, false, function(s)
     end
 end)
 
-print("[誓言面板] 第1段 已加载")
--- 第2段继续：合成分区 + 鸭子分区 + 购买分区 + 卡密
+print("[誓言面板] 第1段 已加载（可折叠分区版）")
+-- 第2段继续：合成/鸭子/购买分区 + 卡密
 
 -- ==================== 第3分区：合成 ====================
 local pSynthesize = pages[3]
-currentSection = pSynthesize
 
--- 恶魔鸭合成
-sectionHeader("恶魔鸭合成", 1, pSynthesize)
+-- 通用可折叠标题（用于合成/鸭子/购买页）
+local function makeCollapsible(title, order, parent)
+    local container = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
+        LayoutOrder = order, AutomaticSize = Enum.AutomaticSize.Y,
+        ClipsDescendants = false, ZIndex = 1
+    }, parent)
+    new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, container)
+    local header = new("TextButton", {
+        Size = UDim2.new(1, 0, 0, 32), BackgroundColor3 = T.Sidebar,
+        BorderSizePixel = 0, Text = "", AutoButtonColor = false,
+        LayoutOrder = 1, ZIndex = 2
+    }, container)
+    crn(header, 6)
+    new("Frame", {Size = UDim2.fromOffset(3, 16), Position = UDim2.new(0, 8, 0.5, -8), BackgroundColor3 = T.Accent, BorderSizePixel = 0}, header)
+    local lbl = new("TextLabel", {
+        Size = UDim2.new(1, -50, 1, 0), Position = UDim2.new(0, 20, 0, 0),
+        BackgroundTransparency = 1, Text = "▼ " .. title,
+        Font = Enum.Font.GothamBold, TextSize = 14, TextColor3 = T.Accent,
+        TextXAlignment = Enum.TextXAlignment.Left
+    }, header)
+    local body = new("Frame", {
+        Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
+        LayoutOrder = 2, AutomaticSize = Enum.AutomaticSize.Y, ClipsDescendants = false
+    }, container)
+    new("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, body)
+    local expanded = true
+    header.MouseButton1Click:Connect(function()
+        expanded = not expanded
+        body.Visible = expanded
+        lbl.Text = (expanded and "▼ " or "▶ ") .. title
+    end)
+    return body
+end
+
+-- ==================== 恶魔鸭合成 ====================
+local evilSec = makeCollapsible("恶魔鸭合成", 1, pSynthesize)
 local selectedMaterialKeys = {nil, nil, nil}
 local dragTargets = {
     [1] = CFrame.new(-223.74, 61.00, 940.42),
@@ -1261,9 +1293,6 @@ local openPositions = {
     [2] = CFrame.new(-230.03, 59.8, 935.47),
     [3] = CFrame.new(-239.71, 59.8, 927.46),
 }
-local evilCombineStopFlag = false
-local evilAutoRunning = false
-local evilCombineCount = 1
 
 local function getItemKey(model)
     if not model then return nil end
@@ -1334,9 +1363,9 @@ local function selectMaterial(index)
     end)
 end
 
-makeBtn("选择第1个材料", 10, function() selectMaterial(1) end, pSynthesize)
-makeBtn("选择第2个材料", 11, function() selectMaterial(2) end, pSynthesize)
-makeBtn("选择第3个材料", 12, function() selectMaterial(3) end, pSynthesize)
+makeBtn("选择第1个材料", 10, function() selectMaterial(1) end, evilSec)
+makeBtn("选择第2个材料", 11, function() selectMaterial(2) end, evilSec)
+makeBtn("选择第3个材料", 12, function() selectMaterial(3) end, evilSec)
 makeBtn("显示当前已选材料", 13, function()
     local msg = {}
     for i = 1, 3 do
@@ -1349,7 +1378,7 @@ makeBtn("显示当前已选材料", 13, function()
         end
     end
     notify("誓言", table.concat(msg, "\n"), 5)
-end, pSynthesize)
+end, evilSec)
 makeBtn("开始合成恶魔鸭", 14, function()
     for i = 1, 3 do
         if not selectedMaterialKeys[i] then notify("誓言", "材料 "..i.." 未选", 3); return end
@@ -1378,7 +1407,7 @@ makeBtn("开始合成恶魔鸭", 14, function()
         end
         notify("誓言", "合成已触发", 3)
     end)
-end, pSynthesize)
+end, evilSec)
 makeBtn("删除恶魔鸭墙", 15, function()
     pcall(function()
         if workspace:FindFirstChild("Region_Main") and workspace.Region_Main:FindFirstChild("ExplodeMe") then
@@ -1386,10 +1415,10 @@ makeBtn("删除恶魔鸭墙", 15, function()
         end
     end)
     notify("誓言", "已尝试删除恶魔鸭墙", 3)
-end, pSynthesize)
+end, evilSec)
 
--- EvilHeart 合成
-sectionHeader("EvilHeart 合成", 20, pSynthesize)
+-- ==================== EvilHeart 合成（修复版）====================
+local evilHeartSec = makeCollapsible("EvilHeart 合成", 20, pSynthesize)
 local evilHeathStopFlag = false
 local evilHeathAutoRunning = false
 local evilHeathCount = 1
@@ -1399,11 +1428,28 @@ local evilHeathDragTargets = {
     [2] = CFrame.new(-526.625244, -86.957069, -2017.517578),
     [3] = CFrame.new(-536.980713, -86.994179, -2021.368164),
 }
+
 makeBox("EvilHeart合成数量", "1", 21, "1", function(v)
     local n = tonumber(v); if n and n > 0 then evilHeathCount = math.floor(n) end
-end, pSynthesize)
+end, evilHeartSec)
+
+local function checkHeathMaterials()
+    local missing = {}
+    for i = 1, 3 do
+        local key = "ItemName:"..evilHeathMaterials[i]
+        if not findItemByKey(key, true) then table.insert(missing, evilHeathMaterials[i]) end
+    end
+    return missing
+end
+
 makeBtn("自动合成核心（生成EvilHeart）", 22, function()
-    if evilHeathAutoRunning then notify("誓言", "运行中", 3); return end
+    if evilHeathAutoRunning then notify("誓言", "任务已在运行中，请先停止", 3); return end
+    local missing = checkHeathMaterials()
+    if #missing > 0 then
+        notify("誓言", "缺少材料: "..table.concat(missing, ", "), 5)
+        notify("誓言", "请先购买或从背包拖出这些材料", 5)
+        return
+    end
     evilHeathAutoRunning = true
     evilHeathStopFlag = false
     task.spawn(function()
@@ -1411,58 +1457,101 @@ makeBtn("自动合成核心（生成EvilHeart）", 22, function()
         local total = evilHeathCount or 1
         for c = 1, total do
             if evilHeathStopFlag then break end
-            notify("誓言", string.format("第 %d/%d 次合成", c, total), 2)
+            notify("誓言", string.format("=== 第 %d/%d 次 EvilHeart 合成 ===", c, total), 3)
             local done = false
-            for attempt = 1, 3 do
+            for attempt = 1, 4 do
                 if evilHeathStopFlag or done then break end
+                if attempt > 1 then
+                    notify("誓言", string.format("重试第 %d 轮...", attempt), 2)
+                end
                 local preHeaths = {}
                 for _, m in pairs(ws.PlayerModels:GetChildren()) do
                     if m:IsA("Model") and m.Name == "EvilHeart" then preHeaths[m] = true end
                 end
-                for i = 1, 3 do
-                    if evilHeathStopFlag then break end
-                    local key = "ItemName:"..evilHeathMaterials[i]
-                    local item = findItemByKey(key, true)
-                    if item then
-                        local primary = item.PrimaryPart or item:FindFirstChild("Main") or item:FindFirstChildWhichIsA("BasePart")
-                        if primary then
-                            if not item.PrimaryPart then item.PrimaryPart = primary end
-                            lockPlayerAt(primary.CFrame + Vector3.new(2,0,0))
-                            dragToPosition(item, evilHeathDragTargets[i], nil, true)
-                            unlockPlayer()
-                        end
-                    end
-                end
+                local items = {}
                 for i = 1, 3 do
                     if evilHeathStopFlag then break end
                     local item = findItemByKey("ItemName:"..evilHeathMaterials[i], true)
                     if item then
+                        items[i] = item
+                        local primary = item.PrimaryPart or item:FindFirstChild("Main") or item:FindFirstChild("WoodSection") or item:FindFirstChildWhichIsA("BasePart")
+                        if primary then
+                            if not item.PrimaryPart then item.PrimaryPart = primary end
+                            notify("誓言", string.format("拖拽 %s 到 %d 号位", evilHeathMaterials[i], i), 2)
+                            lockPlayerAt(primary.CFrame + Vector3.new(2,0,0))
+                            dragToPosition(item, evilHeathDragTargets[i], nil, true)
+                            unlockPlayer()
+                        end
+                    else
+                        notify("誓言", "找不到材料: "..evilHeathMaterials[i], 3)
+                    end
+                    task.wait(0.2)
+                end
+                for i = 1, 3 do
+                    if evilHeathStopFlag then break end
+                    local item = items[i] or findItemByKey("ItemName:"..evilHeathMaterials[i], true)
+                    if item then
                         local p2 = item.PrimaryPart or item:FindFirstChild("Main") or item:FindFirstChildWhichIsA("BasePart")
-                        if p2 then lockPlayerAt(p2.CFrame + Vector3.new(2,0,0)); task.wait(0.4) end
+                        if p2 then
+                            if not item.PrimaryPart then item.PrimaryPart = p2 end
+                            lockPlayerAt(p2.CFrame + Vector3.new(2,0,0))
+                            task.wait(0.4)
+                        end
+                        notify("誓言", "打开 "..evilHeathMaterials[i], 2)
                         openItem(item)
-                        task.wait(0.3)
+                        task.wait(0.4)
                         unlockPlayer()
                     end
                 end
-                task.wait(2)
-                for _, m in pairs(ws.PlayerModels:GetChildren()) do
-                    if m:IsA("Model") and m.Name == "EvilHeart" and not preHeaths[m] then done = true; break end
+                local deadline = tick() + 10
+                while tick() < deadline do
+                    if evilHeathStopFlag then break end
+                    for _, m in pairs(ws.PlayerModels:GetChildren()) do
+                        if m:IsA("Model") and m.Name == "EvilHeart" and not preHeaths[m] then
+                            done = true
+                            break
+                        end
+                    end
+                    if done then break end
+                    task.wait(0.3)
+                end
+                if done then
+                    local newHeath = nil
+                    for _, m in pairs(ws.PlayerModels:GetChildren()) do
+                        if m:IsA("Model") and m.Name == "EvilHeart" and not preHeaths[m] then newHeath = m; break end
+                    end
+                    if newHeath then
+                        local dp = newHeath.PrimaryPart or newHeath:FindFirstChild("Main") or newHeath:FindFirstChildWhichIsA("BasePart")
+                        if dp then
+                            if not newHeath.PrimaryPart then newHeath.PrimaryPart = dp end
+                            safeTeleport(dp.CFrame + Vector3.new(0,0.5,0))
+                            local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+                            if hrp then dragToPosition(newHeath, hrp.CFrame, nil, true) end
+                        end
+                    end
+                    break
                 end
             end
-            if done then successCount = successCount + 1 end
+            if done then
+                successCount = successCount + 1
+                notify("誓言", string.format("第 %d 次合成成功", c), 3)
+            else
+                notify("誓言", string.format("第 %d 次合成失败", c), 3)
+            end
             task.wait(1)
         end
         evilHeathAutoRunning = false
-        notify("誓言", string.format("EvilHeart 完成：成功 %d 次", successCount), 4)
+        notify("誓言", string.format("EvilHeart 完成：成功 %d/%d", successCount, total), 5)
     end)
-end, pSynthesize)
-makeBtn("停止EvilHeart合成", 23, function()
+end, evilHeartSec)
+makeBtn("停止 EvilHeart 合成", 23, function()
     evilHeathStopFlag = true
+    evilHeathAutoRunning = false
     notify("誓言", "已发送停止信号", 3)
-end, pSynthesize)
+end, evilHeartSec)
 
--- 翻译恶魔鸭提示
-sectionHeader("恶魔鸭提示翻译", 30, pSynthesize)
+-- ==================== 恶魔鸭提示翻译 ====================
+local transSec = makeCollapsible("恶魔鸭提示翻译", 30, pSynthesize)
 local evilTranslatedLabels = {}
 makeBtn("翻译当前恶魔鸭提示", 31, function()
     for _, lbl in ipairs(evilTranslatedLabels) do pcall(function() lbl:Remove() end) end
@@ -1516,16 +1605,15 @@ makeBtn("翻译当前恶魔鸭提示", 31, function()
                 BorderSizePixel = 0, Text = "   "..text, Font = Enum.Font.Gotham,
                 TextSize = 12, TextColor3 = T.Text, TextXAlignment = Enum.TextXAlignment.Left,
                 LayoutOrder = 100 + i
-            }, pSynthesize)
+            }, transSec)
             crn(lbl, 6)
             table.insert(evilTranslatedLabels, lbl)
         end
     end
-end, pSynthesize)
+end, transSec)
 
 -- ==================== 第4分区：鸭子 ====================
 local pDuck = pages[4]
-currentSection = pDuck
 
 local duckTypeList = {
     {name="2018CGift_Duck", display="礼物鸭"},
@@ -1541,13 +1629,13 @@ local selectedDuckName = duckTypeList[1].name
 local batchDuckCount = 1
 local duckBatchStop = false
 
-sectionHeader("鸭子带回", 1, pDuck)
+local duckSec = makeCollapsible("鸭子带回", 1, pDuck)
 makeDropdown("选择鸭子类型", 2, duckDisplayOptions, duckDisplayOptions[1], function(d)
     for _, v in ipairs(duckTypeList) do if v.display == d then selectedDuckName = v.name; break end end
-end, false, pDuck)
+end, false, duckSec)
 makeBox("带回数量(0=无限)", "1", 3, "1", function(v)
     local n = tonumber(v); if n and n >= 0 then batchDuckCount = n end
-end, pDuck)
+end, duckSec)
 
 local function countDucks(duckName, ownOnly)
     local count = 0
@@ -1589,7 +1677,7 @@ makeBtn("带回自己的", 4, function()
         end
         notify("誓言", "完成", 2)
     end)
-end, pDuck)
+end, duckSec)
 makeBtn("带回无归属的", 5, function()
     task.spawn(function()
         for i = 1, (batchDuckCount == 0 and 9999 or batchDuckCount) do
@@ -1599,13 +1687,13 @@ makeBtn("带回无归属的", 5, function()
         end
         notify("誓言", "完成", 2)
     end)
-end, pDuck)
+end, duckSec)
 makeBtn("停止", 6, function()
     duckBatchStop = true
     notify("誓言", "已停止", 2)
-end, pDuck)
+end, duckSec)
 
-sectionHeader("特殊鸭操作", 10, pDuck)
+local specialDuckSec = makeCollapsible("特殊鸭操作", 10, pDuck)
 makeBtn("执行天堂鸭序列", 11, function()
     local char = lp.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -1627,7 +1715,7 @@ makeBtn("执行天堂鸭序列", 11, function()
     end
     safeTeleport(oldCF)
     notify("誓言", "序列完成", 3)
-end, pDuck)
+end, specialDuckSec)
 makeBtn("一键合成复仇剑", 12, function()
     local evil, angel
     for _, m in pairs(ws.PlayerModels:GetChildren()) do
@@ -1654,7 +1742,7 @@ makeBtn("一键合成复仇剑", 12, function()
     dragToPosition(angel, CFrame.new(6447,-90,-4523))
     safeTeleport(CFrame.new(6466,-95,-4546))
     notify("誓言", "复仇剑合成位置已就绪", 3)
-end, pDuck)
+end, specialDuckSec)
 makeBtn("一键合成月亮鸭", 13, function()
     local evil, angel, normal
     for _, m in pairs(ws.PlayerModels:GetChildren()) do
@@ -1681,20 +1769,18 @@ makeBtn("一键合成月亮鸭", 13, function()
     dragToPosition(angel, CFrame.new(-7041.83,391,4906.09))
     safeTeleport(CFrame.new(-7059,390,4881))
     notify("誓言", "月亮鸭合成位置已就绪", 3)
-end, pDuck)
+end, specialDuckSec)
 
 -- ==================== 第5分区：购买 ====================
 local pBuy = pages[5]
-currentSection = pBuy
 
-sectionHeader("商店系统", 1, pBuy)
 local storeStatusLbl = new("TextLabel", {
     Size = UDim2.new(1,0,0,20), BackgroundTransparency=1,
     Text="   正在获取商店 NPC ID...", Font=Enum.Font.Gotham, TextSize=12,
-    TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=2
+    TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=1
 }, pBuy)
-currentSection = pBuy
 
+-- 商店翻译
 local translateMapping = {}
 local function loadStoreTranslations()
     pcall(function()
@@ -1737,7 +1823,7 @@ local storeInfoMapping = {
 }
 local npcMapping = {}
 for storeName, info in pairs(storeInfoMapping) do
-    npcMapping[storeName] = {name=info.name, id=nil, path=info.path, statusLabel=nil}
+    npcMapping[storeName] = {name=info.name, id=nil, path=info.path}
 end
 local stopPurchaseFlag = false
 
@@ -1755,9 +1841,8 @@ local function GetAllCashierIds()
         end
     end)
     pcall(function() rep.NPCDialog.SetChattingValue:InvokeServer(1) end)
-    local timeout = 20
     local startTime = tick()
-    while receivedCount < totalExpected and tick() - startTime < timeout do task.wait(0.2) end
+    while receivedCount < totalExpected and tick() - startTime < 20 do task.wait(0.2) end
     conn:Disconnect()
     pcall(function() rep.NPCDialog.SetChattingValue:InvokeServer(0) end)
     return cashierIds
@@ -1796,15 +1881,16 @@ task.spawn(function()
     notify("誓言", string.format("已扫描 %d 个商店", #allStores), 2)
 end)
 
+-- 单个购买循环（用 dragToPosition，跟带来树一样）
 local function purchaseCycle(storeInfo, selectedItemName, buyAmount, itemCD)
     local store = storeInfo.object
     local shopItems = storeInfo.shopItems
     local npcInfo = storeInfo.npc
-    if not npcInfo or not npcInfo.id then notify("错误", "商店 "..storeInfo.name.." NPC ID 无效", 5); return false end
+    if not npcInfo or not npcInfo.id then notify("誓言", "NPC ID 无效", 4); return false end
     local npcChar = store:FindFirstChild(npcInfo.path)
-    if not npcChar then notify("错误", "找不到NPC", 3); return false end
+    if not npcChar then notify("誓言", "找不到NPC", 3); return false end
     local counter = store:FindFirstChild("Counter")
-    if not counter or not counter:IsA("BasePart") then notify("错误", "无Counter", 3); return false end
+    if not counter or not counter:IsA("BasePart") then notify("誓言", "无Counter", 3); return false end
     local NPCDialog = rep:WaitForChild("NPCDialog")
 
     local function sendPurchaseAndCollect()
@@ -1832,9 +1918,9 @@ local function purchaseCycle(storeInfo, selectedItemName, buyAmount, itemCD)
         return nil
     end
 
-    local originalPos = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    if not originalPos then notify("错误", "无法获取玩家位置", 3); return false end
-    originalPos = originalPos.CFrame
+    local hrp0 = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp0 then notify("誓言", "无法获取玩家位置", 3); return false end
+    local originalPos = hrp0.CFrame
 
     local successCycles = 0
     for i = 1, buyAmount do
@@ -1861,13 +1947,13 @@ local function purchaseCycle(storeInfo, selectedItemName, buyAmount, itemCD)
                 end
             end
         end
-        if not itemModel then break end
+        if not itemModel then notify("誓言", "商品不在货架", 3); break end
         local itemPrimary = itemModel.PrimaryPart or itemModel:FindFirstChild("WoodSection") or itemModel:FindFirstChild("Main") or itemModel:FindFirstChildWhichIsA("BasePart")
         if not itemPrimary then break end
         if not itemModel.PrimaryPart then itemModel.PrimaryPart = itemPrimary end
         lockPlayerAt(itemPrimary.CFrame + Vector3.new(0,3,0))
         task.wait(0.2)
-        dragToPosition(itemModel, counter.CFrame + Vector3.new(0,0.6,0))
+        dragToPosition(itemModel, counter.CFrame + Vector3.new(0,0.6,0), nil, true)
         lockPlayerAt(counter.CFrame + Vector3.new(0,3,0))
         task.wait(0.1)
         local allItems = {}
@@ -1885,12 +1971,12 @@ local function purchaseCycle(storeInfo, selectedItemName, buyAmount, itemCD)
                     local part = item:FindFirstChild("Main") or item:FindFirstChild("WoodSection") or item:FindFirstChildWhichIsA("BasePart")
                     if part then item.PrimaryPart = part end
                 end
-                dragToPosition(item, originalPos)
+                dragToPosition(item, originalPos, nil, true)
                 task.wait(0.05)
             end
         end
         successCycles = successCycles + 1
-        if i < buyAmount and not stopPurchaseFlag then task.wait(1) end
+        if i < buyAmount and not stopPurchaseFlag then task.wait(0.5) end
     end
     unlockPlayer()
     safeTeleport(originalPos)
@@ -1931,7 +2017,7 @@ _G.qSnowBuyBlueprintBox = function(blueprintName)
     if not itemModel.PrimaryPart then itemModel.PrimaryPart = primary end
     lockPlayerAt(primary.CFrame + Vector3.new(0,3,0))
     task.wait(0.3)
-    dragToPosition(itemModel, counter.CFrame + Vector3.new(0,0.6,0))
+    dragToPosition(itemModel, counter.CFrame + Vector3.new(0,0.6,0), nil, true)
     task.wait(0.09)
     lockPlayerAt(counter.CFrame + Vector3.new(0,3,0))
     task.wait(0.1)
@@ -1960,22 +2046,19 @@ local function getDisplayName(en)
     return en
 end
 
+-- 动态生成商店 UI
 task.spawn(function()
     task.wait(4)
     if #allStores == 0 then
         new("TextLabel", {Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0,
             Text="   未找到商店，请检查游戏环境", Font=Enum.Font.GothamMedium,
-            TextSize=13, TextColor3=T.Red, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=3
+            TextSize=13, TextColor3=T.Red, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=99
         }, pBuy)
         return
     end
 
-    local quickHeader = new("Frame", {Size=UDim2.new(1,0,0,32), BackgroundColor3=T.Sidebar, BorderSizePixel=0, LayoutOrder=100}, pBuy)
-    crn(quickHeader, 6)
-    new("Frame", {Size=UDim2.fromOffset(3,16), Position=UDim2.new(0,8,0.5,-8), BackgroundColor3=T.Accent, BorderSizePixel=0}, quickHeader)
-    new("TextLabel", {Size=UDim2.new(1,-30,1,0), Position=UDim2.new(0,20,0,0), BackgroundTransparency=1,
-        Text="快捷操作", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left}, quickHeader)
-
+    -- 快捷操作（也做成可折叠）
+    local quickBody = makeCollapsible("快捷操作", 100, pBuy)
     makeBtn("一键购买所有蓝图", 101, function()
         task.spawn(function()
             stopPurchaseFlag = false
@@ -2022,16 +2105,13 @@ task.spawn(function()
                 notify("誓言", string.format("购买完成，新增 %d", bought), 5)
             end
         end)
-    end, pBuy)
+    end, quickBody)
 
+    -- 每个商店一个可折叠分区
     for _, store in ipairs(allStores) do
         local storeName = store.name
         local storeDisplay = getStoreDisplayName(storeName)
-        local sec = new("Frame", {Size=UDim2.new(1,0,0,32), BackgroundColor3=T.Sidebar, BorderSizePixel=0, LayoutOrder=200 + (#pBuy:GetChildren())}, pBuy)
-        crn(sec, 6)
-        new("Frame", {Size=UDim2.fromOffset(3,16), Position=UDim2.new(0,8,0.5,-8), BackgroundColor3=T.Accent, BorderSizePixel=0}, sec)
-        new("TextLabel", {Size=UDim2.new(1,-30,1,0), Position=UDim2.new(0,20,0,0), BackgroundTransparency=1,
-            Text=storeDisplay, Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Accent, TextXAlignment=Enum.TextXAlignment.Left}, sec)
+        local storeBody = makeCollapsible(storeDisplay, 200, pBuy)
 
         local rawItems = {}
         for _, item in pairs(store.shopItems:GetChildren()) do table.insert(rawItems, {name=item.Name, model=item}) end
@@ -2056,28 +2136,38 @@ task.spawn(function()
         if #displayOptions == 0 then
             new("TextLabel", {Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0,
                 Text="   暂无商品", Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Sub,
-                TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=201 + #pBuy:GetChildren()}, pBuy)
+                TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=1}, storeBody)
         else
             local selectedIdent = valueMap[displayOptions[1]]
             local buyAmount = 1
-            makeDropdown("选择商品", 210 + #pBuy:GetChildren(), displayOptions, displayOptions[1], function(v)
+
+            -- 1) 选择商品
+            makeDropdown("选择商品", 1, displayOptions, displayOptions[1], function(v)
                 selectedIdent = valueMap[v]
-            end, false, pBuy)
-            makeBox("循环次数", "1", 220 + #pBuy:GetChildren(), "1", function(v)
-                local n = tonumber(v); if n and n > 0 then buyAmount = n end
-            end, pBuy)
-            makeBtn("开始循环购买", 230 + #pBuy:GetChildren(), function()
-                if not store.npc.id then notify("誓言", "ID未就绪", 3); return end
-                if not selectedIdent then notify("誓言", "未选商品", 3); return end
+            end, false, storeBody)
+
+            -- 2) 购买数量
+            makeBox("购买数量", "1", 2, "1", function(v)
+                local n = tonumber(v)
+                if n and n > 0 then buyAmount = math.floor(n)
+                else notify("誓言", "请输入大于0的整数", 2) end
+            end, storeBody)
+
+            -- 3) 购买按钮
+            makeBtn("购买", 3, function()
+                if not store.npc.id then notify("誓言", "商店 ID 未就绪，请等待", 3); return end
+                if not selectedIdent then notify("誓言", "请先选择商品", 3); return end
                 stopPurchaseFlag = false
                 task.spawn(function()
                     purchaseCycle(store, store.isMusicStore and nil or selectedIdent, buyAmount, store.isMusicStore and selectedIdent or nil)
                 end)
-            end, pBuy)
-            makeBtn("停止购买", 240 + #pBuy:GetChildren(), function()
+            end, storeBody)
+
+            -- 4) 停止购买
+            makeBtn("停止购买", 4, function()
                 stopPurchaseFlag = true
                 notify("誓言", "已停止", 2)
-            end, pBuy)
+            end, storeBody)
         end
     end
 end)
