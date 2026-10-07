@@ -23,15 +23,15 @@ local T = {
     White=Color3.fromRGB(255,255,255), Text=Color3.fromRGB(232,234,238), Sub=Color3.fromRGB(138,141,150),
     Stroke=Color3.fromRGB(52,52,58), Red=Color3.fromRGB(240,90,80), Yellow=Color3.fromRGB(250,190,60),
 }
-local function new(c,p,par) local i=Instance.new(c); for k,v in next,p do i[k]=v end; if par then i.Parent=par end; return i end
-local function crn(p,r) return new("UICorner",{CornerRadius=UDim.new(0,r or 6)},p) end
-local function strk(p,c,t,tr) return new("UIStroke",{Color=c or T.Stroke,Thickness=t or 1,Transparency=tr or 0,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},p) end
+function new(c,p,par) local i=Instance.new(c); for k,v in next,p do i[k]=v end; if par then i.Parent=par end; return i end
+function crn(p,r) return new("UICorner",{CornerRadius=UDim.new(0,r or 6)},p) end
+function strk(p,c,t,tr) return new("UIStroke",{Color=c or T.Stroke,Thickness=t or 1,Transparency=tr or 0,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},p) end
 
 for _,n in ipairs({"OathPanel","OathKeyUI"}) do
     local o = PG:FindFirstChild(n); if o then o:Destroy() end
 end
 
-local function notify(title, desc, duration)
+function notify(title, desc, duration)
     pcall(function()
         game:GetService("StarterGui"):SetCore("SendNotification", {
             Title=tostring(title or "誓言"), Text=tostring(desc or ""), Duration=duration or 3,
@@ -45,10 +45,10 @@ local function uprightCFrame(hrp, cf)
     local yRot = hrp and hrp.Orientation.Y or 0
     return CFrame.new(pos) * CFrame.Angles(0, math.rad(yRot), 0)
 end
-local function unlockPlayer()
+function unlockPlayer()
     if lockPlayerConn then lockPlayerConn:Disconnect(); lockPlayerConn = nil end
 end
-local function lockPlayerAt(cf)
+function lockPlayerAt(cf)
     unlockPlayer()
     local function hold()
         local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
@@ -61,7 +61,7 @@ local function lockPlayerAt(cf)
     hold()
     lockPlayerConn = RS.Heartbeat:Connect(hold)
 end
-local function safeTeleport(cf)
+function safeTeleport(cf)
     local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
     if hrp then
         hrp.CFrame = uprightCFrame(hrp, cf)
@@ -76,7 +76,7 @@ local function getNextDragID() bai.dragIDCounter = bai.dragIDCounter + 1; return
 local DRAG_TOTAL, DRAG_SET_START, DRAG_SET_COUNT = 60, 28, 2
 local DRAG_SET_INTERVAL, DRAG_REFRESH_INTERVAL, DRAG_AFTER_WAIT = 0.01, 0.01, 0.01
 
-local function dragToPosition(model, targetCF, callback, waitFinish)
+function dragToPosition(model, targetCF, callback, waitFinish)
     if not model or not model.Parent then if callback then callback() end; return end
     local primary = model.PrimaryPart or model:FindFirstChild("WoodSection") or model:FindFirstChild("Main") or model:FindFirstChildWhichIsA("BasePart")
     if not primary then if callback then callback() end; return end
@@ -992,7 +992,7 @@ end)
 local fc = pages[2]
 local currentSection = fc
 
-local function sectionHeader(title, order, parent)
+function sectionHeader(title, order, parent)
     parent = parent or fc
     if parent ~= fc then
         local hh = new("Frame",{Size=UDim2.new(1,0,0,32), BackgroundColor3=T.Sidebar, BorderSizePixel=0, LayoutOrder=order}, parent)
@@ -1036,7 +1036,7 @@ local function sectionHeader(title, order, parent)
     return container
 end
 
-local function makeBtn(text, order, cb, parent)
+function makeBtn(text, order, cb, parent)
     parent = parent or currentSection
     local btn = new("TextButton",{Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0, Text="   "..text, Font=Enum.Font.GothamMedium, TextSize=14, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, AutoButtonColor=false, LayoutOrder=order}, parent)
     crn(btn,8); strk(btn,Color3.fromRGB(48,48,52),1,0.3)
@@ -1047,7 +1047,7 @@ local function makeBtn(text, order, cb, parent)
     end)
     return btn
 end
-local function makeBox(text, placeholder, order, default, cb, parent)
+function makeBox(text, placeholder, order, default, cb, parent)
     parent = parent or currentSection
     local row = new("Frame",{Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0, LayoutOrder=order}, parent)
     crn(row,8); strk(row,Color3.fromRGB(48,48,52),1,0.3)
@@ -1057,7 +1057,7 @@ local function makeBox(text, placeholder, order, default, cb, parent)
     box.FocusLost:Connect(function() if cb then pcall(cb, box.Text) end end)
     return box
 end
-local function makeToggle(text, order, defaultState, callback, parent)
+function makeToggle(text, order, defaultState, callback, parent)
     parent = parent or currentSection
     local state = defaultState
     local btn = new("TextButton", {Size = UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0, Text="", AutoButtonColor=false, LayoutOrder=order}, parent)
@@ -1077,7 +1077,7 @@ local function makeToggle(text, order, defaultState, callback, parent)
     return btn
 end
 
-local function makeDropdown(text, order, options, default, onSelect, searchable, parent)
+function makeDropdown(text, order, options, default, onSelect, searchable, parent)
     parent = parent or currentSection
     local HEADER_H, ITEM_H = 40, 30
     local SEARCH_H = 34
@@ -1379,6 +1379,14 @@ makeDropdown("选择地点", 31, carTeleportLocations, "回家", function(v)
         ["罗布克斯商店"] = CFrame.new(652,4,-1565),
         ["肯德坤专卖店"] = CFrame.new(100,4,-455),
         ["秋季商店"] = CFrame.new(6004,4,33),
+        ["三叉戟"] = CFrame.new(-375,14,-1331),
+        ["月亮剑"] = CFrame.new(-7642,326,4225),
+        ["月亮鸭"] = CFrame.new(-7065,394,4893),
+        ["天堂剑光环"] = CFrame.new(-657,25,-385),
+        ["天堂剑祭坛"] = CFrame.new(1658,408,3278),
+        ["地狱火祭坛"] = CFrame.new(-1784,342,1473),
+        ["厄运祭坛"] = CFrame.new(-1499,-248,289),
+        ["厄运光环"] = CFrame.new(-1282,23,-86),
     }
     local cf = map[v]
     if v == "回家" then
@@ -1393,7 +1401,7 @@ print("[誓言面板] 第1段 已加载")
 -- ==================== 第3分区：合成 ====================
 local pSynthesize = pages[3]
 
-local function makeCollapsible(title, order, parent)
+function makeCollapsible(title, order, parent)
     local container = new("Frame", {
         Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
         LayoutOrder = order, AutomaticSize = Enum.AutomaticSize.Y,
@@ -1857,7 +1865,6 @@ local function bringDuckc(duckName, ownOnly, targetCF)
     if not primary then return false end
     if not d.PrimaryPart then d.PrimaryPart = primary end
 
-    -- ★ 跟带来树一样：锁在鸭子旁边，请求所有权，再拖回原位置
     lockPlayerAt(primary.CFrame + Vector3.new(0, 3, 0))
     task.wait(0.15)
     for _ = 1, 3 do
