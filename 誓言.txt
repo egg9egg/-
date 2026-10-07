@@ -1,10 +1,7 @@
 --[[
-    誓言面板 - 可折叠分区版（完整）
+    誓言面板 - 完整合并版
     卡密：誓言NB
     左侧分区：信息 / 功能 / 合成 / 鸭子 / 购买
-    功能页与购买页的子分区点击标题可折叠/展开
-    传送页带刷新玩家列表按钮
-    EvilHeart 合成源码照搬版
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -42,7 +39,6 @@ local function notify(title, desc, duration)
     end)
 end
 
--- ==================== 基础工具 ====================
 local lockPlayerConn = nil
 local function uprightCFrame(hrp, cf)
     local pos = cf.Position
@@ -76,7 +72,6 @@ end
 
 local bai = { dragIDCounter=0, cachedSawmill=nil, cachedSawmillPos=nil }
 
--- ==================== 拖拽 ====================
 local function getNextDragID() bai.dragIDCounter = bai.dragIDCounter + 1; return bai.dragIDCounter end
 local DRAG_TOTAL, DRAG_SET_START, DRAG_SET_COUNT = 60, 28, 2
 local DRAG_SET_INTERVAL, DRAG_REFRESH_INTERVAL, DRAG_AFTER_WAIT = 0.01, 0.01, 0.01
@@ -149,7 +144,6 @@ local function dragToPosition(model, targetCF, callback, waitFinish)
     if callback then callback() end
 end
 
--- ==================== 树木数据 ====================
 local TREE_CN = {
 Generic="普通树",GenericDead="枯木",GenericFall="落叶树",GenericGold="金树",GenericPrime="原始树",
 GenericSpecial="特殊树",GoldSwampy="沼泽黄金",GreenSwampy="沼泽青",Cherry="樱花树",
@@ -226,7 +220,6 @@ local treeNames = {}
 for name in pairs(treeMapping) do table.insert(treeNames, name) end
 sortTreeNames(treeNames)
 
--- ==================== 找树/斧头 ====================
 local function findUncutTree(treeClass)
     local playerPos = lp.Character and lp.Character.HumanoidRootPart.Position
     if not playerPos then return nil end
@@ -405,7 +398,6 @@ local function isInDangerZone(pos)
         and pos.Z >= DANGER_MIN_Z and pos.Z <= DANGER_MAX_Z
 end
 
--- ==================== 砍树 ====================
 local function bringTreeOld(treeClass, progressText)
     local weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
@@ -542,7 +534,6 @@ local function runBringTree(treeClass, progressText)
     else return bringTreeOld(treeClass, progressText) end
 end
 
--- ==================== 选择锯木机 ====================
 local function selectSawmill()
     notify("誓言", "请点击锯木机任意部件", 3)
     local conn
@@ -577,7 +568,6 @@ local function selectSawmill()
     end)
 end
 
--- ==================== 一键加工 ====================
 local function selectBestWeaponByPlan(treeClass)
     if selectedPlan == 2 then return selectBestWeaponNew(treeClass)
     else return selectBestWeaponOld(treeClass) end
@@ -692,7 +682,6 @@ local function startDecomposeSelection()
     end)
 end
 
--- ==================== 传送 ====================
 local teleportTargetCF = nil
 local teleportTargetPlayer = lp.Name
 local teleportMarker = nil
@@ -828,8 +817,6 @@ local function teleportSelectedItems()
     notify("誓言", string.format("传送完成 %d/%d", successCount, #all), 3)
 end
 
--- ==================== UI 主面板 ====================
--- ★ 修改：Enabled=true，加载即显示
 local OathGui = new("ScreenGui",{Name="OathPanel", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, Enabled=true}, PG)
 local Main = new("Frame",{Size=UDim2.fromOffset(540,340), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Bg, BorderSizePixel=0, ClipsDescendants=true}, OathGui)
 crn(Main,16); strk(Main,T.Stroke,1)
@@ -871,7 +858,6 @@ for i, name in ipairs(tabs) do
 end
 pages[1].Visible = true; tabBtns[1].label.TextColor3 = T.Text
 
--- 信息页
 local info = pages[1]
 local ic = new("Frame",{Size=UDim2.new(1,0,0,90), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, LayoutOrder=0}, info)
 crn(ic,10)
@@ -880,7 +866,6 @@ new("Frame",{Size=UDim2.fromScale(1,1), BackgroundColor3=Color3.fromRGB(0,0,0), 
 new("TextLabel",{Size=UDim2.new(1,-20,0,30), Position=UDim2.new(0,10,0,10), BackgroundTransparency=1, Text=GAME_TITLE.." · 誓言面板", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Text, ZIndex=3}, ic)
 new("TextLabel",{Size=UDim2.new(1,-20,0,20), Position=UDim2.new(0,10,0,40), BackgroundTransparency=1, Text="作者：是我太傻   QQ：3767465890   群：1109682737", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, ZIndex=3}, ic)
 
--- 窗口控制
 local btnHolder = new("Frame",{Size=UDim2.fromOffset(50, 18), Position=UDim2.new(1, -14, 0, 14), AnchorPoint=Vector2.new(1, 0), BackgroundTransparency=1, ZIndex=10}, Main)
 local function makeWinDot(color, x, cb)
     local btn = new("TextButton",{Size=UDim2.fromOffset(16, 16), Position=UDim2.new(0, x, 0, 0), BackgroundColor3=color, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=10}, btnHolder)
@@ -941,7 +926,6 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
--- 拖动（顶部 50px）
 do
     local dragging, actualDragging = false, false
     local dragStart, startPos = nil, nil
@@ -984,7 +968,6 @@ UIS.InputBegan:Connect(function(input, proc)
     if input.KeyCode == Enum.KeyCode.RightShift then OathGui.Enabled = not OathGui.Enabled end
 end)
 
--- ==================== 通用工厂 ====================
 local fc = pages[2]
 local currentSection = fc
 
@@ -1165,7 +1148,6 @@ local function makeDropdown(text, order, options, default, onSelect, searchable,
     return container, expand, setOptions
 end
 
--- ==================== 功能页 ====================
 sectionHeader("带来树", 1)
 local selectedTreeClass = nil
 do
@@ -1207,7 +1189,6 @@ sectionHeader("一键加工", 7)
 makeBtn("选择锯木机", 8, selectSawmill)
 makeBtn("一键加工", 9, startDecomposeSelection)
 
--- ★ 修改：分区名改为 "传送物品"
 sectionHeader("传送物品", 10)
 local tpSetOptions = nil
 do
@@ -1272,7 +1253,6 @@ makeToggle("同名选择开关", 18, false, function(s)
     end
 end)
 
--- ★ 修改：新增 "传送" 分区
 sectionHeader("传送", 19)
 
 local teleportLocations = {
@@ -1355,7 +1335,6 @@ print("[誓言面板] 第1段 已加载")
 -- ==================== 第3分区：合成 ====================
 local pSynthesize = pages[3]
 
--- 通用可折叠标题
 local function makeCollapsible(title, order, parent)
     local container = new("Frame", {
         Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
@@ -1539,7 +1518,6 @@ local evilHeathDragTargets = {
     [3] = CFrame.new(-536.980713, -86.994179, -2021.368164),
 }
 
--- 源码原版：等待物品就绪
 local function waitItemReady(item, timeout)
     timeout = timeout or 3
     local waited = 0
@@ -1554,7 +1532,6 @@ local function waitItemReady(item, timeout)
     return item and item.Parent and (item:FindFirstChild("ItemName") ~= nil or item:FindFirstChild("PurchasedBoxItemName") ~= nil)
 end
 
--- 源码原版：等待新 EvilHeart 出现
 local function waitEvilHeartAppear(timeout, preSet)
     local deadline = os.clock() + (timeout or 10)
     while os.clock() < deadline do
@@ -1569,7 +1546,6 @@ local function waitEvilHeartAppear(timeout, preSet)
     return false
 end
 
--- 单次合成（源码 startEvilHeartCombine 照搬）
 local function startEvilHeartCombine(basePos)
     local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
     local originalPos = basePos or (hrp and hrp.CFrame)
@@ -1941,77 +1917,272 @@ makeBtn("一键合成月亮鸭", 13, function()
 end, specialDuckSec)
 
 print("[誓言面板] 第2段 已加载")
--- 第3段继续：购买分区 + 卡密 UI
--- ==================== 第5分区：购买 ====================
-local pBuy = pages[5]
 
--- ==================== 卡密 UI ====================
-local cardSec = makeCollapsible("卡密验证", 1, pBuy)
+-- ==================== 卡密系统（源码照搬版）====================
+local AUTH_URL = "http://qinscript.lol/api/card/verify"
+local AUTH_BYPASS_ON_FAIL = false
+local CARD_FILE = "DexPlusPlusSetting.json"
 
-local cardStateKey = nil
-local cardInput = makeBox("输入卡密", "誓言NB", 2, "", function(v)
-    cardStateKey = v
-end, cardSec)
+local function urlenc(s)
+    local ok, enc = pcall(function() return game:GetService("HttpService"):UrlEncode(tostring(s)) end)
+    if ok and enc then return enc end
+    return tostring(s)
+end
 
-makeBtn("验证卡密", 3, function()
-    local v = cardStateKey or ""
-    if v == "" then notify("誓言", "请输入卡密", 3); return end
-    if KEYS[v] then
-        notify("誓言", "✅ 卡密验证成功", 4)
-    else
-        notify("誓言", "❌ 卡密无效", 4)
+local function getHwid()
+    local ok, cid = pcall(function()
+        return game:GetService("RbxAnalyticsService"):GetClientId()
+    end)
+    if ok and cid and cid ~= "" then return tostring(cid) end
+    local uid = game:GetService("Players").LocalPlayer.UserId or 0
+    return "FALLBACK_" .. tostring(uid)
+end
+
+local function getUsername()
+    local plr = game:GetService("Players").LocalPlayer
+    if plr and plr.Name then return tostring(plr.Name) end
+    return ""
+end
+
+local function verifyCard(key, hwid, username)
+    local keyStr = tostring(key or "")
+    if AUTH_BYPASS_ON_FAIL and keyStr == "" then
+        return true, "占位模式（未输入卡密），已放行"
     end
-end, cardSec)
-
-makeBtn("清空输入", 4, function()
-    if cardInput then cardInput.Text = "" end
-    cardStateKey = nil
-    notify("誓言", "已清空输入", 2)
-end, cardSec)
-
--- ==================== 购买分区 ====================
-local buySec = makeCollapsible("购买", 10, pBuy)
-
-makeBox("商品名称", "输入要购买的商品名", 11, "", function(v)
-    _G.oathBuyItemName = v
-end, buySec)
-
-makeBox("购买数量", "1", 12, "1", function(v)
-    local n = tonumber(v); if n and n > 0 then _G.oathBuyAmount = math.floor(n) end
-end, buySec)
-
-makeBtn("开始购买", 13, function()
-    local name = _G.oathBuyItemName
-    local amount = _G.oathBuyAmount or 1
-    if not name or name == "" then notify("誓言", "请输入商品名称", 3); return end
-    if _G.qSnowBuyBlueprintBox then
-        task.spawn(function()
-            for i = 1, amount do
-                local box, err = _G.qSnowBuyBlueprintBox(name)
-                if box then
-                    notify("誓言", string.format("购买成功 (%d/%d)", i, amount), 2)
-                    local rb = box:FindFirstChild("ButtonRemote_Main")
-                    if rb then
-                        pcall(function() rep.Interaction.RemoteProxy:FireServer(rb) end)
-                    elseif box:FindFirstChild("BoxItemName") or box:FindFirstChild("PurchasedBoxItemName") then
-                        pcall(function() rep.Interaction.ClientInteracted:FireServer(box, 'Open box') end)
-                    end
-                    task.wait(0.4)
-                else
-                    notify("誓言", "购买失败: " .. tostring(err), 3)
-                    break
-                end
-            end
-        end)
-    else
-        notify("誓言", "自动购买模块未加载", 3)
+    local url = AUTH_URL .. "?key=" .. urlenc(keyStr)
+        .. "&hwid=" .. urlenc(tostring(hwid))
+        .. "&username=" .. urlenc(username or "")
+    local ok, result = pcall(function()
+        return game:HttpGet(url)
+    end)
+    if not ok or not result then
+        if AUTH_BYPASS_ON_FAIL then return true, "占位模式（服务器未就绪），已放行" end
+        return false, "网络错误，无法连接验证服务器"
     end
-end, buySec)
+    if string.find(result, "OK", 1, true) then
+        return true, "卡密有效"
+    end
+    return false, (result ~= "" and result or "卡密无效")
+end
 
-makeBtn("停止购买", 14, function()
-    if _G.qSnowResetBuyStopFlag then pcall(_G.qSnowResetBuyStopFlag) end
-    notify("誓言", "已发送停止信号", 2)
-end, buySec)
+local function loadSavedCardKey()
+    if writefile and readfile then
+        local ok, data = pcall(readfile, CARD_FILE)
+        if ok and data then
+            data = string.gsub(tostring(data), "%s", "")
+            if data ~= "" then return data end
+        end
+    end
+    return nil
+end
+
+local function saveCardKey(key)
+    if writefile then
+        pcall(writefile, CARD_FILE, tostring(key))
+    end
+end
+
+local function askCardKey(callback)
+    local lp = game:GetService("Players").LocalPlayer
+    local pg = lp and lp:FindFirstChild("PlayerGui")
+    if not pg then
+        return callback(nil)
+    end
+
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "QSnowCardKey"
+    sg.ResetOnSpawn = false
+    sg.Parent = pg
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 300, 0, 118)
+    frame.Position = UDim2.new(1, -312, 0, 12)
+    frame.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+    frame.BorderSizePixel = 0
+    frame.Parent = sg
+    local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 10); corner.Parent = frame
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -24, 0, 26)
+    title.Position = UDim2.new(0, 12, 0, 8)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.SourceSansBold
+    title.TextSize = 15
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Text = "输入卡密"
+    title.Parent = frame
+
+    local box = Instance.new("TextBox")
+    box.Size = UDim2.new(0, 276, 0, 32)
+    box.Position = UDim2.new(0, 12, 0, 38)
+    box.PlaceholderText = "请输入卡密"
+    box.Text = ""
+    box.ClearTextOnFocus = false
+    box.BackgroundColor3 = Color3.fromRGB(40, 40, 46)
+    box.TextColor3 = Color3.fromRGB(255, 255, 255)
+    box.TextSize = 15
+    box.Font = Enum.Font.SourceSans
+    box.BorderSizePixel = 0
+    box.Parent = frame
+    local boxCorner = Instance.new("UICorner"); boxCorner.CornerRadius = UDim.new(0, 6); boxCorner.Parent = box
+
+    local okBtn = Instance.new("TextButton")
+    okBtn.Size = UDim2.new(0, 126, 0, 30)
+    okBtn.Position = UDim2.new(0, 12, 0, 80)
+    okBtn.BackgroundColor3 = Color3.fromRGB(0, 168, 90)
+    okBtn.Text = "确认"
+    okBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    okBtn.TextSize = 14
+    okBtn.BorderSizePixel = 0
+    okBtn.AutoButtonColor = true
+    okBtn.Parent = frame
+    local okCorner = Instance.new("UICorner"); okCorner.CornerRadius = UDim.new(0, 6); okCorner.Parent = okBtn
+
+    local noBtn = Instance.new("TextButton")
+    noBtn.Size = UDim2.new(0, 126, 0, 30)
+    noBtn.Position = UDim2.new(0, 146, 0, 80)
+    noBtn.BackgroundColor3 = Color3.fromRGB(92, 92, 98)
+    noBtn.Text = "取消"
+    noBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    noBtn.TextSize = 14
+    noBtn.BorderSizePixel = 0
+    noBtn.AutoButtonColor = true
+    noBtn.Parent = frame
+    local noCorner = Instance.new("UICorner"); noCorner.CornerRadius = UDim.new(0, 6); noCorner.Parent = noBtn
+
+    local done = false
+    local function finish(v)
+        if done then return end
+        done = true
+        sg:Destroy()
+        callback(v)
+    end
+
+    okBtn.MouseButton1Click:Connect(function() finish(box.Text) end)
+    noBtn.MouseButton1Click:Connect(function() finish(nil) end)
+end
+
+local function askLoadBlueprint(callback)
+    local lp = game:GetService("Players").LocalPlayer
+    local pg = lp and lp:FindFirstChild("PlayerGui")
+    if not pg then
+        return callback(false)
+    end
+
+    local sg = Instance.new("ScreenGui")
+    sg.Name = "QSnowConfirm"
+    sg.ResetOnSpawn = false
+    sg.Parent = pg
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 300, 0, 110)
+    frame.Position = UDim2.new(1, -312, 0, 12)
+    frame.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+    frame.BorderSizePixel = 0
+    frame.Parent = sg
+    local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 10); corner.Parent = frame
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -24, 0, 26)
+    title.Position = UDim2.new(0, 12, 0, 8)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.SourceSansBold
+    title.TextSize = 15
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Text = "是否加载蓝图功能？(第一次体验N/A小时)"
+    title.Parent = frame
+
+    local countLabel = Instance.new("TextLabel")
+    countLabel.Size = UDim2.new(1, -24, 0, 20)
+    countLabel.Position = UDim2.new(0, 12, 0, 36)
+    countLabel.BackgroundTransparency = 1
+    countLabel.Font = Enum.Font.SourceSans
+    countLabel.TextSize = 13
+    countLabel.TextColor3 = Color3.fromRGB(185, 185, 190)
+    countLabel.TextXAlignment = Enum.TextXAlignment.Left
+    countLabel.Text = "15 秒后自动关闭"
+    countLabel.Parent = frame
+
+    local okBtn = Instance.new("TextButton")
+    okBtn.Size = UDim2.new(0, 126, 0, 30)
+    okBtn.Position = UDim2.new(0, 12, 0, 62)
+    okBtn.BackgroundColor3 = Color3.fromRGB(0, 168, 90)
+    okBtn.Text = "加载蓝图"
+    okBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    okBtn.TextSize = 14
+    okBtn.BorderSizePixel = 0
+    okBtn.AutoButtonColor = true
+    okBtn.Parent = frame
+    local okCorner = Instance.new("UICorner"); okCorner.CornerRadius = UDim.new(0, 6); okCorner.Parent = okBtn
+
+    local noBtn = Instance.new("TextButton")
+    noBtn.Size = UDim2.new(0, 126, 0, 30)
+    noBtn.Position = UDim2.new(0, 146, 0, 62)
+    noBtn.BackgroundColor3 = Color3.fromRGB(92, 92, 98)
+    noBtn.Text = "不加载"
+    noBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    noBtn.TextSize = 14
+    noBtn.BorderSizePixel = 0
+    noBtn.AutoButtonColor = true
+    noBtn.Parent = frame
+    local noCorner = Instance.new("UICorner"); noCorner.CornerRadius = UDim.new(0, 6); noCorner.Parent = noBtn
+
+    local done = false
+    local function finish(v)
+        if done then return end
+        done = true
+        sg:Destroy()
+        callback(v)
+    end
+
+    okBtn.MouseButton1Click:Connect(function() finish(true) end)
+    noBtn.MouseButton1Click:Connect(function() finish(false) end)
+
+    task.spawn(function()
+        local remaining = 15
+        while remaining > 0 and not done do
+            countLabel.Text = tostring(remaining) .. " 秒后自动关闭"
+            task.wait(1)
+            remaining = remaining - 1
+        end
+        finish(false)
+    end)
+end
+
+-- ==================== 启动卡密验证流程 ====================
+local hwid = getHwid()
+local username = getUsername()
+local savedKey = loadSavedCardKey()
+
+askLoadBlueprint(function(confirmed)
+    if not confirmed then return end
+
+    if savedKey and savedKey ~= "" then
+        local ok, msg = verifyCard(savedKey, hwid, username)
+        if ok then
+            notify("誓言", "卡密验证成功（已保存的卡密）", 3)
+            return
+        end
+        notify("誓言", "卡密验证失败: "..tostring(msg), 5)
+        savedKey = nil
+    end
+
+    askCardKey(function(key)
+        if key == nil then return end
+        local keyStr = string.gsub(tostring(key), "%s", "")
+        local ok, msg = verifyCard(keyStr, hwid, username)
+        if not ok then
+            notify("誓言", "验证失败: "..tostring(msg), 6)
+            return
+        end
+        if keyStr ~= "" then
+            saveCardKey(keyStr)
+        end
+        notify("誓言", "卡密验证成功", 3)
+    end)
+end)
 
 print("[誓言面板] 第3段 已加载")
 print("[誓言面板] 全部加载完成")
