@@ -1274,7 +1274,6 @@ makeToggle("同名选择开关", 18, false, function(s)
     end
 end)
 
--- ==================== 传送地点（含新增8个地点） ====================
 sectionHeader("传送地点", 20)
 local teleportLocations = {
     "出生点","木材反斗城","回家","连接逻辑店","土地商店","会员商店","画店",
@@ -1338,7 +1337,6 @@ makeDropdown("选择地点", 21, teleportLocations, "出生点", function(v)
     if cf then tp(cf) end
 end)
 
--- ==================== 汽车传送 ====================
 sectionHeader("汽车传送", 30)
 local carTeleportLocations = {
     "回家","连接逻辑店","土地商店","会员商店","画店",
@@ -1392,6 +1390,7 @@ makeDropdown("选择地点", 31, carTeleportLocations, "回家", function(v)
 end)
 
 print("[誓言面板] 第1段 已加载")
+-- 第2段继续：合成分区 + 鸭子分区
 -- ==================== 第3分区：合成 ====================
 local pSynthesize = pages[3]
 
@@ -1995,48 +1994,37 @@ local LOCAL_STORE_CN = {
     SeaSide="海边商店", StoneRUs="石头商店", TravelingTrader="旅行商人",
     VIPSHOP="VIP商店", WoodRUs="木材商店",
 }
-
 local LOCAL_ITEM_CN = {
-    -- 基础物品
     ["Plank"]="木板", ["Wood"]="木头", ["Sapling"]="树苗",
     ["Axe"]="斧头", ["Blueprint"]="蓝图",
-    -- 斧头
     ["OlReliable"]="老可靠斧", ["OIReliable"]="老可靠斧", ["BasicAxe"]="基础斧",
     ["SteelAxe"]="钢斧", ["BetaAxe"]="测试斧",
     ["Axe_Basic"]="基础斧", ["Axe_Steel"]="钢斧", ["Axe_Golden"]="黄金斧",
     ["Axe_Candy"]="糖果斧", ["Axe_End"]="终极斧", ["Axe_Fire"]="火焰斧",
-    -- 车辆
     ["Truck"]="卡车", ["Car"]="汽车", ["Scooter"]="滑板车", ["Bike"]="自行车",
     ["Jeep"]="吉普车", ["SportsCar"]="跑车", ["RaceCar"]="赛车", ["Pickup"]="皮卡",
     ["Van"]="面包车", ["Bus"]="公交车", ["Train"]="火车",
-    -- 家具
     ["Chair"]="椅子", ["Table"]="桌子", ["Lamp"]="灯", ["Bed"]="床",
     ["Sofa"]="沙发", ["Desk"]="书桌", ["Shelf"]="架子", ["Carpet"]="地毯",
     ["Painting"]="画作", ["Mirror"]="镜子", ["Clock"]="时钟", ["Rug"]="小地毯",
     ["Fence"]="栅栏", ["Door"]="门", ["Window"]="窗户", ["Chest"]="箱子",
     ["Sign"]="告示牌", ["Statue"]="雕像", ["Plant"]="盆栽", ["Flower"]="花",
     ["Fireplace"]="壁炉", ["Counter"]="柜台", ["RugLarge"]="大地毯",
-    -- 板条箱 / 礼盒
     ["Crate"]="板条箱", ["Box"]="盒子", ["Gift"]="礼物", ["Present"]="礼盒",
     ["MysteryBox"]="神秘盒子", ["LuckyBox"]="幸运盒",
-    -- 常用道具
     ["Bucket"]="水桶", ["Ladder"]="梯子", ["Torch"]="火把", ["Lantern"]="灯笼",
     ["Hat"]="帽子", ["Shirt"]="衬衫", ["Pants"]="裤子", ["Backpack"]="背包",
     ["BackpackSmall"]="小背包", ["Sword"]="剑", ["Shield"]="盾牌",
-    -- 鸭子
     ["Duck"]="普通鸭", ["DuckEvil"]="恶魔鸭", ["DuckAngel"]="天堂鸭",
     ["LunarDuck"]="月亮鸭", ["FallenDuck"]="堕落鸭", ["2018CGift_Duck"]="礼物鸭",
-    -- 武器 / 剑
     ["RevengeSword"]="复仇剑", ["HeavenSword"]="天堂剑", ["MoonSword"]="月亮剑",
     ["HellSword"]="地狱剑", ["DoomSword"]="厄运剑", ["Trident"]="三叉戟",
-    -- 特殊物品
     ["EvilHeart"]="恶魔之心", ["HappyBall"]="快乐球", ["Egg"]="蛋",
     ["Cocoa"]="热可可", ["Eye3"]="老虎眼", ["LightBulb"]="灯泡",
     ["MagicLamp"]="神灯", ["Milk"]="牛奶", ["NESController"]="游戏机",
     ["Battery"]="电池", ["BloxyCola"]="BLOXY可乐",
 }
 
--- 网络翻译表（拉取成功后覆盖本地）
 local translateMapping = {}
 local function loadStoreTranslations()
     pcall(function()
@@ -2057,19 +2045,13 @@ local function getStoreDisplayName(en)
 end
 local function getDisplayName(en)
     local cn = translateMapping[en] or LOCAL_ITEM_CN[en]
-    -- 自动翻译 Sapling_XXX → XXX树苗
     if not cn then
         local treeKey = tostring(en):match("^Sapling_(.+)$")
-        if treeKey and TREE_CN[treeKey] then
-            cn = TREE_CN[treeKey].."树苗"
-        end
+        if treeKey and TREE_CN[treeKey] then cn = TREE_CN[treeKey].."树苗" end
     end
-    -- 自动翻译 SaplingXXX（无下划线）
     if not cn then
         local treeKey = tostring(en):match("^Sapling(.+)$")
-        if treeKey and TREE_CN[treeKey] then
-            cn = TREE_CN[treeKey].."树苗"
-        end
+        if treeKey and TREE_CN[treeKey] then cn = TREE_CN[treeKey].."树苗" end
     end
     if cn and cn ~= "" then return cn.." ("..en..")" end
     return en
@@ -2104,6 +2086,7 @@ for storeName, info in pairs(storeInfoMapping) do
     npcMapping[storeName] = {name=info.name, id=nil, path=info.path}
 end
 local stopPurchaseFlag = false
+local purchaseBusy = false   -- ★ 购买锁：防止并发触发
 
 local function GetAllCashierIds()
     local cashierIds = {}
@@ -2159,110 +2142,158 @@ task.spawn(function()
     notify("誓言", string.format("已扫描 %d 个商店", #allStores), 2)
 end)
 
+-- ★ 修复：购买流程
 local function purchaseCycle(storeInfo, selectedItemName, buyAmount, itemCD)
-    local store = storeInfo.object
-    local shopItems = storeInfo.shopItems
-    local npcInfo = storeInfo.npc
-    if not npcInfo or not npcInfo.id then notify("誓言", "NPC ID 无效", 4); return false end
-    local npcChar = store:FindFirstChild(npcInfo.path)
-    if not npcChar then notify("誓言", "找不到NPC", 3); return false end
-    local counter = store:FindFirstChild("Counter")
-    if not counter or not counter:IsA("BasePart") then notify("誓言", "无Counter", 3); return false end
-    local NPCDialog = rep:WaitForChild("NPCDialog")
-
-    local function sendPurchaseAndCollect()
-        local purchasedItems = {}
-        local conn = workspace.PlayerModels.ChildAdded:Connect(function(model)
-            if model:IsA("Model") and model:FindFirstChild("Owner") and model.Owner.Value == lp then
-                table.insert(purchasedItems, model)
-            end
-        end)
-        local args = {{ID=npcInfo.id, Character=npcChar, Name=npcInfo.name}, "ConfirmPurchase"}
-        pcall(function() NPCDialog.PlayerChatted:InvokeServer(table.unpack(args)) end)
-        task.wait(0.04)
-        conn:Disconnect()
-        return purchasedItems
+    if purchaseBusy then
+        notify("誓言", "购买正在进行中，请稍候", 2)
+        return false
     end
+    purchaseBusy = true
+    stopPurchaseFlag = false
 
-    local function findItemByCD(cdValue)
-        for _, child in pairs(shopItems:GetChildren()) do
-            local s = child:FindFirstChild("Settings")
-            if s then
-                local cd = s:FindFirstChild("CD")
-                if cd and cd:IsA("StringValue") and cd.Value == cdValue then return child end
-            end
-        end
-        return nil
-    end
+    local ok, err = pcall(function()
+        local store = storeInfo.object
+        local shopItems = storeInfo.shopItems
+        local npcInfo = storeInfo.npc
+        if not npcInfo or not npcInfo.id then notify("誓言", "NPC ID 无效", 4); return end
+        local npcChar = store:FindFirstChild(npcInfo.path)
+        if not npcChar then notify("誓言", "找不到NPC", 3); return end
+        local counter = store:FindFirstChild("Counter")
+        if not counter or not counter:IsA("BasePart") then notify("誓言", "无Counter", 3); return end
+        local NPCDialog = rep:WaitForChild("NPCDialog")
 
-    local hrp0 = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp0 then notify("誓言", "无法获取玩家位置", 3); return false end
-    local originalPos = hrp0.CFrame
+        local hrp0 = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp0 then notify("誓言", "无法获取玩家位置", 3); return end
+        local originalPos = hrp0.CFrame
 
-    local successCycles = 0
-    for i = 1, buyAmount do
-        if stopPurchaseFlag then break end
-        local itemModel
-        if itemCD then
-            itemModel = findItemByCD(itemCD)
-            if not itemModel then
-                local deadline = tick() + 15
-                while tick() < deadline and not itemModel do
-                    if stopPurchaseFlag then break end
-                    task.wait(0.2)
-                    itemModel = findItemByCD(itemCD)
+        -- ★ 记录当前已在 PlayerModels 的模型，用于判断新物品
+        local preOwned = {}
+        for _, m in pairs(workspace.PlayerModels:GetChildren()) do preOwned[m] = true end
+
+        -- ★ 发送购买请求并等待新物品出现（最多等 1.5 秒）
+        local function sendPurchaseAndWait(timeout)
+            timeout = timeout or 1.5
+            local purchasedItems = {}
+            local conn = workspace.PlayerModels.ChildAdded:Connect(function(model)
+                if model:IsA("Model") and not preOwned[model] then
+                    local o = model:FindFirstChild("Owner")
+                    if o and o.Value == lp then
+                        preOwned[model] = true
+                        table.insert(purchasedItems, model)
+                    end
                 end
-            end
-        else
-            itemModel = shopItems:FindFirstChild(selectedItemName)
-            if not itemModel then
-                local deadline = tick() + 15
-                while tick() < deadline and not itemModel do
-                    if stopPurchaseFlag then break end
-                    task.wait(0.2)
-                    itemModel = shopItems:FindFirstChild(selectedItemName)
-                end
-            end
-        end
-        if not itemModel then notify("誓言", "商品不在货架", 3); break end
-        local itemPrimary = itemModel.PrimaryPart or itemModel:FindFirstChild("WoodSection") or itemModel:FindFirstChild("Main") or itemModel:FindFirstChildWhichIsA("BasePart")
-        if not itemPrimary then break end
-        if not itemModel.PrimaryPart then itemModel.PrimaryPart = itemPrimary end
-        lockPlayerAt(itemPrimary.CFrame + Vector3.new(0,3,0))
-        task.wait(0.2)
-        dragToPosition(itemModel, counter.CFrame + Vector3.new(0,0.6,0), nil, true)
-        lockPlayerAt(counter.CFrame + Vector3.new(0,3,0))
-        task.wait(0.1)
-        local allItems = {}
-        for k = 1, 2 do
-            if stopPurchaseFlag then break end
-            local items = sendPurchaseAndCollect()
-            if items then for _, it in ipairs(items) do table.insert(allItems, it) end
-            else break end
-            if k < 2 then task.wait(0.01) end
-        end
-        for _, item in ipairs(allItems) do
-            if stopPurchaseFlag then break end
-            if item and item.Parent then
-                if not item.PrimaryPart then
-                    local part = item:FindFirstChild("Main") or item:FindFirstChild("WoodSection") or item:FindFirstChildWhichIsA("BasePart")
-                    if part then item.PrimaryPart = part end
-                end
-                dragToPosition(item, originalPos, nil, true)
+            end)
+            local args = {{ID=npcInfo.id, Character=npcChar, Name=npcInfo.name}, "ConfirmPurchase"}
+            pcall(function() NPCDialog.PlayerChatted:InvokeServer(table.unpack(args)) end)
+            local deadline = tick() + timeout
+            while tick() < deadline do
+                if #purchasedItems > 0 then break end
                 task.wait(0.05)
             end
+            conn:Disconnect()
+            return purchasedItems
         end
-        successCycles = successCycles + 1
-        if i < buyAmount and not stopPurchaseFlag then task.wait(0.5) end
+
+        local function findItemByCD(cdValue)
+            for _, child in pairs(shopItems:GetChildren()) do
+                local s = child:FindFirstChild("Settings")
+                if s then
+                    local cd = s:FindFirstChild("CD")
+                    if cd and cd:IsA("StringValue") and cd.Value == cdValue then return child end
+                end
+            end
+            return nil
+        end
+
+        local successCycles = 0
+        for i = 1, buyAmount do
+            if stopPurchaseFlag then break end
+            local itemModel
+            if itemCD then
+                itemModel = findItemByCD(itemCD)
+                if not itemModel then
+                    local deadline = tick() + 15
+                    while tick() < deadline and not itemModel do
+                        if stopPurchaseFlag then break end
+                        task.wait(0.2)
+                        itemModel = findItemByCD(itemCD)
+                    end
+                end
+            else
+                itemModel = shopItems:FindFirstChild(selectedItemName)
+                if not itemModel then
+                    local deadline = tick() + 15
+                    while tick() < deadline and not itemModel do
+                        if stopPurchaseFlag then break end
+                        task.wait(0.2)
+                        itemModel = shopItems:FindFirstChild(selectedItemName)
+                    end
+                end
+            end
+            if not itemModel then notify("誓言", "商品不在货架", 3); break end
+
+            local itemPrimary = itemModel.PrimaryPart or itemModel:FindFirstChild("WoodSection") or itemModel:FindFirstChild("Main") or itemModel:FindFirstChildWhichIsA("BasePart")
+            if not itemPrimary then break end
+            if not itemModel.PrimaryPart then itemModel.PrimaryPart = itemPrimary end
+
+            -- 拖到柜台
+            lockPlayerAt(itemPrimary.CFrame + Vector3.new(0,3,0))
+            task.wait(0.2)
+            dragToPosition(itemModel, counter.CFrame + Vector3.new(0,0.6,0), nil, true)
+
+            -- 锁在柜台上
+            lockPlayerAt(counter.CFrame + Vector3.new(0,3,0))
+            task.wait(0.15)
+
+            -- ★ 先尝试购买一次，等最多 1.5 秒
+            local gotItems = sendPurchaseAndWait(1.5)
+
+            -- ★ 若第一次没成功，再尝试一次
+            if #gotItems == 0 and not stopPurchaseFlag then
+                task.wait(0.3)
+                local retryItems = sendPurchaseAndWait(1.5)
+                for _, m in ipairs(retryItems) do table.insert(gotItems, m) end
+            end
+
+            -- ★ 只有真正拿到物品，才把物品拖回原位
+            if #gotItems > 0 then
+                for _, item in ipairs(gotItems) do
+                    if item and item.Parent then
+                        if not item.PrimaryPart then
+                            local part = item:FindFirstChild("Main") or item:FindFirstChild("WoodSection") or item:FindFirstChildWhichIsA("BasePart")
+                            if part then item.PrimaryPart = part end
+                        end
+                        if item.PrimaryPart then
+                            dragToPosition(item, originalPos, nil, true)
+                        end
+                        task.wait(0.05)
+                    end
+                end
+                successCycles = successCycles + 1
+            else
+                notify("誓言", "本次未成功买到，跳过", 2)
+            end
+
+            if i < buyAmount and not stopPurchaseFlag then task.wait(0.5) end
+        end
+
+        -- ★ 所有物品都处理完，才解锁并传送回原位
+        unlockPlayer()
+        task.wait(0.1)
+        safeTeleport(originalPos)
+        if stopPurchaseFlag then
+            notify("已停止", "购买已中断", 3)
+        else
+            notify(storeInfo.name, string.format("完成 %d/%d 次", successCycles, buyAmount), 4)
+        end
+    end)
+
+    if not ok then
+        warn("[誓言面板] purchaseCycle 出错: " .. tostring(err))
+        unlockPlayer()
     end
-    unlockPlayer()
-    safeTeleport(originalPos)
-    if stopPurchaseFlag then
-        notify("已停止", "购买已中断", 3); stopPurchaseFlag = false; return false
-    else
-        notify(storeInfo.name, string.format("完成 %d/%d 次", successCycles, buyAmount), 4)
-        return successCycles == buyAmount
-    end
+    purchaseBusy = false
+    stopPurchaseFlag = false
 end
 
 _G.qSnowBuyBlueprintBox = function(blueprintName)
@@ -2292,28 +2323,41 @@ _G.qSnowBuyBlueprintBox = function(blueprintName)
     local primary = itemModel.PrimaryPart or itemModel:FindFirstChild("WoodSection") or itemModel:FindFirstChild("Main") or itemModel:FindFirstChildWhichIsA("BasePart")
     if not primary then return nil, "无法定位商品模型" end
     if not itemModel.PrimaryPart then itemModel.PrimaryPart = primary end
+
+    -- 记录已有物品
+    local preOwned = {}
+    for _, m in pairs(workspace.PlayerModels:GetChildren()) do preOwned[m] = true end
+
     lockPlayerAt(primary.CFrame + Vector3.new(0,3,0))
     task.wait(0.3)
     dragToPosition(itemModel, counter.CFrame + Vector3.new(0,0.6,0), nil, true)
     task.wait(0.09)
     lockPlayerAt(counter.CFrame + Vector3.new(0,3,0))
     task.wait(0.1)
-    local purchased = {}
+
+    local got = nil
     local conn = workspace.PlayerModels.ChildAdded:Connect(function(m)
-        if m:IsA("Model") and m:FindFirstChild("Owner") and m.Owner.Value == lp then table.insert(purchased, m) end
+        if m:IsA("Model") and not preOwned[m] then
+            local o = m:FindFirstChild("Owner")
+            if o and o.Value == lp then
+                preOwned[m] = true
+                if not got then got = m end
+            end
+        end
     end)
     local NPCDialog = rep:WaitForChild("NPCDialog")
     local args = {{ID=npcInfo.id, Character=npcChar, Name=npcInfo.name}, "ConfirmPurchase"}
     pcall(function() NPCDialog.PlayerChatted:InvokeServer(table.unpack(args)) end)
-    task.wait(0.1)
-    pcall(function() NPCDialog.PlayerChatted:InvokeServer(table.unpack(args)) end)
-    task.wait(0.1)
+    task.wait(0.15)
+    if not got then
+        pcall(function() NPCDialog.PlayerChatted:InvokeServer(table.unpack(args)) end)
+    end
+    -- 最多等 2 秒
+    local deadline = tick() + 2
+    while tick() < deadline and not got do task.wait(0.05) end
     conn:Disconnect()
     unlockPlayer()
-    for i = #purchased, 1, -1 do
-        local m = purchased[i]
-        if m and m.Parent then return m, targetStore.name end
-    end
+    if got then return got, targetStore.name end
     return nil, "购买后未找到新盒子"
 end
 
@@ -2328,7 +2372,6 @@ task.spawn(function()
         return
     end
 
-    -- 快捷操作
     local quickBody = makeCollapsible("快捷操作", 100, pBuy)
     makeBtn("一键购买所有蓝图", 101, function()
         task.spawn(function()
@@ -2378,7 +2421,6 @@ task.spawn(function()
         end)
     end, quickBody)
 
-    -- 每个商店一个可折叠分区（商店名和商品名都汉化）
     for _, store in ipairs(allStores) do
         local storeName = store.name
         local storeDisplay = getStoreDisplayName(storeName)
@@ -2425,7 +2467,6 @@ task.spawn(function()
             makeBtn("购买", 3, function()
                 if not store.npc.id then notify("誓言", "商店 ID 未就绪，请等待", 3); return end
                 if not selectedIdent then notify("誓言", "请先选择商品", 3); return end
-                stopPurchaseFlag = false
                 task.spawn(function()
                     purchaseCycle(store, store.isMusicStore and nil or selectedIdent, buyAmount, store.isMusicStore and selectedIdent or nil)
                 end)
@@ -2481,5 +2522,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 完整版 已加载（含新增8个传送地点 + 商店/商品汉化）")
+print("[誓言面板] 完整版 已加载（含新增8个传送地点 + 商店/商品汉化 + 购买流程修复）")
 showKeyUI()
