@@ -2086,7 +2086,7 @@ for storeName, info in pairs(storeInfoMapping) do
     npcMapping[storeName] = {name=info.name, id=nil, path=info.path}
 end
 local stopPurchaseFlag = false
-local purchaseBusy = false   -- ★ 购买锁：防止并发触发
+local purchaseBusy = false
 
 local function GetAllCashierIds()
     local cashierIds = {}
@@ -2142,7 +2142,6 @@ task.spawn(function()
     notify("誓言", string.format("已扫描 %d 个商店", #allStores), 2)
 end)
 
--- ★ 修复：购买流程
 local function purchaseCycle(storeInfo, selectedItemName, buyAmount, itemCD)
     if purchaseBusy then
         notify("誓言", "购买正在进行中，请稍候", 2)
@@ -2166,11 +2165,9 @@ local function purchaseCycle(storeInfo, selectedItemName, buyAmount, itemCD)
         if not hrp0 then notify("誓言", "无法获取玩家位置", 3); return end
         local originalPos = hrp0.CFrame
 
-        -- ★ 记录当前已在 PlayerModels 的模型，用于判断新物品
         local preOwned = {}
         for _, m in pairs(workspace.PlayerModels:GetChildren()) do preOwned[m] = true end
 
-        -- ★ 发送购买请求并等待新物品出现（最多等 1.5 秒）
         local function sendPurchaseAndWait(timeout)
             timeout = timeout or 1.5
             local purchasedItems = {}
@@ -2236,26 +2233,20 @@ local function purchaseCycle(storeInfo, selectedItemName, buyAmount, itemCD)
             if not itemPrimary then break end
             if not itemModel.PrimaryPart then itemModel.PrimaryPart = itemPrimary end
 
-            -- 拖到柜台
             lockPlayerAt(itemPrimary.CFrame + Vector3.new(0,3,0))
             task.wait(0.2)
             dragToPosition(itemModel, counter.CFrame + Vector3.new(0,0.6,0), nil, true)
 
-            -- 锁在柜台上
             lockPlayerAt(counter.CFrame + Vector3.new(0,3,0))
             task.wait(0.15)
 
-            -- ★ 先尝试购买一次，等最多 1.5 秒
             local gotItems = sendPurchaseAndWait(1.5)
-
-            -- ★ 若第一次没成功，再尝试一次
             if #gotItems == 0 and not stopPurchaseFlag then
                 task.wait(0.3)
                 local retryItems = sendPurchaseAndWait(1.5)
                 for _, m in ipairs(retryItems) do table.insert(gotItems, m) end
             end
 
-            -- ★ 只有真正拿到物品，才把物品拖回原位
             if #gotItems > 0 then
                 for _, item in ipairs(gotItems) do
                     if item and item.Parent then
@@ -2277,7 +2268,6 @@ local function purchaseCycle(storeInfo, selectedItemName, buyAmount, itemCD)
             if i < buyAmount and not stopPurchaseFlag then task.wait(0.5) end
         end
 
-        -- ★ 所有物品都处理完，才解锁并传送回原位
         unlockPlayer()
         task.wait(0.1)
         safeTeleport(originalPos)
@@ -2324,7 +2314,6 @@ _G.qSnowBuyBlueprintBox = function(blueprintName)
     if not primary then return nil, "无法定位商品模型" end
     if not itemModel.PrimaryPart then itemModel.PrimaryPart = primary end
 
-    -- 记录已有物品
     local preOwned = {}
     for _, m in pairs(workspace.PlayerModels:GetChildren()) do preOwned[m] = true end
 
@@ -2352,7 +2341,6 @@ _G.qSnowBuyBlueprintBox = function(blueprintName)
     if not got then
         pcall(function() NPCDialog.PlayerChatted:InvokeServer(table.unpack(args)) end)
     end
-    -- 最多等 2 秒
     local deadline = tick() + 2
     while tick() < deadline and not got do task.wait(0.05) end
     conn:Disconnect()
@@ -2373,6 +2361,28 @@ task.spawn(function()
     end
 
     local quickBody = makeCollapsible("快捷操作", 100, pBuy)
+
+    -- ★ 新增：刷新ID 按钮
+    makeBtn("刷新ID", 100, function()
+        notify("誓言", "正在刷新商店 NPC ID...", 2)
+        task.spawn(function()
+            local ids = GetAllCashierIds()
+            local gained = 0
+            for storeName, info in pairs(storeInfoMapping) do
+                if ids[info.name] then
+                    if npcMapping[storeName].id ~= ids[info.name] then
+                        npcMapping[storeName].id = ids[info.name]
+                        gained = gained + 1
+                    end
+                end
+            end
+            local okCount = 0
+            for _, info in pairs(npcMapping) do if info.id then okCount = okCount + 1 end end
+            storeStatusLbl.Text = string.format("   已获取 %d 个商店 NPC ID", okCount)
+            notify("誓言", string.format("刷新完成，新增 %d 个，当前 %d 个", gained, okCount), 3)
+        end)
+    end, quickBody)
+
     makeBtn("一键购买所有蓝图", 101, function()
         task.spawn(function()
             stopPurchaseFlag = false
@@ -2522,5 +2532,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 完整版 已加载（含新增8个传送地点 + 商店/商品汉化 + 购买流程修复）")
+print("[誓言面板] 完整版 已加载")
 showKeyUI()
