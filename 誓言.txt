@@ -1,9 +1,7 @@
 --[[
-    誓言面板 - 可折叠分区版（完整）
-    卡密：誓言NB
+    誓言面板 - 完整版
     左侧分区：信息 / 功能 / 合成 / 鸭子 / 购买
     功能页：带来树 / 一键加工 / 传送物品 / 传送地点 / 汽车传送
-    每个子分区点击标题可折叠/展开
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -41,7 +39,6 @@ local function notify(title, desc, duration)
     end)
 end
 
--- ==================== 基础工具 ====================
 local lockPlayerConn = nil
 local function uprightCFrame(hrp, cf)
     local pos = cf.Position
@@ -75,7 +72,6 @@ end
 
 local bai = { dragIDCounter=0, cachedSawmill=nil, cachedSawmillPos=nil }
 
--- ==================== 拖拽 ====================
 local function getNextDragID() bai.dragIDCounter = bai.dragIDCounter + 1; return bai.dragIDCounter end
 local DRAG_TOTAL, DRAG_SET_START, DRAG_SET_COUNT = 60, 28, 2
 local DRAG_SET_INTERVAL, DRAG_REFRESH_INTERVAL, DRAG_AFTER_WAIT = 0.01, 0.01, 0.01
@@ -148,7 +144,6 @@ local function dragToPosition(model, targetCF, callback, waitFinish)
     if callback then callback() end
 end
 
--- ==================== 树木数据 ====================
 local TREE_CN = {
 Generic="普通树",GenericDead="枯木",GenericFall="落叶树",GenericGold="金树",GenericPrime="原始树",
 GenericSpecial="特殊树",GoldSwampy="沼泽黄金",GreenSwampy="沼泽青",Cherry="樱花树",
@@ -225,7 +220,6 @@ local treeNames = {}
 for name in pairs(treeMapping) do table.insert(treeNames, name) end
 sortTreeNames(treeNames)
 
--- ==================== 找树/斧头 ====================
 local function findUncutTree(treeClass)
     local playerPos = lp.Character and lp.Character.HumanoidRootPart.Position
     if not playerPos then return nil end
@@ -404,7 +398,6 @@ local function isInDangerZone(pos)
         and pos.Z >= DANGER_MIN_Z and pos.Z <= DANGER_MAX_Z
 end
 
--- ==================== 砍树 ====================
 local function bringTreeOld(treeClass, progressText)
     local weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
@@ -541,7 +534,6 @@ local function runBringTree(treeClass, progressText)
     else return bringTreeOld(treeClass, progressText) end
 end
 
--- ==================== 选择锯木机 ====================
 local function selectSawmill()
     notify("誓言", "请点击锯木机任意部件", 3)
     local conn
@@ -576,7 +568,6 @@ local function selectSawmill()
     end)
 end
 
--- ==================== 一键加工 ====================
 local function selectBestWeaponByPlan(treeClass)
     if selectedPlan == 2 then return selectBestWeaponNew(treeClass)
     else return selectBestWeaponOld(treeClass) end
@@ -691,7 +682,6 @@ local function startDecomposeSelection()
     end)
 end
 
--- ==================== 传送 ====================
 local teleportTargetCF = nil
 local teleportTargetPlayer = lp.Name
 local teleportMarker = nil
@@ -827,7 +817,6 @@ local function teleportSelectedItems()
     notify("誓言", string.format("传送完成 %d/%d", successCount, #all), 3)
 end
 
--- 传送辅助
 local function tp(pos)
     if typeof(pos) == "CFrame" then
         lp.Character:SetPrimaryPartCFrame(pos)
@@ -849,7 +838,6 @@ local function carTeleport(cf)
     end
 end
 
--- ==================== UI 主面板 ====================
 local OathGui = new("ScreenGui",{Name="OathPanel", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, Enabled=false}, PG)
 local Main = new("Frame",{Size=UDim2.fromOffset(540,340), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Bg, BorderSizePixel=0, ClipsDescendants=true}, OathGui)
 crn(Main,16); strk(Main,T.Stroke,1)
@@ -891,7 +879,6 @@ for i, name in ipairs(tabs) do
 end
 pages[1].Visible = true; tabBtns[1].label.TextColor3 = T.Text
 
--- 信息页
 local info = pages[1]
 local ic = new("Frame",{Size=UDim2.new(1,0,0,90), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, LayoutOrder=0}, info)
 crn(ic,10)
@@ -900,7 +887,6 @@ new("Frame",{Size=UDim2.fromScale(1,1), BackgroundColor3=Color3.fromRGB(0,0,0), 
 new("TextLabel",{Size=UDim2.new(1,-20,0,30), Position=UDim2.new(0,10,0,10), BackgroundTransparency=1, Text=GAME_TITLE.." · 誓言面板", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Text, ZIndex=3}, ic)
 new("TextLabel",{Size=UDim2.new(1,-20,0,20), Position=UDim2.new(0,10,0,40), BackgroundTransparency=1, Text="作者：是我太傻   QQ：3767465890   群：1109682737", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, ZIndex=3}, ic)
 
--- 窗口控制
 local btnHolder = new("Frame",{Size=UDim2.fromOffset(50, 18), Position=UDim2.new(1, -14, 0, 14), AnchorPoint=Vector2.new(1, 0), BackgroundTransparency=1, ZIndex=10}, Main)
 local function makeWinDot(color, x, cb)
     local btn = new("TextButton",{Size=UDim2.fromOffset(16, 16), Position=UDim2.new(0, x, 0, 0), BackgroundColor3=color, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=10}, btnHolder)
@@ -961,7 +947,6 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
--- 拖动（顶部 50px）
 do
     local dragging, actualDragging = false, false
     local dragStart, startPos = nil, nil
@@ -1004,7 +989,6 @@ UIS.InputBegan:Connect(function(input, proc)
     if input.KeyCode == Enum.KeyCode.RightShift then OathGui.Enabled = not OathGui.Enabled end
 end)
 
--- ==================== 通用工厂 ====================
 local fc = pages[2]
 local currentSection = fc
 
@@ -1171,7 +1155,6 @@ local function makeDropdown(text, order, options, default, onSelect, searchable,
     end
     plusBtn.MouseButton1Click:Connect(function() expand(not expanded) end)
 
-    -- 让外部能刷新选项列表
     local function setOptions(newOptions, newDefault)
         options = newOptions
         if newDefault then
@@ -1186,7 +1169,6 @@ local function makeDropdown(text, order, options, default, onSelect, searchable,
     return container, expand, setOptions
 end
 
--- ==================== 功能页 ====================
 sectionHeader("带来树", 1)
 local selectedTreeClass = nil
 do
@@ -1228,7 +1210,6 @@ sectionHeader("一键加工", 7)
 makeBtn("选择锯木机", 8, selectSawmill)
 makeBtn("一键加工", 9, startDecomposeSelection)
 
--- ==================== 传送物品 ====================
 sectionHeader("传送物品", 10)
 local tpSetOptions = nil
 do
@@ -1293,14 +1274,15 @@ makeToggle("同名选择开关", 18, false, function(s)
     end
 end)
 
--- ==================== 传送地点 ====================
+-- ==================== 传送地点（含新增8个地点） ====================
 sectionHeader("传送地点", 20)
 local teleportLocations = {
     "出生点","木材反斗城","回家","连接逻辑店","土地商店","会员商店","画店",
     "桥对岸","沙滩","火木","雪山","洞穴","码头","黑市","糖果原","雪地入口",
     "盖克斯航运","玻璃冰木入口","云层","山边商品","章鱼哥祭坛","沼泽商店",
     "石头商店","沼泽","冰胡","沙漠","辐射商店","核污染区","种子商人",
-    "鲍勃的店","家具店","车店","罗布克斯商店","肯德坤专卖店","秋季商店"
+    "鲍勃的店","家具店","车店","罗布克斯商店","肯德坤专卖店","秋季商店",
+    "三叉戟","月亮剑","月亮鸭","天堂剑光环","天堂剑祭坛","地狱火祭坛","厄运祭坛","厄运光环"
 }
 makeDropdown("选择地点", 21, teleportLocations, "出生点", function(v)
     local map = {
@@ -1338,6 +1320,14 @@ makeDropdown("选择地点", 21, teleportLocations, "出生点", function(v)
         ["罗布克斯商店"] = CFrame.new(652,4,-1589),
         ["肯德坤专卖店"] = CFrame.new(65,4,-455),
         ["秋季商店"] = CFrame.new(6004,4,33),
+        ["三叉戟"] = CFrame.new(-375,14,-1331),
+        ["月亮剑"] = CFrame.new(-7642,326,4225),
+        ["月亮鸭"] = CFrame.new(-7065,394,4893),
+        ["天堂剑光环"] = CFrame.new(-657,25,-385),
+        ["天堂剑祭坛"] = CFrame.new(1658,408,3278),
+        ["地狱火祭坛"] = CFrame.new(-1784,342,1473),
+        ["厄运祭坛"] = CFrame.new(-1499,-248,289),
+        ["厄运光环"] = CFrame.new(-1282,23,-86),
     }
     local cf = map[v]
     if v == "回家" then
@@ -1402,12 +1392,9 @@ makeDropdown("选择地点", 31, carTeleportLocations, "回家", function(v)
 end)
 
 print("[誓言面板] 第1段 已加载")
--- 第2段继续：合成分区 + 鸭子分区
-
 -- ==================== 第3分区：合成 ====================
 local pSynthesize = pages[3]
 
--- 通用可折叠标题
 local function makeCollapsible(title, order, parent)
     local container = new("Frame", {
         Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
@@ -1591,7 +1578,6 @@ local evilHeathDragTargets = {
     [3] = CFrame.new(-536.980713, -86.994179, -2021.368164),
 }
 
--- 源码原版：等待物品就绪
 local function waitItemReady(item, timeout)
     timeout = timeout or 3
     local waited = 0
@@ -1606,7 +1592,6 @@ local function waitItemReady(item, timeout)
     return item and item.Parent and (item:FindFirstChild("ItemName") ~= nil or item:FindFirstChild("PurchasedBoxItemName") ~= nil)
 end
 
--- 源码原版：等待新 EvilHeart 出现
 local function waitEvilHeartAppear(timeout, preSet)
     local deadline = os.clock() + (timeout or 10)
     while os.clock() < deadline do
@@ -1621,7 +1606,6 @@ local function waitEvilHeartAppear(timeout, preSet)
     return false
 end
 
--- 单次合成（源码 startEvilHeartCombine 照搬）
 local function startEvilHeartCombine(basePos)
     local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
     local originalPos = basePos or (hrp and hrp.CFrame)
@@ -1993,8 +1977,6 @@ makeBtn("一键合成月亮鸭", 13, function()
 end, specialDuckSec)
 
 print("[誓言面板] 第2段 已加载")
--- 第3段继续：购买分区 + 卡密 UI
-
 -- ==================== 第5分区：购买 ====================
 local pBuy = pages[5]
 
@@ -2004,7 +1986,57 @@ local storeStatusLbl = new("TextLabel", {
     TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=1
 }, pBuy)
 
--- 商店翻译
+-- ==================== 本地兜底汉化表 ====================
+local LOCAL_STORE_CN = {
+    AutumnCatalog="秋季商店", BlackMarket="黑市", CarStore="车店", MusicStore="音乐店",
+    FineArt="画店", FineFinds="精品店", FurnitureStore="家具店", HLStand="HL小摊",
+    Igloo="冰屋", LogicStore="逻辑店", MountainSide="山边商品", PlanterStore="花盆商店",
+    PlantomicsChoice="植物商店", SallysSeasonal="季节商店", SaplingCart="树苗车",
+    SeaSide="海边商店", StoneRUs="石头商店", TravelingTrader="旅行商人",
+    VIPSHOP="VIP商店", WoodRUs="木材商店",
+}
+
+local LOCAL_ITEM_CN = {
+    -- 基础物品
+    ["Plank"]="木板", ["Wood"]="木头", ["Sapling"]="树苗",
+    ["Axe"]="斧头", ["Blueprint"]="蓝图",
+    -- 斧头
+    ["OlReliable"]="老可靠斧", ["OIReliable"]="老可靠斧", ["BasicAxe"]="基础斧",
+    ["SteelAxe"]="钢斧", ["BetaAxe"]="测试斧",
+    ["Axe_Basic"]="基础斧", ["Axe_Steel"]="钢斧", ["Axe_Golden"]="黄金斧",
+    ["Axe_Candy"]="糖果斧", ["Axe_End"]="终极斧", ["Axe_Fire"]="火焰斧",
+    -- 车辆
+    ["Truck"]="卡车", ["Car"]="汽车", ["Scooter"]="滑板车", ["Bike"]="自行车",
+    ["Jeep"]="吉普车", ["SportsCar"]="跑车", ["RaceCar"]="赛车", ["Pickup"]="皮卡",
+    ["Van"]="面包车", ["Bus"]="公交车", ["Train"]="火车",
+    -- 家具
+    ["Chair"]="椅子", ["Table"]="桌子", ["Lamp"]="灯", ["Bed"]="床",
+    ["Sofa"]="沙发", ["Desk"]="书桌", ["Shelf"]="架子", ["Carpet"]="地毯",
+    ["Painting"]="画作", ["Mirror"]="镜子", ["Clock"]="时钟", ["Rug"]="小地毯",
+    ["Fence"]="栅栏", ["Door"]="门", ["Window"]="窗户", ["Chest"]="箱子",
+    ["Sign"]="告示牌", ["Statue"]="雕像", ["Plant"]="盆栽", ["Flower"]="花",
+    ["Fireplace"]="壁炉", ["Counter"]="柜台", ["RugLarge"]="大地毯",
+    -- 板条箱 / 礼盒
+    ["Crate"]="板条箱", ["Box"]="盒子", ["Gift"]="礼物", ["Present"]="礼盒",
+    ["MysteryBox"]="神秘盒子", ["LuckyBox"]="幸运盒",
+    -- 常用道具
+    ["Bucket"]="水桶", ["Ladder"]="梯子", ["Torch"]="火把", ["Lantern"]="灯笼",
+    ["Hat"]="帽子", ["Shirt"]="衬衫", ["Pants"]="裤子", ["Backpack"]="背包",
+    ["BackpackSmall"]="小背包", ["Sword"]="剑", ["Shield"]="盾牌",
+    -- 鸭子
+    ["Duck"]="普通鸭", ["DuckEvil"]="恶魔鸭", ["DuckAngel"]="天堂鸭",
+    ["LunarDuck"]="月亮鸭", ["FallenDuck"]="堕落鸭", ["2018CGift_Duck"]="礼物鸭",
+    -- 武器 / 剑
+    ["RevengeSword"]="复仇剑", ["HeavenSword"]="天堂剑", ["MoonSword"]="月亮剑",
+    ["HellSword"]="地狱剑", ["DoomSword"]="厄运剑", ["Trident"]="三叉戟",
+    -- 特殊物品
+    ["EvilHeart"]="恶魔之心", ["HappyBall"]="快乐球", ["Egg"]="蛋",
+    ["Cocoa"]="热可可", ["Eye3"]="老虎眼", ["LightBulb"]="灯泡",
+    ["MagicLamp"]="神灯", ["Milk"]="牛奶", ["NESController"]="游戏机",
+    ["Battery"]="电池", ["BloxyCola"]="BLOXY可乐",
+}
+
+-- 网络翻译表（拉取成功后覆盖本地）
 local translateMapping = {}
 local function loadStoreTranslations()
     pcall(function()
@@ -2012,17 +2044,39 @@ local function loadStoreTranslations()
         local func = loadstring(content)
         if func then
             local ok, m = pcall(func)
-            if ok and type(m) == "table" then translateMapping = m end
+            if ok and type(m) == "table" then
+                for k, v in pairs(m) do translateMapping[k] = v end
+            end
         end
     end)
 end
 local function getStoreDisplayName(en)
-    local cn = translateMapping[en]
+    local cn = translateMapping[en] or LOCAL_STORE_CN[en]
+    if cn and cn ~= "" then return cn.." ("..en..")" end
+    return en
+end
+local function getDisplayName(en)
+    local cn = translateMapping[en] or LOCAL_ITEM_CN[en]
+    -- 自动翻译 Sapling_XXX → XXX树苗
+    if not cn then
+        local treeKey = tostring(en):match("^Sapling_(.+)$")
+        if treeKey and TREE_CN[treeKey] then
+            cn = TREE_CN[treeKey].."树苗"
+        end
+    end
+    -- 自动翻译 SaplingXXX（无下划线）
+    if not cn then
+        local treeKey = tostring(en):match("^Sapling(.+)$")
+        if treeKey and TREE_CN[treeKey] then
+            cn = TREE_CN[treeKey].."树苗"
+        end
+    end
     if cn and cn ~= "" then return cn.." ("..en..")" end
     return en
 end
 loadStoreTranslations()
 
+-- ==================== 商店信息映射 ====================
 local storeInfoMapping = {
     AutumnCatalog={name="William", path="William"},
     BlackMarket={name="sneakypotato7", path="sneakypotato7"},
@@ -2263,13 +2317,7 @@ _G.qSnowBuyBlueprintBox = function(blueprintName)
     return nil, "购买后未找到新盒子"
 end
 
-local function getDisplayName(en)
-    local cn = translateMapping[en]
-    if cn and cn ~= "" then return cn.." ("..en..")" end
-    return en
-end
-
--- 动态生成商店 UI
+-- ==================== 动态生成商店 UI ====================
 task.spawn(function()
     task.wait(4)
     if #allStores == 0 then
@@ -2330,7 +2378,7 @@ task.spawn(function()
         end)
     end, quickBody)
 
-    -- 每个商店一个可折叠分区
+    -- 每个商店一个可折叠分区（商店名和商品名都汉化）
     for _, store in ipairs(allStores) do
         local storeName = store.name
         local storeDisplay = getStoreDisplayName(storeName)
@@ -2351,7 +2399,7 @@ task.spawn(function()
                     if cd and cd:IsA("StringValue") and cd.Value ~= "" then dn = cd.Value; ident = cd.Value end
                 end
             end
-            local disp = getStoreDisplayName(dn)
+            local disp = getDisplayName(dn)
             displayOptions[#displayOptions+1] = disp
             valueMap[disp] = ident
         end
@@ -2433,5 +2481,5 @@ local function showKeyUI()
     pcall(function() ib:CaptureFocus() end)
 end
 
-print("[誓言面板] 完整版 已加载（功能页含 传送物品/传送地点/汽车传送）")
+print("[誓言面板] 完整版 已加载（含新增8个传送地点 + 商店/商品汉化）")
 showKeyUI()
