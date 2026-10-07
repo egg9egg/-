@@ -1390,7 +1390,6 @@ makeDropdown("选择地点", 31, carTeleportLocations, "回家", function(v)
 end)
 
 print("[誓言面板] 第1段 已加载")
--- 第2段继续：合成分区 + 鸭子分区
 -- ==================== 第3分区：合成 ====================
 local pSynthesize = pages[3]
 
@@ -1985,7 +1984,7 @@ makeBtn("一键合成月亮鸭", 13, function()
     notify("誓言", "月亮鸭合成位置已就绪", 3)
 end, specialDuckSec)
 
-print("[誓言面板] 第2段 已加载"）
+print("[誓言面板] 第2段 已加载")
 -- ==================== 第5分区：购买 ====================
 local pBuy = pages[5]
 
@@ -2152,6 +2151,7 @@ task.spawn(function()
     notify("誓言", string.format("已扫描 %d 个商店", #allStores), 2)
 end)
 
+-- ★ 修复：购买流程
 local function purchaseCycle(storeInfo, selectedItemName, buyAmount, itemCD)
     if purchaseBusy then
         notify("誓言", "购买正在进行中，请稍候", 2)
@@ -2372,7 +2372,7 @@ task.spawn(function()
 
     local quickBody = makeCollapsible("快捷操作", 100, pBuy)
 
-    -- ★ 新增：刷新ID 按钮
+    -- ★ 刷新ID 按钮
     makeBtn("刷新ID", 100, function()
         notify("誓言", "正在刷新商店 NPC ID...", 2)
         task.spawn(function()
