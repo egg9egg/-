@@ -1379,14 +1379,6 @@ makeDropdown("选择地点", 31, carTeleportLocations, "回家", function(v)
         ["罗布克斯商店"] = CFrame.new(652,4,-1565),
         ["肯德坤专卖店"] = CFrame.new(100,4,-455),
         ["秋季商店"] = CFrame.new(6004,4,33),
-        ["三叉戟"] = CFrame.new(-375,14,-1331),
-        ["月亮剑"] = CFrame.new(-7642,326,4225),
-        ["月亮鸭"] = CFrame.new(-7065,394,4893),
-        ["天堂剑光环"] = CFrame.new(-657,25,-385),
-        ["天堂剑祭坛"] = CFrame.new(1658,408,3278),
-        ["地狱火祭坛"] = CFrame.new(-1784,342,1473),
-        ["厄运祭坛"] = CFrame.new(-1499,-248,289),
-        ["厄运光环"] = CFrame.new(-1282,23,-86),
     }
     local cf = map[v]
     if v == "回家" then
@@ -1848,7 +1840,7 @@ makeBox("带回数量(0=无限)", "1", 3, "1", function(v)
     local n = tonumber(v); if n and n >= 0 then batchDuckCount = n end
 end, duckSec)
 
--- ★ bringDuckc：拖拽逻辑跟"带来树"一致
+-- ★ bringDuckc：拖拽逻辑跟"传送物品"里的 teleportSelectedItems 一致
 local function bringDuckc(duckName, ownOnly, targetCF)
     local ducks = {}
     for _, m in pairs(ws.PlayerModels:GetChildren()) do
@@ -1859,23 +1851,15 @@ local function bringDuckc(duckName, ownOnly, targetCF)
     end
     if #ducks == 0 then return false end
     local d = ducks[1]
-    local originalPos = targetCF or (lp.Character and lp.Character.HumanoidRootPart.CFrame)
-    if not originalPos then return false end
+    local targetPos = targetCF or (lp.Character and lp.Character.HumanoidRootPart.CFrame)
+    if not targetPos then return false end
     local primary = d.PrimaryPart or d:FindFirstChild("Main") or d:FindFirstChildWhichIsA("BasePart")
     if not primary then return false end
     if not d.PrimaryPart then d.PrimaryPart = primary end
 
-    lockPlayerAt(primary.CFrame + Vector3.new(0, 3, 0))
-    task.wait(0.15)
-    for _ = 1, 3 do
-        pcall(rep.Interaction.ClientRequestOwnership.FireServer, rep.Interaction, primary)
-        task.wait(0.01)
-    end
-    local done = false
-    dragToPosition(d, originalPos, function() done = true end, 10)
-    local t = 0
-    while not done and t < 6 do task.wait(0.05); t = t + 0.05 end
-    unlockPlayer()
+    pcall(function() safeTeleport(primary.CFrame + Vector3.new(0,2,0)) end)
+    task.wait(0.1)
+    dragToPosition(d, targetPos)
     return true
 end
 
