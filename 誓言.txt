@@ -1841,18 +1841,7 @@ makeBox("带回数量(0=无限)", "1", 3, "1", function(v)
     local n = tonumber(v); if n and n >= 0 then batchDuckCount = n end
 end, duckSec)
 
-local function countDucks(duckName, ownOnly)
-    local count = 0
-    for _, m in pairs(ws.PlayerModels:GetChildren()) do
-        if m:IsA("Model") and m.Name == duckName then
-            local o = m:FindFirstChild("Owner")
-            if (ownOnly and o and o.Value == lp) or (not ownOnly and (not o or o.Value == nil)) then count = count + 1 end
-        end
-    end
-    return count
-end
-
--- ★ 修改：bringDuckc 支持指定目标位置（点击按钮时的位置）
+-- ★ bringDuckc：拖拽逻辑跟"带来树"一致
 local function bringDuckc(duckName, ownOnly, targetCF)
     local ducks = {}
     for _, m in pairs(ws.PlayerModels:GetChildren()) do
@@ -1868,13 +1857,23 @@ local function bringDuckc(duckName, ownOnly, targetCF)
     local primary = d.PrimaryPart or d:FindFirstChild("Main") or d:FindFirstChildWhichIsA("BasePart")
     if not primary then return false end
     if not d.PrimaryPart then d.PrimaryPart = primary end
-    safeTeleport(primary.CFrame + Vector3.new(0,2,0))
-    task.wait(0.1)
-    dragToPosition(d, originalPos, nil, true)
+
+    -- ★ 跟带来树一样：锁在鸭子旁边，请求所有权，再拖回原位置
+    lockPlayerAt(primary.CFrame + Vector3.new(0, 3, 0))
+    task.wait(0.15)
+    for _ = 1, 3 do
+        pcall(rep.Interaction.ClientRequestOwnership.FireServer, rep.Interaction, primary)
+        task.wait(0.01)
+    end
+    local done = false
+    dragToPosition(d, originalPos, function() done = true end, 10)
+    local t = 0
+    while not done and t < 6 do task.wait(0.05); t = t + 0.05 end
+    unlockPlayer()
     return true
 end
 
--- ★ 修改：点击时记录位置，全部带回后传送回该位置
+-- ★ 点击时记录位置，全部带回后传送回该位置
 makeBtn("带回自己的", 4, function()
     local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
     local startCF = hrp and hrp.CFrame
@@ -1986,7 +1985,7 @@ makeBtn("一键合成月亮鸭", 13, function()
     notify("誓言", "月亮鸭合成位置已就绪", 3)
 end, specialDuckSec)
 
-print("[誓言面板] 第2段 已加载")
+print("[誓言面板] 第2段 已加载"）
 -- ==================== 第5分区：购买 ====================
 local pBuy = pages[5]
 
