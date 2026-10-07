@@ -1851,7 +1851,9 @@ local function countDucks(duckName, ownOnly)
     end
     return count
 end
-local function bringDuckc(duckName, ownOnly)
+
+-- ★ 修改：bringDuckc 支持指定目标位置（点击按钮时的位置）
+local function bringDuckc(duckName, ownOnly, targetCF)
     local ducks = {}
     for _, m in pairs(ws.PlayerModels:GetChildren()) do
         if m:IsA("Model") and m.Name == duckName then
@@ -1861,7 +1863,7 @@ local function bringDuckc(duckName, ownOnly)
     end
     if #ducks == 0 then return false end
     local d = ducks[1]
-    local originalPos = lp.Character and lp.Character.HumanoidRootPart.CFrame
+    local originalPos = targetCF or (lp.Character and lp.Character.HumanoidRootPart.CFrame)
     if not originalPos then return false end
     local primary = d.PrimaryPart or d:FindFirstChild("Main") or d:FindFirstChildWhichIsA("BasePart")
     if not primary then return false end
@@ -1872,26 +1874,35 @@ local function bringDuckc(duckName, ownOnly)
     return true
 end
 
+-- ★ 修改：点击时记录位置，全部带回后传送回该位置
 makeBtn("带回自己的", 4, function()
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    local startCF = hrp and hrp.CFrame
     task.spawn(function()
         for i = 1, (batchDuckCount == 0 and 9999 or batchDuckCount) do
             if duckBatchStop then break end
-            if not bringDuckc(selectedDuckName, true) then break end
+            if not bringDuckc(selectedDuckName, true, startCF) then break end
             task.wait(0.1)
         end
+        if startCF then safeTeleport(startCF) end
         notify("誓言", "完成", 2)
     end)
 end, duckSec)
+
 makeBtn("带回无归属的", 5, function()
+    local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    local startCF = hrp and hrp.CFrame
     task.spawn(function()
         for i = 1, (batchDuckCount == 0 and 9999 or batchDuckCount) do
             if duckBatchStop then break end
-            if not bringDuckc(selectedDuckName, false) then break end
+            if not bringDuckc(selectedDuckName, false, startCF) then break end
             task.wait(0.1)
         end
+        if startCF then safeTeleport(startCF) end
         notify("誓言", "完成", 2)
     end)
 end, duckSec)
+
 makeBtn("停止", 6, function()
     duckBatchStop = true
     notify("誓言", "已停止", 2)
