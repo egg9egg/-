@@ -1,7 +1,10 @@
 --[[
-    誓言面板 - 完整合并版
+    誓言面板 - 可折叠分区版（完整）
     卡密：誓言NB
     左侧分区：信息 / 功能 / 合成 / 鸭子 / 购买
+    功能页与购买页的子分区点击标题可折叠/展开
+    传送页带刷新玩家列表按钮
+    EvilHeart 合成源码照搬版
 ]]
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -39,6 +42,7 @@ local function notify(title, desc, duration)
     end)
 end
 
+-- ==================== 基础工具 ====================
 local lockPlayerConn = nil
 local function uprightCFrame(hrp, cf)
     local pos = cf.Position
@@ -72,6 +76,7 @@ end
 
 local bai = { dragIDCounter=0, cachedSawmill=nil, cachedSawmillPos=nil }
 
+-- ==================== 拖拽 ====================
 local function getNextDragID() bai.dragIDCounter = bai.dragIDCounter + 1; return bai.dragIDCounter end
 local DRAG_TOTAL, DRAG_SET_START, DRAG_SET_COUNT = 60, 28, 2
 local DRAG_SET_INTERVAL, DRAG_REFRESH_INTERVAL, DRAG_AFTER_WAIT = 0.01, 0.01, 0.01
@@ -144,6 +149,7 @@ local function dragToPosition(model, targetCF, callback, waitFinish)
     if callback then callback() end
 end
 
+-- ==================== 树木数据 ====================
 local TREE_CN = {
 Generic="普通树",GenericDead="枯木",GenericFall="落叶树",GenericGold="金树",GenericPrime="原始树",
 GenericSpecial="特殊树",GoldSwampy="沼泽黄金",GreenSwampy="沼泽青",Cherry="樱花树",
@@ -220,6 +226,7 @@ local treeNames = {}
 for name in pairs(treeMapping) do table.insert(treeNames, name) end
 sortTreeNames(treeNames)
 
+-- ==================== 找树/斧头 ====================
 local function findUncutTree(treeClass)
     local playerPos = lp.Character and lp.Character.HumanoidRootPart.Position
     if not playerPos then return nil end
@@ -398,6 +405,7 @@ local function isInDangerZone(pos)
         and pos.Z >= DANGER_MIN_Z and pos.Z <= DANGER_MAX_Z
 end
 
+-- ==================== 砍树 ====================
 local function bringTreeOld(treeClass, progressText)
     local weaponName, weaponConfig, damage = selectBestWeaponOld(treeClass)
     if not weaponName then notify("誓言", "自动选武器失败", 3); return false end
@@ -534,6 +542,7 @@ local function runBringTree(treeClass, progressText)
     else return bringTreeOld(treeClass, progressText) end
 end
 
+-- ==================== 选择锯木机 ====================
 local function selectSawmill()
     notify("誓言", "请点击锯木机任意部件", 3)
     local conn
@@ -568,6 +577,7 @@ local function selectSawmill()
     end)
 end
 
+-- ==================== 一键加工 ====================
 local function selectBestWeaponByPlan(treeClass)
     if selectedPlan == 2 then return selectBestWeaponNew(treeClass)
     else return selectBestWeaponOld(treeClass) end
@@ -682,6 +692,7 @@ local function startDecomposeSelection()
     end)
 end
 
+-- ==================== 传送 ====================
 local teleportTargetCF = nil
 local teleportTargetPlayer = lp.Name
 local teleportMarker = nil
@@ -817,7 +828,8 @@ local function teleportSelectedItems()
     notify("誓言", string.format("传送完成 %d/%d", successCount, #all), 3)
 end
 
-local OathGui = new("ScreenGui",{Name="OathPanel", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, Enabled=true}, PG)
+-- ==================== UI 主面板 ====================
+local OathGui = new("ScreenGui",{Name="OathPanel", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, Enabled=false}, PG)
 local Main = new("Frame",{Size=UDim2.fromOffset(540,340), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=T.Bg, BorderSizePixel=0, ClipsDescendants=true}, OathGui)
 crn(Main,16); strk(Main,T.Stroke,1)
 
@@ -858,6 +870,7 @@ for i, name in ipairs(tabs) do
 end
 pages[1].Visible = true; tabBtns[1].label.TextColor3 = T.Text
 
+-- 信息页
 local info = pages[1]
 local ic = new("Frame",{Size=UDim2.new(1,0,0,90), BackgroundColor3=T.Panel, BorderSizePixel=0, ClipsDescendants=true, LayoutOrder=0}, info)
 crn(ic,10)
@@ -866,6 +879,7 @@ new("Frame",{Size=UDim2.fromScale(1,1), BackgroundColor3=Color3.fromRGB(0,0,0), 
 new("TextLabel",{Size=UDim2.new(1,-20,0,30), Position=UDim2.new(0,10,0,10), BackgroundTransparency=1, Text=GAME_TITLE.." · 誓言面板", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=T.Text, ZIndex=3}, ic)
 new("TextLabel",{Size=UDim2.new(1,-20,0,20), Position=UDim2.new(0,10,0,40), BackgroundTransparency=1, Text="作者：是我太傻   QQ：3767465890   群：1109682737", Font=Enum.Font.Gotham, TextSize=11, TextColor3=T.Text, ZIndex=3}, ic)
 
+-- 窗口控制
 local btnHolder = new("Frame",{Size=UDim2.fromOffset(50, 18), Position=UDim2.new(1, -14, 0, 14), AnchorPoint=Vector2.new(1, 0), BackgroundTransparency=1, ZIndex=10}, Main)
 local function makeWinDot(color, x, cb)
     local btn = new("TextButton",{Size=UDim2.fromOffset(16, 16), Position=UDim2.new(0, x, 0, 0), BackgroundColor3=color, BorderSizePixel=0, Text="", AutoButtonColor=false, ZIndex=10}, btnHolder)
@@ -926,6 +940,7 @@ Island.MouseButton1Click:Connect(restore)
 makeWinDot(T.Yellow, 0, minimize)
 makeWinDot(T.Red, 24, closeUI)
 
+-- 拖动（顶部 50px）
 do
     local dragging, actualDragging = false, false
     local dragStart, startPos = nil, nil
@@ -968,6 +983,7 @@ UIS.InputBegan:Connect(function(input, proc)
     if input.KeyCode == Enum.KeyCode.RightShift then OathGui.Enabled = not OathGui.Enabled end
 end)
 
+-- ==================== 通用工厂 ====================
 local fc = pages[2]
 local currentSection = fc
 
@@ -1041,8 +1057,8 @@ local function makeToggle(text, order, defaultState, callback, parent)
     local state = defaultState
     local btn = new("TextButton", {Size = UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0, Text="", AutoButtonColor=false, LayoutOrder=order}, parent)
     crn(btn,8); strk(btn, Color3.fromRGB(48,48,52), 1, 0.3)
-    new("TextLabel", {Size = UDim2.new(1,-60,1,0), Position = UDim2.new(0,14,0,0), BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=14, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, TextTruncate=Enum.TextTruncate.AtEnd}, btn)
-    local ind = new("Frame", {Size = UDim2.fromOffset(14,14), AnchorPoint=Vector2.new(1,0.5), Position=UDim2.new(1,-16,0.5,0), BackgroundColor3=state and T.Accent or T.Sub, BorderSizePixel=0, ZIndex=5}, btn)
+    new("TextLabel", {Size=UDim2.new(1,-60,1,0), Position=UDim2.new(0,14,0,0), BackgroundTransparency=1, Text=text, Font=Enum.Font.GothamMedium, TextSize=14, TextColor3=T.Text, TextXAlignment=Enum.TextXAlignment.Left, TextTruncate=Enum.TextTruncate.AtEnd}, btn)
+    local ind = new("Frame", {Size=UDim2.fromOffset(14,14), AnchorPoint=Vector2.new(1,0.5), Position=UDim2.new(1,-16,0.5,0), BackgroundColor3=state and T.Accent or T.Sub, BorderSizePixel=0, ZIndex=5}, btn)
     crn(ind, 7)
     local indStroke = new("UIStroke", {Color=state and Color3.fromRGB(180,255,210) or Color3.fromRGB(90,90,100), Thickness=1.5, Transparency=0.2}, ind)
     btn.MouseButton1Click:Connect(function()
@@ -1134,6 +1150,7 @@ local function makeDropdown(text, order, options, default, onSelect, searchable,
     end
     plusBtn.MouseButton1Click:Connect(function() expand(not expanded) end)
 
+    -- 让外部能刷新选项列表
     local function setOptions(newOptions, newDefault)
         options = newOptions
         if newDefault then
@@ -1148,6 +1165,7 @@ local function makeDropdown(text, order, options, default, onSelect, searchable,
     return container, expand, setOptions
 end
 
+-- ==================== 功能页 ====================
 sectionHeader("带来树", 1)
 local selectedTreeClass = nil
 do
@@ -1189,7 +1207,7 @@ sectionHeader("一键加工", 7)
 makeBtn("选择锯木机", 8, selectSawmill)
 makeBtn("一键加工", 9, startDecomposeSelection)
 
-sectionHeader("传送物品", 10)
+sectionHeader("传送", 10)
 local tpSetOptions = nil
 do
     local pOpts = {}
@@ -1253,88 +1271,13 @@ makeToggle("同名选择开关", 18, false, function(s)
     end
 end)
 
-sectionHeader("传送", 19)
-
-local teleportLocations = {
-    ["出生点"] = CFrame.new(187,3,55),
-    ["木材反斗城"] = CFrame.new(265,5,57),
-    ["洞穴"] = CFrame.new(3581,-177,430),
-    ["连接逻辑店"] = CFrame.new(4607,9,-798),
-    ["雪山"] = CFrame.new(1451.66248,412.208405,3183.47607),
-    ["土地商店"] = CFrame.new(258,5,-99),
-    ["画店"] = CFrame.new(5207,-156,719),
-    ["火木"] = CFrame.new(-1585,625,1140),
-    ["沙滩"] = CFrame.new(2549,5,-42),
-    ["桥对岸"] = CFrame.new(109,5,-1166),
-    ["会员商店"] = CFrame.new(907,4,-92),
-    ["码头"] = CFrame.new(1122,1,-203),
-    ["黑市"] = CFrame.new(-22,61,1377),
-    ["糖果原"] = CFrame.new(-561,272,2312),
-    ["雪地入口"] = CFrame.new(888,61,1188),
-    ["盖克斯航运"] = CFrame.new(1894,-2,1581),
-    ["玻璃冰木入口"] = CFrame.new(1929,256,2918),
-    ["云层"] = CFrame.new(2073,495,2967),
-    ["山边商品"] = CFrame.new(-640,160,374),
-    ["章鱼哥祭坛"] = CFrame.new(-1622,196,941),
-    ["沼泽商店"] = CFrame.new(-1274,133,-1443),
-    ["沼泽"] = CFrame.new(-999,133,-1191),
-    ["石头商店"] = CFrame.new(-2387,302,-1899),
-    ["冰胡"] = CFrame.new(-2149,321,743),
-    ["沙漠"] = CFrame.new(-612,46,-3169),
-    ["辐射商店"] = CFrame.new(172,12,-2627),
-    ["核污染区"] = CFrame.new(207,15,-2752),
-    ["种子商人"] = CFrame.new(-24,18,-2684),
-    ["鲍勃的店"] = CFrame.new(261,9,-2541),
-    ["家具店"] = CFrame.new(492,4,-1723),
-    ["车店"] = CFrame.new(512,4,-1459),
-    ["罗布克斯商店"] = CFrame.new(652,4,-1589),
-    ["肯德坤专卖店"] = CFrame.new(65,4,-455),
-    ["秋季商店"] = CFrame.new(6004,4,33),
-    ["回家"] = "HOME"
-}
-
-local tpLocOptions = {}
-for name, _ in pairs(teleportLocations) do
-    table.insert(tpLocOptions, name)
-end
-table.sort(tpLocOptions)
-
-local selectedTpLocation = "出生点"
-
-makeDropdown("选择传送地点", 20, tpLocOptions, selectedTpLocation, function(v)
-    selectedTpLocation = v
-end)
-
-makeBtn("执行传送", 21, function()
-    local target = teleportLocations[selectedTpLocation]
-    if not target then
-        notify("誓言", "无效的传送地点", 3)
-        return
-    end
-
-    if target == "HOME" then
-        local found = false
-        for _, v in pairs(workspace.Properties:GetChildren()) do
-            if v.Owner.Value == lp then
-                safeTeleport(v.OriginSquare.CFrame + Vector3.new(0, 10, 0))
-                found = true
-                notify("誓言", "已传送回自己的基地", 2)
-                break
-            end
-        end
-        if not found then
-            notify("誓言", "你没有土地，无法传送回家", 3)
-        end
-    else
-        safeTeleport(target)
-        notify("誓言", "已传送至: " .. selectedTpLocation, 2)
-    end
-end)
-
 print("[誓言面板] 第1段 已加载")
+-- 第2段继续：合成分区 + 鸭子分区
+
 -- ==================== 第3分区：合成 ====================
 local pSynthesize = pages[3]
 
+-- 通用可折叠标题
 local function makeCollapsible(title, order, parent)
     local container = new("Frame", {
         Size = UDim2.new(1, 0, 0, 0), BackgroundTransparency = 1,
@@ -1518,6 +1461,7 @@ local evilHeathDragTargets = {
     [3] = CFrame.new(-536.980713, -86.994179, -2021.368164),
 }
 
+-- 源码原版：等待物品就绪
 local function waitItemReady(item, timeout)
     timeout = timeout or 3
     local waited = 0
@@ -1532,6 +1476,7 @@ local function waitItemReady(item, timeout)
     return item and item.Parent and (item:FindFirstChild("ItemName") ~= nil or item:FindFirstChild("PurchasedBoxItemName") ~= nil)
 end
 
+-- 源码原版：等待新 EvilHeart 出现
 local function waitEvilHeartAppear(timeout, preSet)
     local deadline = os.clock() + (timeout or 10)
     while os.clock() < deadline do
@@ -1546,6 +1491,7 @@ local function waitEvilHeartAppear(timeout, preSet)
     return false
 end
 
+-- 单次合成（源码 startEvilHeartCombine 照搬）
 local function startEvilHeartCombine(basePos)
     local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
     local originalPos = basePos or (hrp and hrp.CFrame)
@@ -1917,272 +1863,450 @@ makeBtn("一键合成月亮鸭", 13, function()
 end, specialDuckSec)
 
 print("[誓言面板] 第2段 已加载")
+-- 第3段继续：购买分区 + 卡密 UI
 
--- ==================== 卡密系统（源码照搬版）====================
-local AUTH_URL = "http://qinscript.lol/api/card/verify"
-local AUTH_BYPASS_ON_FAIL = false
-local CARD_FILE = "DexPlusPlusSetting.json"
+-- ==================== 第5分区：购买 ====================
+local pBuy = pages[5]
 
-local function urlenc(s)
-    local ok, enc = pcall(function() return game:GetService("HttpService"):UrlEncode(tostring(s)) end)
-    if ok and enc then return enc end
-    return tostring(s)
-end
+local storeStatusLbl = new("TextLabel", {
+    Size = UDim2.new(1,0,0,20), BackgroundTransparency=1,
+    Text="   正在获取商店 NPC ID...", Font=Enum.Font.Gotham, TextSize=12,
+    TextColor3=T.Sub, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=1
+}, pBuy)
 
-local function getHwid()
-    local ok, cid = pcall(function()
-        return game:GetService("RbxAnalyticsService"):GetClientId()
-    end)
-    if ok and cid and cid ~= "" then return tostring(cid) end
-    local uid = game:GetService("Players").LocalPlayer.UserId or 0
-    return "FALLBACK_" .. tostring(uid)
-end
-
-local function getUsername()
-    local plr = game:GetService("Players").LocalPlayer
-    if plr and plr.Name then return tostring(plr.Name) end
-    return ""
-end
-
-local function verifyCard(key, hwid, username)
-    local keyStr = tostring(key or "")
-    if AUTH_BYPASS_ON_FAIL and keyStr == "" then
-        return true, "占位模式（未输入卡密），已放行"
-    end
-    local url = AUTH_URL .. "?key=" .. urlenc(keyStr)
-        .. "&hwid=" .. urlenc(tostring(hwid))
-        .. "&username=" .. urlenc(username or "")
-    local ok, result = pcall(function()
-        return game:HttpGet(url)
-    end)
-    if not ok or not result then
-        if AUTH_BYPASS_ON_FAIL then return true, "占位模式（服务器未就绪），已放行" end
-        return false, "网络错误，无法连接验证服务器"
-    end
-    if string.find(result, "OK", 1, true) then
-        return true, "卡密有效"
-    end
-    return false, (result ~= "" and result or "卡密无效")
-end
-
-local function loadSavedCardKey()
-    if writefile and readfile then
-        local ok, data = pcall(readfile, CARD_FILE)
-        if ok and data then
-            data = string.gsub(tostring(data), "%s", "")
-            if data ~= "" then return data end
+-- 商店翻译
+local translateMapping = {}
+local function loadStoreTranslations()
+    pcall(function()
+        local content = game:HttpGet("http://qinscript.lol/333/翻译商店.lua")
+        local func = loadstring(content)
+        if func then
+            local ok, m = pcall(func)
+            if ok and type(m) == "table" then translateMapping = m end
         end
-    end
-    return nil
-end
-
-local function saveCardKey(key)
-    if writefile then
-        pcall(writefile, CARD_FILE, tostring(key))
-    end
-end
-
-local function askCardKey(callback)
-    local lp = game:GetService("Players").LocalPlayer
-    local pg = lp and lp:FindFirstChild("PlayerGui")
-    if not pg then
-        return callback(nil)
-    end
-
-    local sg = Instance.new("ScreenGui")
-    sg.Name = "QSnowCardKey"
-    sg.ResetOnSpawn = false
-    sg.Parent = pg
-
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 300, 0, 118)
-    frame.Position = UDim2.new(1, -312, 0, 12)
-    frame.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
-    frame.BorderSizePixel = 0
-    frame.Parent = sg
-    local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 10); corner.Parent = frame
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -24, 0, 26)
-    title.Position = UDim2.new(0, 12, 0, 8)
-    title.BackgroundTransparency = 1
-    title.Font = Enum.Font.SourceSansBold
-    title.TextSize = 15
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Text = "输入卡密"
-    title.Parent = frame
-
-    local box = Instance.new("TextBox")
-    box.Size = UDim2.new(0, 276, 0, 32)
-    box.Position = UDim2.new(0, 12, 0, 38)
-    box.PlaceholderText = "请输入卡密"
-    box.Text = ""
-    box.ClearTextOnFocus = false
-    box.BackgroundColor3 = Color3.fromRGB(40, 40, 46)
-    box.TextColor3 = Color3.fromRGB(255, 255, 255)
-    box.TextSize = 15
-    box.Font = Enum.Font.SourceSans
-    box.BorderSizePixel = 0
-    box.Parent = frame
-    local boxCorner = Instance.new("UICorner"); boxCorner.CornerRadius = UDim.new(0, 6); boxCorner.Parent = box
-
-    local okBtn = Instance.new("TextButton")
-    okBtn.Size = UDim2.new(0, 126, 0, 30)
-    okBtn.Position = UDim2.new(0, 12, 0, 80)
-    okBtn.BackgroundColor3 = Color3.fromRGB(0, 168, 90)
-    okBtn.Text = "确认"
-    okBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    okBtn.TextSize = 14
-    okBtn.BorderSizePixel = 0
-    okBtn.AutoButtonColor = true
-    okBtn.Parent = frame
-    local okCorner = Instance.new("UICorner"); okCorner.CornerRadius = UDim.new(0, 6); okCorner.Parent = okBtn
-
-    local noBtn = Instance.new("TextButton")
-    noBtn.Size = UDim2.new(0, 126, 0, 30)
-    noBtn.Position = UDim2.new(0, 146, 0, 80)
-    noBtn.BackgroundColor3 = Color3.fromRGB(92, 92, 98)
-    noBtn.Text = "取消"
-    noBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    noBtn.TextSize = 14
-    noBtn.BorderSizePixel = 0
-    noBtn.AutoButtonColor = true
-    noBtn.Parent = frame
-    local noCorner = Instance.new("UICorner"); noCorner.CornerRadius = UDim.new(0, 6); noCorner.Parent = noBtn
-
-    local done = false
-    local function finish(v)
-        if done then return end
-        done = true
-        sg:Destroy()
-        callback(v)
-    end
-
-    okBtn.MouseButton1Click:Connect(function() finish(box.Text) end)
-    noBtn.MouseButton1Click:Connect(function() finish(nil) end)
-end
-
-local function askLoadBlueprint(callback)
-    local lp = game:GetService("Players").LocalPlayer
-    local pg = lp and lp:FindFirstChild("PlayerGui")
-    if not pg then
-        return callback(false)
-    end
-
-    local sg = Instance.new("ScreenGui")
-    sg.Name = "QSnowConfirm"
-    sg.ResetOnSpawn = false
-    sg.Parent = pg
-
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 300, 0, 110)
-    frame.Position = UDim2.new(1, -312, 0, 12)
-    frame.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
-    frame.BorderSizePixel = 0
-    frame.Parent = sg
-    local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, 10); corner.Parent = frame
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, -24, 0, 26)
-    title.Position = UDim2.new(0, 12, 0, 8)
-    title.BackgroundTransparency = 1
-    title.Font = Enum.Font.SourceSansBold
-    title.TextSize = 15
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Text = "是否加载蓝图功能？(第一次体验N/A小时)"
-    title.Parent = frame
-
-    local countLabel = Instance.new("TextLabel")
-    countLabel.Size = UDim2.new(1, -24, 0, 20)
-    countLabel.Position = UDim2.new(0, 12, 0, 36)
-    countLabel.BackgroundTransparency = 1
-    countLabel.Font = Enum.Font.SourceSans
-    countLabel.TextSize = 13
-    countLabel.TextColor3 = Color3.fromRGB(185, 185, 190)
-    countLabel.TextXAlignment = Enum.TextXAlignment.Left
-    countLabel.Text = "15 秒后自动关闭"
-    countLabel.Parent = frame
-
-    local okBtn = Instance.new("TextButton")
-    okBtn.Size = UDim2.new(0, 126, 0, 30)
-    okBtn.Position = UDim2.new(0, 12, 0, 62)
-    okBtn.BackgroundColor3 = Color3.fromRGB(0, 168, 90)
-    okBtn.Text = "加载蓝图"
-    okBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    okBtn.TextSize = 14
-    okBtn.BorderSizePixel = 0
-    okBtn.AutoButtonColor = true
-    okBtn.Parent = frame
-    local okCorner = Instance.new("UICorner"); okCorner.CornerRadius = UDim.new(0, 6); okCorner.Parent = okBtn
-
-    local noBtn = Instance.new("TextButton")
-    noBtn.Size = UDim2.new(0, 126, 0, 30)
-    noBtn.Position = UDim2.new(0, 146, 0, 62)
-    noBtn.BackgroundColor3 = Color3.fromRGB(92, 92, 98)
-    noBtn.Text = "不加载"
-    noBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    noBtn.TextSize = 14
-    noBtn.BorderSizePixel = 0
-    noBtn.AutoButtonColor = true
-    noBtn.Parent = frame
-    local noCorner = Instance.new("UICorner"); noCorner.CornerRadius = UDim.new(0, 6); noCorner.Parent = noBtn
-
-    local done = false
-    local function finish(v)
-        if done then return end
-        done = true
-        sg:Destroy()
-        callback(v)
-    end
-
-    okBtn.MouseButton1Click:Connect(function() finish(true) end)
-    noBtn.MouseButton1Click:Connect(function() finish(false) end)
-
-    task.spawn(function()
-        local remaining = 15
-        while remaining > 0 and not done do
-            countLabel.Text = tostring(remaining) .. " 秒后自动关闭"
-            task.wait(1)
-            remaining = remaining - 1
-        end
-        finish(false)
     end)
 end
+local function getStoreDisplayName(en)
+    local cn = translateMapping[en]
+    if cn and cn ~= "" then return cn.." ("..en..")" end
+    return en
+end
+loadStoreTranslations()
 
--- ==================== 启动卡密验证流程 ====================
-local hwid = getHwid()
-local username = getUsername()
-local savedKey = loadSavedCardKey()
+local storeInfoMapping = {
+    AutumnCatalog={name="William", path="William"},
+    BlackMarket={name="sneakypotato7", path="sneakypotato7"},
+    CarStore={name="Jenny", path="Jenny"},
+    MusicStore={name="NazuReborn", path="NazuReborn"},
+    FineArt={name="Timothy", path="Timothy"},
+    FineFinds={name="Manachron", path="Manachron"},
+    FurnitureStore={name="Corey", path="Corey"},
+    HLStand={name="???", path="???"},
+    Igloo={name="Cold Guy", path="Cold Guy"},
+    LogicStore={name="Lincoln", path="Lincoln"},
+    MountainSide={name="Mr.Bacon", path="Mr.Bacon"},
+    PlanterStore={name="OGxOutcast", path="OGxOutcast"},
+    PlantomicsChoice={name="Null", path="Null"},
+    SallysSeasonal={name="Sally", path="Sally"},
+    SaplingCart={name="Billy", path="Billy"},
+    SeaSide={name="Guy", path="Guy"},
+    StoneRUs={name="Bloxyway", path="Bloxyway"},
+    TravelingTrader={name="Trader", path="Trader"},
+    VIPSHOP={name="Todd", path="Todd"},
+    WoodRUs={name="Thom", path="Thom"},
+}
+local npcMapping = {}
+for storeName, info in pairs(storeInfoMapping) do
+    npcMapping[storeName] = {name=info.name, id=nil, path=info.path}
+end
+local stopPurchaseFlag = false
 
-askLoadBlueprint(function(confirmed)
-    if not confirmed then return end
-
-    if savedKey and savedKey ~= "" then
-        local ok, msg = verifyCard(savedKey, hwid, username)
-        if ok then
-            notify("誓言", "卡密验证成功（已保存的卡密）", 3)
-            return
+local function GetAllCashierIds()
+    local cashierIds = {}
+    local receivedCount = 0
+    local totalExpected = 0
+    for _ in pairs(storeInfoMapping) do totalExpected = totalExpected + 1 end
+    local conn = rep.NPCDialog.PromptChat.OnClientEvent:Connect(function(...)
+        local pack = {...}
+        for _, v in ipairs(pack) do
+            if type(v) == "table" and v.Name and v.ID then
+                if not cashierIds[v.Name] then cashierIds[v.Name] = v.ID; receivedCount = receivedCount + 1 end
+            end
         end
-        notify("誓言", "卡密验证失败: "..tostring(msg), 5)
-        savedKey = nil
-    end
-
-    askCardKey(function(key)
-        if key == nil then return end
-        local keyStr = string.gsub(tostring(key), "%s", "")
-        local ok, msg = verifyCard(keyStr, hwid, username)
-        if not ok then
-            notify("誓言", "验证失败: "..tostring(msg), 6)
-            return
-        end
-        if keyStr ~= "" then
-            saveCardKey(keyStr)
-        end
-        notify("誓言", "卡密验证成功", 3)
     end)
+    pcall(function() rep.NPCDialog.SetChattingValue:InvokeServer(1) end)
+    local startTime = tick()
+    while receivedCount < totalExpected and tick() - startTime < 20 do task.wait(0.2) end
+    conn:Disconnect()
+    pcall(function() rep.NPCDialog.SetChattingValue:InvokeServer(0) end)
+    return cashierIds
+end
+
+task.spawn(function()
+    local ids = GetAllCashierIds()
+    for storeName, info in pairs(storeInfoMapping) do
+        if ids[info.name] then npcMapping[storeName].id = ids[info.name] end
+    end
+    local okCount = 0
+    for _, info in pairs(npcMapping) do if info.id then okCount = okCount + 1 end end
+    storeStatusLbl.Text = string.format("   已获取 %d 个商店 NPC ID", okCount)
+    notify("誓言", string.format("已获取 %d 个商店NPC ID", okCount), 2)
 end)
 
-print("[誓言面板] 第3段 已加载")
-print("[誓言面板] 全部加载完成")
+local allStores = {}
+task.spawn(function()
+    local StoresFolder = workspace:WaitForChild("Stores")
+    task.wait(2)
+    for _, store in pairs(StoresFolder:GetChildren()) do
+        local shopItems = store:FindFirstChild("ShopItems")
+        if shopItems and #shopItems:GetChildren() > 0 then
+            local storeName = store.Name
+            local npcInfo = npcMapping[storeName]
+            if npcInfo then
+                local isMusic = (storeName == "MusicStore")
+                table.insert(allStores, {
+                    name = storeName, object = store, shopItems = shopItems,
+                    npc = npcInfo, isMusicStore = isMusic,
+                })
+            end
+        end
+    end
+    table.sort(allStores, function(a, b) return a.name < b.name end)
+    notify("誓言", string.format("已扫描 %d 个商店", #allStores), 2)
+end)
+
+-- 单个购买循环（用 dragToPosition，跟带来树一样）
+local function purchaseCycle(storeInfo, selectedItemName, buyAmount, itemCD)
+    local store = storeInfo.object
+    local shopItems = storeInfo.shopItems
+    local npcInfo = storeInfo.npc
+    if not npcInfo or not npcInfo.id then notify("誓言", "NPC ID 无效", 4); return false end
+    local npcChar = store:FindFirstChild(npcInfo.path)
+    if not npcChar then notify("誓言", "找不到NPC", 3); return false end
+    local counter = store:FindFirstChild("Counter")
+    if not counter or not counter:IsA("BasePart") then notify("誓言", "无Counter", 3); return false end
+    local NPCDialog = rep:WaitForChild("NPCDialog")
+
+    local function sendPurchaseAndCollect()
+        local purchasedItems = {}
+        local conn = workspace.PlayerModels.ChildAdded:Connect(function(model)
+            if model:IsA("Model") and model:FindFirstChild("Owner") and model.Owner.Value == lp then
+                table.insert(purchasedItems, model)
+            end
+        end)
+        local args = {{ID=npcInfo.id, Character=npcChar, Name=npcInfo.name}, "ConfirmPurchase"}
+        pcall(function() NPCDialog.PlayerChatted:InvokeServer(table.unpack(args)) end)
+        task.wait(0.04)
+        conn:Disconnect()
+        return purchasedItems
+    end
+
+    local function findItemByCD(cdValue)
+        for _, child in pairs(shopItems:GetChildren()) do
+            local s = child:FindFirstChild("Settings")
+            if s then
+                local cd = s:FindFirstChild("CD")
+                if cd and cd:IsA("StringValue") and cd.Value == cdValue then return child end
+            end
+        end
+        return nil
+    end
+
+    local hrp0 = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp0 then notify("誓言", "无法获取玩家位置", 3); return false end
+    local originalPos = hrp0.CFrame
+
+    local successCycles = 0
+    for i = 1, buyAmount do
+        if stopPurchaseFlag then break end
+        local itemModel
+        if itemCD then
+            itemModel = findItemByCD(itemCD)
+            if not itemModel then
+                local deadline = tick() + 15
+                while tick() < deadline and not itemModel do
+                    if stopPurchaseFlag then break end
+                    task.wait(0.2)
+                    itemModel = findItemByCD(itemCD)
+                end
+            end
+        else
+            itemModel = shopItems:FindFirstChild(selectedItemName)
+            if not itemModel then
+                local deadline = tick() + 15
+                while tick() < deadline and not itemModel do
+                    if stopPurchaseFlag then break end
+                    task.wait(0.2)
+                    itemModel = shopItems:FindFirstChild(selectedItemName)
+                end
+            end
+        end
+        if not itemModel then notify("誓言", "商品不在货架", 3); break end
+        local itemPrimary = itemModel.PrimaryPart or itemModel:FindFirstChild("WoodSection") or itemModel:FindFirstChild("Main") or itemModel:FindFirstChildWhichIsA("BasePart")
+        if not itemPrimary then break end
+        if not itemModel.PrimaryPart then itemModel.PrimaryPart = itemPrimary end
+        lockPlayerAt(itemPrimary.CFrame + Vector3.new(0,3,0))
+        task.wait(0.2)
+        dragToPosition(itemModel, counter.CFrame + Vector3.new(0,0.6,0), nil, true)
+        lockPlayerAt(counter.CFrame + Vector3.new(0,3,0))
+        task.wait(0.1)
+        local allItems = {}
+        for k = 1, 2 do
+            if stopPurchaseFlag then break end
+            local items = sendPurchaseAndCollect()
+            if items then for _, it in ipairs(items) do table.insert(allItems, it) end
+            else break end
+            if k < 2 then task.wait(0.01) end
+        end
+        for _, item in ipairs(allItems) do
+            if stopPurchaseFlag then break end
+            if item and item.Parent then
+                if not item.PrimaryPart then
+                    local part = item:FindFirstChild("Main") or item:FindFirstChild("WoodSection") or item:FindFirstChildWhichIsA("BasePart")
+                    if part then item.PrimaryPart = part end
+                end
+                dragToPosition(item, originalPos, nil, true)
+                task.wait(0.05)
+            end
+        end
+        successCycles = successCycles + 1
+        if i < buyAmount and not stopPurchaseFlag then task.wait(0.5) end
+    end
+    unlockPlayer()
+    safeTeleport(originalPos)
+    if stopPurchaseFlag then
+        notify("已停止", "购买已中断", 3); stopPurchaseFlag = false; return false
+    else
+        notify(storeInfo.name, string.format("完成 %d/%d 次", successCycles, buyAmount), 4)
+        return successCycles == buyAmount
+    end
+end
+
+_G.qSnowBuyBlueprintBox = function(blueprintName)
+    if stopPurchaseFlag then return nil, "已停止" end
+    local targetStore, targetItemName = nil, nil
+    local lower = string.lower(tostring(blueprintName))
+    for _, s in ipairs(allStores) do
+        if s.shopItems then
+            for _, item in pairs(s.shopItems:GetChildren()) do
+                if string.lower(tostring(item.Name)) == lower then targetStore, targetItemName = s, item.Name; break end
+            end
+        end
+        if targetStore then break end
+    end
+    if not targetStore then return nil, "没有任何商店出售: "..tostring(blueprintName) end
+    if not targetStore.npc or not targetStore.npc.id then return nil, "NPC ID 未获取" end
+    local store = targetStore.object
+    local npcInfo = targetStore.npc
+    local npcChar = store:FindFirstChild(npcInfo.path)
+    if not npcChar then return nil, "找不到NPC" end
+    local counter = store:FindFirstChild("Counter")
+    if not counter or not counter:IsA("BasePart") then return nil, "无Counter" end
+    local shopItems = store:FindFirstChild("ShopItems")
+    if not shopItems then return nil, "无 ShopItems" end
+    local itemModel = shopItems:FindFirstChild(targetItemName)
+    if not itemModel then return nil, "商品不在货架" end
+    local primary = itemModel.PrimaryPart or itemModel:FindFirstChild("WoodSection") or itemModel:FindFirstChild("Main") or itemModel:FindFirstChildWhichIsA("BasePart")
+    if not primary then return nil, "无法定位商品模型" end
+    if not itemModel.PrimaryPart then itemModel.PrimaryPart = primary end
+    lockPlayerAt(primary.CFrame + Vector3.new(0,3,0))
+    task.wait(0.3)
+    dragToPosition(itemModel, counter.CFrame + Vector3.new(0,0.6,0), nil, true)
+    task.wait(0.09)
+    lockPlayerAt(counter.CFrame + Vector3.new(0,3,0))
+    task.wait(0.1)
+    local purchased = {}
+    local conn = workspace.PlayerModels.ChildAdded:Connect(function(m)
+        if m:IsA("Model") and m:FindFirstChild("Owner") and m.Owner.Value == lp then table.insert(purchased, m) end
+    end)
+    local NPCDialog = rep:WaitForChild("NPCDialog")
+    local args = {{ID=npcInfo.id, Character=npcChar, Name=npcInfo.name}, "ConfirmPurchase"}
+    pcall(function() NPCDialog.PlayerChatted:InvokeServer(table.unpack(args)) end)
+    task.wait(0.1)
+    pcall(function() NPCDialog.PlayerChatted:InvokeServer(table.unpack(args)) end)
+    task.wait(0.1)
+    conn:Disconnect()
+    unlockPlayer()
+    for i = #purchased, 1, -1 do
+        local m = purchased[i]
+        if m and m.Parent then return m, targetStore.name end
+    end
+    return nil, "购买后未找到新盒子"
+end
+
+local function getDisplayName(en)
+    local cn = translateMapping[en]
+    if cn and cn ~= "" then return cn.." ("..en..")" end
+    return en
+end
+
+-- 动态生成商店 UI
+task.spawn(function()
+    task.wait(4)
+    if #allStores == 0 then
+        new("TextLabel", {Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0,
+            Text="   未找到商店，请检查游戏环境", Font=Enum.Font.GothamMedium,
+            TextSize=13, TextColor3=T.Red, TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=99
+        }, pBuy)
+        return
+    end
+
+    -- 快捷操作（也做成可折叠）
+    local quickBody = makeCollapsible("快捷操作", 100, pBuy)
+    makeBtn("一键购买所有蓝图", 101, function()
+        task.spawn(function()
+            stopPurchaseFlag = false
+            local blueprintFolder = lp:FindFirstChild("PlayerBlueprints") and lp.PlayerBlueprints:FindFirstChild("Blueprints")
+            local targets, seen = {}, {}
+            for _, store in ipairs(allStores) do
+                if store.shopItems then
+                    for _, item in pairs(store.shopItems:GetChildren()) do
+                        local typeVal = item:FindFirstChild("Type")
+                        local tstr = (typeVal and typeVal.Value ~= nil) and tostring(typeVal.Value) or ""
+                        if tstr == "Blueprint" then
+                            local nm = tostring(item.Name)
+                            if nm ~= "" and not seen[nm] then
+                                seen[nm] = true
+                                if not (blueprintFolder and blueprintFolder:FindFirstChild(nm)) then targets[#targets+1] = nm end
+                            end
+                        end
+                    end
+                end
+            end
+            table.sort(targets)
+            if #targets == 0 then notify("誓言", "已拥有全部蓝图", 3); return end
+            notify("誓言", string.format("还缺 %d 种蓝图", #targets), 4)
+            local bought, stillMissing = 0, {}
+            for _, nm in ipairs(targets) do
+                if stopPurchaseFlag then break end
+                local box = _G.qSnowBuyBlueprintBox(nm)
+                if not box then table.insert(stillMissing, nm)
+                else
+                    local deadline = tick() + 5
+                    while tick() < deadline and not (blueprintFolder and blueprintFolder:FindFirstChild(nm)) do
+                        task.wait(0.3)
+                        if stopPurchaseFlag then break end
+                    end
+                    if blueprintFolder and blueprintFolder:FindFirstChild(nm) then bought = bought + 1
+                    else table.insert(stillMissing, nm) end
+                end
+                task.wait(0.2)
+            end
+            if #stillMissing > 0 then
+                pcall(function() setclipboard(table.concat(stillMissing, "\n")) end)
+                notify("誓言", string.format("新增 %d，仍缺 %d（已复制剪贴板）", bought, #stillMissing), 6)
+            else
+                notify("誓言", string.format("购买完成，新增 %d", bought), 5)
+            end
+        end)
+    end, quickBody)
+
+    -- 每个商店一个可折叠分区
+    for _, store in ipairs(allStores) do
+        local storeName = store.name
+        local storeDisplay = getStoreDisplayName(storeName)
+        local storeBody = makeCollapsible(storeDisplay, 200, pBuy)
+
+        local rawItems = {}
+        for _, item in pairs(store.shopItems:GetChildren()) do table.insert(rawItems, {name=item.Name, model=item}) end
+        table.sort(rawItems, function(a, b) return a.name < b.name end)
+
+        local displayOptions, valueMap = {}, {}
+        for _, entry in ipairs(rawItems) do
+            local dn = entry.name
+            local ident = entry.name
+            if store.isMusicStore then
+                local s = entry.model:FindFirstChild("Settings")
+                if s then
+                    local cd = s:FindFirstChild("CD")
+                    if cd and cd:IsA("StringValue") and cd.Value ~= "" then dn = cd.Value; ident = cd.Value end
+                end
+            end
+            local disp = getStoreDisplayName(dn)
+            displayOptions[#displayOptions+1] = disp
+            valueMap[disp] = ident
+        end
+
+        if #displayOptions == 0 then
+            new("TextLabel", {Size=UDim2.new(1,0,0,40), BackgroundColor3=T.RowBg, BorderSizePixel=0,
+                Text="   暂无商品", Font=Enum.Font.GothamMedium, TextSize=13, TextColor3=T.Sub,
+                TextXAlignment=Enum.TextXAlignment.Left, LayoutOrder=1}, storeBody)
+        else
+            local selectedIdent = valueMap[displayOptions[1]]
+            local buyAmount = 1
+
+            -- 1) 选择商品
+            makeDropdown("选择商品", 1, displayOptions, displayOptions[1], function(v)
+                selectedIdent = valueMap[v]
+            end, false, storeBody)
+
+            -- 2) 购买数量
+            makeBox("购买数量", "1", 2, "1", function(v)
+                local n = tonumber(v)
+                if n and n > 0 then buyAmount = math.floor(n)
+                else notify("誓言", "请输入大于0的整数", 2) end
+            end, storeBody)
+
+            -- 3) 购买按钮
+            makeBtn("购买", 3, function()
+                if not store.npc.id then notify("誓言", "商店 ID 未就绪，请等待", 3); return end
+                if not selectedIdent then notify("誓言", "请先选择商品", 3); return end
+                stopPurchaseFlag = false
+                task.spawn(function()
+                    purchaseCycle(store, store.isMusicStore and nil or selectedIdent, buyAmount, store.isMusicStore and selectedIdent or nil)
+                end)
+            end, storeBody)
+
+            -- 4) 停止购买
+            makeBtn("停止购买", 4, function()
+                stopPurchaseFlag = true
+                notify("誓言", "已停止", 2)
+            end, storeBody)
+        end
+    end
+end)
+
+-- ==================== 卡密 UI ====================
+local function showKeyUI()
+    local KT = { Accent=Color3.fromRGB(88,220,130), Card=Color3.fromRGB(28,29,34), Input=Color3.fromRGB(22,23,27), Text=Color3.fromRGB(232,234,238), Sub=Color3.fromRGB(130,133,142), Stroke=Color3.fromRGB(48,50,56), Red=Color3.fromRGB(240,90,80) }
+    local keyGui = new("ScreenGui",{Name="OathKeyUI", ResetOnSpawn=false, ZIndexBehavior=Enum.ZIndexBehavior.Sibling, IgnoreGuiInset=true, DisplayOrder=200}, PG)
+    local bd = new("Frame",{Size=UDim2.fromScale(1,1), BackgroundColor3=Color3.fromRGB(0,0,0), BackgroundTransparency=0.35, BorderSizePixel=0}, keyGui)
+    local card = new("Frame",{Size=UDim2.fromOffset(360,400), Position=UDim2.fromScale(0.5,0.5), AnchorPoint=Vector2.new(0.5,0.5), BackgroundColor3=KT.Card, BorderSizePixel=0, ClipsDescendants=true}, bd)
+    crn(card,22); strk(card,KT.Stroke,1)
+    local cat = new("ImageLabel",{Size=UDim2.new(1,0,0,180), Position=UDim2.new(0,0,1,-180), BackgroundTransparency=1, Image="rbxthumb://type=Asset&id=75524296710231&w=420&h=420", ScaleType=Enum.ScaleType.Crop, ZIndex=1}, card)
+    local fade = new("Frame",{Size=UDim2.new(1,0,0,40), BackgroundColor3=KT.Card, BorderSizePixel=0, ZIndex=2}, cat)
+    new("UIGradient",{Rotation=90, Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0), NumberSequenceKeypoint.new(1,1)})}, fade)
+    local acc = new("Frame",{Size=UDim2.new(0,60,0,3), Position=UDim2.new(0.5,0,0,12), AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=KT.Accent, BorderSizePixel=0, ZIndex=3}, card)
+    crn(acc,2)
+    new("TextLabel",{Size=UDim2.new(1,-40,0,56), Position=UDim2.new(0,20,0,24), BackgroundTransparency=1, Text="Oath", Font=Enum.Font.SourceSansItalic, TextSize=46, TextColor3=KT.Accent, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3}, card)
+    new("TextLabel",{Size=UDim2.new(1,-40,0,20), Position=UDim2.new(0,20,0,80), BackgroundTransparency=1, Text="Enter your key to continue", Font=Enum.Font.Gotham, TextSize=12, TextColor3=KT.Sub, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3}, card)
+    local ih = new("Frame",{Size=UDim2.new(1,-60,0,42), Position=UDim2.new(0.5,0,0,118), AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=KT.Input, BorderSizePixel=0, ZIndex=3}, card)
+    crn(ih,12)
+    local ib = new("TextBox",{Size=UDim2.new(1,-24,1,0), Position=UDim2.new(0,12,0,0), BackgroundTransparency=1, Text="", PlaceholderText="请输入卡密...", PlaceholderColor3=KT.Sub, Font=Enum.Font.GothamMedium, TextSize=14, TextColor3=KT.Text, TextXAlignment=Enum.TextXAlignment.Left, ClearTextOnFocus=false, ZIndex=3}, ih)
+    local conf = new("TextButton",{Size=UDim2.new(1,-60,0,42), Position=UDim2.new(0.5,0,0,176), AnchorPoint=Vector2.new(0.5,0), BackgroundColor3=KT.Accent, BorderSizePixel=0, Text="验 证", Font=Enum.Font.GothamBold, TextSize=14, TextColor3=Color3.fromRGB(12,24,16), AutoButtonColor=false, ZIndex=3}, card)
+    crn(conf,12)
+    local tip = new("TextLabel",{Size=UDim2.new(1,-40,0,16), Position=UDim2.new(0,20,0,224), BackgroundTransparency=1, Text="", Font=Enum.Font.Gotham, TextSize=11, TextColor3=KT.Red, TextXAlignment=Enum.TextXAlignment.Center, ZIndex=3}, card)
+
+    local verifying = false
+    local function verify()
+        if verifying then return end; verifying = true
+        if KEYS[ib.Text] then
+            tip.TextColor3 = KT.Accent; tip.Text = "验证成功..."
+            OathGui.Enabled = true
+            TS:Create(card,TweenInfo.new(0.35,Enum.EasingStyle.Back,Enum.EasingDirection.In),{Size=UDim2.fromOffset(280,320), BackgroundTransparency=1}):Play()
+            TS:Create(bd,TweenInfo.new(0.35),{BackgroundTransparency=1}):Play()
+            task.wait(0.35)
+            keyGui:Destroy()
+        else
+            tip.TextColor3 = KT.Red; tip.Text = "卡密错误，请重试"
+            ib.Text = ""; verifying = false
+        end
+    end
+    conf.MouseButton1Click:Connect(verify)
+    ib.FocusLost:Connect(function(e) if e then verify() end end)
+    task.wait(0.3)
+    pcall(function() ib:CaptureFocus() end)
+end
+
+print("[誓言面板] 完整版 已加载（可折叠分区 + 传送刷新 + EvilHeart源码版）")
+showKeyUI()
